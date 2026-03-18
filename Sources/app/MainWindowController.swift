@@ -1,0 +1,847 @@
+import AppKit
+
+/// 메인 윈도우 컨트롤러 — Feature 간 중재자(Mediator) 역할
+final class MainWindowController: NSWindowController, NSMenuItemValidation {
+
+    // MARK: - Content Mode
+
+    private enum ContentMode {
+        case browser
+        case viewer
+    }
+
+    // MARK: - Toolbar Identifiers
+
+    private enum ToolbarID {
+        static let toolbar = NSToolbar.Identifier("MainToolbar")
+        static let back = NSToolbarItem.Identifier("back")
+        static let zoomIn = NSToolbarItem.Identifier("zoomIn")
+        static let zoomOut = NSToolbarItem.Identifier("zoomOut")
+        static let zoomFit = NSToolbarItem.Identifier("zoomFit")
+        static let addFolder = NSToolbarItem.Identifier("addFolder")
+    }
+
+    // MARK: - Dependencies
+
+    private let fileService: FileServiceProtocol = FileService()
+    private let imageService: ImageServiceProtocol = ImageService()
+    private let securityService = SecurityScopeService()
+
+    // MARK: - Child ViewControllers
+
+    private let splitViewController = NSSplitViewController()
+    private let sidebarVC = SidebarViewController()
+    private let browserVC: BrowserViewController
+    private let viewerVC: ViewerViewController
+
+    // MARK: - UI
+
+    private let statusBar = StatusBarView()
+
+    // MARK: - Active Panel
+
+    private enum ActivePanel {
+        case sidebar
+        case browser
+        case viewer
+    }
+
+    // MARK: - State
+
+    private var currentFolderURL: URL?
+    private var contentMode: ContentMode = .browser
+    private var activePanel: ActivePanel = .browser
+
+    // MARK: - Init
+
+    init() {
+        browserVC = BrowserViewController(imageService: imageService)
+        viewerVC = ViewerViewController(imageService: imageService)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "JenaImage"
+        window.titlebarAppearsTransparent = false
+        window.titleVisibility = .visible
+        window.toolbarStyle = .unified
+        window.minSize = NSSize(width: 700, height: 500)
+        window.center()
+        window.setFrameAutosaveName("MainWindow")
+
+        super.init(window: window)
+
+        setupToolbar()
+        setupDelegates()
+        setupLayout()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    // MARK: - Window Lifecycle
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        restoreOrRequestFolder()
+    }
+
+    // MARK: - Folder Access
+
+    private func restoreOrRequestFolder() {
+        let urls = securityService.restoreBookmarks()
+        for url in urls {
+            securityService.startAccessing(url)
+        }
+        sidebarVC.setFolders(urls)
+        if let first = urls.first {
+            navigateToFolder(first)
+        } else {
+            addFolder(nil)
+        }
+    }
+
+    @objc func addFolder(_ sender: Any?) {
+        guard let url = securityService.requestFolderAccess() else { return }
+        securityService.startAccessing(url)
+        sidebarVC.addFolder(url)
+        navigateToFolder(url)
+    }
+
+    private func removeFolder(_ url: URL) {
+        securityService.stopAccessing(url)
+        securityService.removeBookmark(for: url)
+        sidebarVC.removeFolder(at: url)
+        // 현재 보고 있던 폴더가 제거되면 첫 번째 폴더로 이동
+        if currentFolderURL?.path.hasPrefix(url.path) == true {
+            if let first = securityService.restoreBookmarks().first {
+                navigateToFolder(first)
+            } else {
+                currentFolderURL = nil
+                browserVC.display(folders: [], images: [])
+                window?.title = "JenaImage"
+            }
+        }
+    }
+
+    // MARK: - Navigation
+
+    private func navigateToFolder(_ url: URL) {
+        currentFolderURL = url
+        switchToMode(.browser)
+
+        let result = fileService.contentsOfFolder(at: url)
+        switch result {
+        case .success(let contents):
+            browserVC.display(folders: contents.folders, images: contents.images)
+            window?.title = url.lastPathComponent
+            statusBar.update(
+                folderCount: contents.folders.count,
+                imageCount: contents.images.count,
+                selectionCount: 0
+            )
+        case .failure(let error):
+            showError(error)
+        }
+    }
+
+    private func switchToMode(_ mode: ContentMode) {
+        guard contentMode != mode else { return }
+        contentMode = mode
+
+        // NSSplitViewItem.viewController는 교체 불가 — item 자체를 교체
+        let oldItem = splitViewController.splitViewItems.last!
+        splitViewController.removeSplitViewItem(oldItem)
+
+        let newVC: NSViewController
+        switch mode {
+        case .browser:
+            newVC = browserVC
+            statusBar.setViewerMode(false)
+        case .viewer:
+            newVC = viewerVC
+            statusBar.setViewerMode(true)
+        }
+
+        let newItem = NSSplitViewItem(viewController: newVC)
+        newItem.minimumThickness = 400
+        splitViewController.addSplitViewItem(newItem)
+
+        updateToolbarState()
+    }
+
+    // MARK: - File Operations
+
+    private func performDelete(urls: [URL]) {
+        let count = urls.count
+        let alert = NSAlert()
+        alert.messageText = "이미지 \(count)개를 휴지통으로 이동하시겠습니까?"
+        alert.informativeText = "이 작업은 취소할 수 있습니다."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "삭제")
+        alert.addButton(withTitle: "취소")
+        alert.buttons.first?.hasDestructiveAction = true
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        var failedURLs: [URL] = []
+        for url in urls {
+            if case .failure = fileService.trashFile(at: url) {
+                failedURLs.append(url)
+            } else {
+                ThumbnailCache.shared.invalidate(for: url)
+            }
+        }
+
+        if !failedURLs.isEmpty {
+            showError(FileServiceError.operationFailed("일부 파일을 삭제할 수 없습니다"))
+        }
+
+        let parentFolders = Set(urls.map { $0.deletingLastPathComponent() })
+        refreshCurrentFolder()
+        for folder in parentFolders {
+            sidebarVC.reloadFolder(at: folder)
+        }
+    }
+
+    private func performMove(urls: [URL]) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.prompt = "이동"
+        panel.message = "이동할 폴더를 선택하세요"
+
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        performMoveToFolder(urls: urls, target: target)
+    }
+
+    private func performMoveToFolder(urls: [URL], target: URL) {
+        let sourceFolders = Set(urls.map { $0.deletingLastPathComponent() })
+
+        for url in urls {
+            let result = fileService.moveFile(from: url, to: target)
+            switch result {
+            case .success:
+                ThumbnailCache.shared.invalidate(for: url)
+            case .failure(let error):
+                if case .nameConflict = error {
+                    handleFileConflict(source: url, target: target, isMove: true)
+                } else {
+                    showError(error)
+                }
+            }
+        }
+        refreshCurrentFolder()
+        sidebarVC.reloadFolder(at: target)
+        for sourceFolder in sourceFolders {
+            if sourceFolder != target {
+                sidebarVC.reloadFolder(at: sourceFolder)
+            }
+        }
+    }
+
+    private func performCopy(urls: [URL]) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.prompt = "복사"
+        panel.message = "복사할 폴더를 선택하세요"
+
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+
+        for url in urls {
+            let result = fileService.copyFile(from: url, to: target)
+            if case .failure(let error) = result {
+                if case .nameConflict = error {
+                    handleFileConflict(source: url, target: target, isMove: false)
+                } else {
+                    showError(error)
+                }
+            }
+        }
+    }
+
+    private func performRename(url: URL, newName: String) {
+        var isDirectory: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+        if !isDirectory.boolValue {
+            let oldExt = url.pathExtension.lowercased()
+            let newExt = (newName as NSString).pathExtension.lowercased()
+
+            if !newExt.isEmpty, oldExt != newExt {
+                let alert = NSAlert()
+                alert.messageText = "확장자를 변경하면 파일을 열 수 없을 수 있습니다."
+                alert.informativeText = "확장자를 \"\(oldExt)\"에서 \"\(newExt)\"로 변경하시겠습니까?"
+                alert.addButton(withTitle: "변경")
+                alert.addButton(withTitle: "취소")
+                guard alert.runModal() == .alertFirstButtonReturn else { return }
+            }
+        }
+
+        let result = fileService.renameFile(at: url, newName: newName)
+        switch result {
+        case .success(let newURL):
+            ThumbnailCache.shared.invalidate(for: url)
+            if contentMode == .viewer {
+                viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)
+            }
+            refreshCurrentFolder()
+            let parentFolder = url.deletingLastPathComponent()
+            sidebarVC.reloadFolder(at: parentFolder)
+        case .failure(let error):
+            showError(error)
+        }
+    }
+
+    private func performExport(url: URL) {
+        Task { @MainActor in
+            let loadResult = await imageService.loadImage(at: url)
+            guard case .success(let image) = loadResult else {
+                showError(ImageServiceError.loadFailed(url))
+                return
+            }
+
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = url.lastPathComponent
+
+            let accessory = ExportAccessoryView()
+            if let currentFormat = ImageFormat.from(extension: url.pathExtension) {
+                accessory.selectedFormat = currentFormat
+            }
+            panel.accessoryView = accessory
+
+            guard panel.runModal() == .OK, let saveURL = panel.url else { return }
+
+            let format = accessory.selectedFormat
+            let quality = accessory.quality
+            let exportResult = self.imageService.exportImage(image, to: saveURL, format: format, quality: quality)
+
+            if case .failure(let error) = exportResult {
+                showError(error)
+            }
+        }
+    }
+
+    private func handleFileConflict(source: URL, target: URL, isMove: Bool) {
+        let fileName = source.lastPathComponent
+        let alert = NSAlert()
+        alert.messageText = "'\(fileName)' 파일이 이미 존재합니다."
+        alert.addButton(withTitle: "이름 변경")
+        alert.addButton(withTitle: "덮어쓰기")
+        alert.addButton(withTitle: "건너뛰기")
+
+        let response = alert.runModal()
+        let destination = target.appendingPathComponent(fileName)
+
+        switch response {
+        case .alertFirstButtonReturn:
+            let newName = generateUniqueName(for: fileName, in: target)
+            let newDest = target.appendingPathComponent(newName)
+            if isMove {
+                try? FileManager.default.moveItem(at: source, to: newDest)
+            } else {
+                try? FileManager.default.copyItem(at: source, to: newDest)
+            }
+        case .alertSecondButtonReturn:
+            try? FileManager.default.removeItem(at: destination)
+            if isMove {
+                try? FileManager.default.moveItem(at: source, to: destination)
+            } else {
+                try? FileManager.default.copyItem(at: source, to: destination)
+            }
+        default: break
+        }
+    }
+
+    private func generateUniqueName(for name: String, in folder: URL) -> String {
+        let baseName = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        var counter = 2
+
+        while true {
+            let candidate = ext.isEmpty ? "\(baseName) \(counter)" : "\(baseName) \(counter).\(ext)"
+            let candidateURL = folder.appendingPathComponent(candidate)
+            if !fileService.fileExists(at: candidateURL) { return candidate }
+            counter += 1
+        }
+    }
+
+    // MARK: - Toolbar Actions
+
+    @objc private func toolbarBack(_ sender: Any?) {
+        if contentMode == .viewer {
+            viewerDidRequestClose(viewerVC)
+        }
+    }
+
+    @objc func zoomIn(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomIn()
+    }
+
+    @objc func zoomOut(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomOut()
+    }
+
+    @objc func zoomActualSize(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomActualSize()
+    }
+
+    @objc func zoomFit(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomFit()
+    }
+
+    // MARK: - Active Selection Helper
+
+    private var isSidebarActive: Bool {
+        activePanel == .sidebar || sidebarVC.isFocused
+    }
+
+    /// 현재 활성 패널에 따른 선택된 URL 목록
+    private func activeSelectedURLs() -> [URL] {
+        if isSidebarActive, let url = sidebarVC.selectedItemURL {
+            return [url]
+        }
+        if contentMode == .viewer, let url = viewerVC.currentImageURL {
+            return [url]
+        }
+        return browserVC.selectedURLs()
+    }
+
+    /// 현재 활성 패널에 선택된 항목이 있는지
+    private func hasActiveSelection() -> Bool {
+        if isSidebarActive { return sidebarVC.selectedItemIsNonRoot }
+        if contentMode == .viewer { return viewerVC.currentImageURL != nil }
+        return !browserVC.selectedURLs().isEmpty
+    }
+
+    /// 현재 활성 패널에 이미지가 선택되어 있는지
+    private func hasActiveImageSelection() -> Bool {
+        if isSidebarActive { return sidebarVC.selectedItemIsImage }
+        if contentMode == .viewer { return viewerVC.currentImageURL != nil }
+        return !browserVC.selectedURLs().isEmpty
+    }
+
+    // MARK: - Menu Actions
+
+    @objc func revealInFinder(_ sender: Any?) {
+        let urls = activeSelectedURLs()
+        if !urls.isEmpty {
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        } else if let folder = currentFolderURL {
+            NSWorkspace.shared.activateFileViewerSelecting([folder])
+        }
+    }
+
+    @objc func copyImageToClipboard(_ sender: Any?) {
+        guard let url = activeSelectedURLs().first,
+              let image = NSImage(contentsOf: url) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
+    }
+
+    @objc func selectAllItems(_ sender: Any?) {
+        guard contentMode == .browser else { return }
+        browserVC.selectAllItems()
+    }
+
+    @objc func toggleSidebar(_ sender: Any?) {
+        guard let sidebarItem = splitViewController.splitViewItems.first else { return }
+        sidebarItem.animator().isCollapsed = !sidebarItem.isCollapsed
+    }
+
+    @objc func goBack(_ sender: Any?) {
+        if contentMode == .viewer {
+            activePanel = .browser
+            viewerDidRequestClose(viewerVC)
+        }
+    }
+
+    @objc func navigatePreviousImage(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.showPrevious()
+    }
+
+    @objc func navigateNextImage(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.showNext()
+    }
+
+    @objc func toggleFullScreen(_ sender: Any?) {
+        window?.toggleFullScreen(sender)
+    }
+
+    @objc func moveSelected(_ sender: Any?) {
+        let urls = activeSelectedURLs()
+        if !urls.isEmpty { performMove(urls: urls) }
+    }
+
+    @objc func copySelected(_ sender: Any?) {
+        let urls = activeSelectedURLs()
+        if !urls.isEmpty { performCopy(urls: urls) }
+    }
+
+    @objc func renameSelected(_ sender: Any?) {
+        if isSidebarActive {
+            sidebarVC.beginRenamingSelectedItem()
+        } else if contentMode == .browser {
+            browserVC.beginRenamingSelectedItem()
+        }
+    }
+
+    @objc func exportCurrentImage(_ sender: Any?) {
+        guard let url = activeSelectedURLs().first else { return }
+        performExport(url: url)
+    }
+
+    @objc func deleteSelected(_ sender: Any?) {
+        if isSidebarActive, sidebarVC.selectedItemIsNonRoot, let url = sidebarVC.selectedItemURL {
+            performDelete(urls: [url])
+            if contentMode == .viewer {
+                viewerVC.removeCurrentImage()
+            }
+        } else if contentMode == .viewer, let url = viewerVC.currentImageURL {
+            performDelete(urls: [url])
+            viewerVC.removeCurrentImage()
+        } else {
+            let urls = browserVC.selectedURLs()
+            if !urls.isEmpty { performDelete(urls: urls) }
+        }
+    }
+
+    // MARK: - Menu Validation
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        let isViewer = contentMode == .viewer
+
+        switch menuItem.action {
+        // 이미지 선택 필요 (클립보드 복사, 내보내기)
+        case #selector(copyImageToClipboard(_:)),
+             #selector(exportCurrentImage(_:)):
+            return hasActiveImageSelection()
+
+        // 선택 필요 (이미지 또는 비루트 폴더)
+        case #selector(deleteSelected(_:)),
+             #selector(moveSelected(_:)),
+             #selector(copySelected(_:)):
+            return hasActiveSelection()
+
+        // 이름 변경: 사이드바(비루트) 또는 브라우저 선택
+        case #selector(renameSelected(_:)):
+            if isSidebarActive { return sidebarVC.selectedItemIsNonRoot }
+            if isViewer { return false }
+            return browserVC.hasSelection
+
+        // 뷰어 모드에서만 활성
+        case #selector(zoomIn(_:)),
+             #selector(zoomOut(_:)),
+             #selector(zoomActualSize(_:)),
+             #selector(zoomFit(_:)),
+             #selector(goBack(_:)),
+             #selector(navigatePreviousImage(_:)),
+             #selector(navigateNextImage(_:)):
+            return isViewer
+
+        // 브라우저 모드에서만 활성
+        case #selector(selectAllItems(_:)):
+            return !isViewer
+
+        default:
+            return true
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func refreshCurrentFolder() {
+        guard let url = currentFolderURL else { return }
+        navigateToFolder(url)
+        sidebarVC.reloadCurrentFolder()
+    }
+
+    private func imageFilesInCurrentFolder() -> [ImageFile] {
+        guard let url = currentFolderURL,
+              case .success(let contents) = fileService.contentsOfFolder(at: url) else { return [] }
+        return contents.images.compactMap { ImageFile(url: $0) }
+    }
+
+    private func showError(_ error: Error) {
+        let alert = NSAlert(error: error as NSError)
+        alert.runModal()
+    }
+
+    private func updateToolbarState() {
+        guard let toolbar = window?.toolbar else { return }
+        for item in toolbar.items {
+            switch item.itemIdentifier {
+            case ToolbarID.back:
+                item.isEnabled = contentMode == .viewer
+            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomFit:
+                item.isEnabled = contentMode == .viewer
+            default: break
+            }
+        }
+    }
+
+    // MARK: - Setup
+
+    private func setupToolbar() {
+        let toolbar = NSToolbar(identifier: ToolbarID.toolbar)
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        window?.toolbar = toolbar
+    }
+
+    private func setupDelegates() {
+        sidebarVC.delegate = self
+        browserVC.delegate = self
+        viewerVC.delegate = self
+
+        statusBar.onThumbnailScaleChanged = { [weak self] scale in
+            self?.browserVC.updateThumbnailScale(scale)
+        }
+        statusBar.onFlipHorizontal = { [weak self] in
+            self?.viewerVC.flipHorizontal()
+        }
+        statusBar.onFlipVertical = { [weak self] in
+            self?.viewerVC.flipVertical()
+        }
+        statusBar.onResetFlip = { [weak self] in
+            self?.viewerVC.resetFlip()
+        }
+    }
+
+    private func setupLayout() {
+        // Split view
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        sidebarItem.minimumThickness = 200
+        sidebarItem.maximumThickness = 300
+
+        let contentItem = NSSplitViewItem(viewController: browserVC)
+        contentItem.minimumThickness = 400
+
+        splitViewController.addSplitViewItem(sidebarItem)
+        splitViewController.addSplitViewItem(contentItem)
+
+        // Container with status bar
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        splitViewController.view.translatesAutoresizingMaskIntoConstraints = false
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(splitViewController.view)
+        container.addSubview(statusBar)
+
+        NSLayoutConstraint.activate([
+            splitViewController.view.topAnchor.constraint(equalTo: container.topAnchor),
+            splitViewController.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            splitViewController.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            splitViewController.view.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            statusBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: 22),
+        ])
+
+        let containerVC = NSViewController()
+        containerVC.view = container
+        containerVC.addChild(splitViewController)
+        window?.contentViewController = containerVC
+    }
+}
+
+// MARK: - NSToolbarDelegate
+
+extension MainWindowController: NSToolbarDelegate {
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [
+            ToolbarID.back,
+            .flexibleSpace,
+            ToolbarID.zoomOut,
+            ToolbarID.zoomIn,
+            ToolbarID.zoomFit,
+            .flexibleSpace,
+            ToolbarID.addFolder,
+        ]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+
+        switch itemIdentifier {
+        case ToolbarID.back:
+            item.label = "뒤로"
+            item.toolTip = "브라우저로 돌아가기"
+            item.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "뒤로")
+            item.action = #selector(toolbarBack(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomIn:
+            item.label = "확대"
+            item.toolTip = "확대"
+            item.image = NSImage(systemSymbolName: "plus.magnifyingglass", accessibilityDescription: "확대")
+            item.action = #selector(zoomIn(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomOut:
+            item.label = "축소"
+            item.toolTip = "축소"
+            item.image = NSImage(systemSymbolName: "minus.magnifyingglass", accessibilityDescription: "축소")
+            item.action = #selector(zoomOut(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomFit:
+            item.label = "맞춤"
+            item.toolTip = "화면에 맞춤"
+            item.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "맞춤")
+            item.action = #selector(zoomFit(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.addFolder:
+            item.label = "폴더 추가"
+            item.toolTip = "사이드바에 폴더 추가"
+            item.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "폴더 추가")
+            item.action = #selector(addFolder(_:))
+            item.target = self
+
+        default:
+            return nil
+        }
+
+        return item
+    }
+}
+
+// MARK: - SidebarDelegate
+
+extension MainWindowController: SidebarDelegate {
+    func sidebar(_ sidebar: SidebarViewController, didSelectFolder url: URL) {
+        activePanel = .sidebar
+        navigateToFolder(url)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didSelectImage file: ImageFile, inFolder url: URL) {
+        activePanel = .sidebar
+        // 해당 폴더로 이동 후 이미지 뷰어 열기
+        if currentFolderURL != url {
+            navigateToFolder(url)
+        }
+        let folderImages = imageFilesInCurrentFolder()
+        switchToMode(.viewer)
+        viewerVC.display(imageURL: file.url, imageList: folderImages)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didReceiveDrop imageURLs: [URL], toFolder url: URL) {
+        performMoveToFolder(urls: imageURLs, target: url)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didRequestRename url: URL, newName: String) {
+        performRename(url: url, newName: newName)
+    }
+
+    func sidebarDidRequestAddFolder(_ sidebar: SidebarViewController) {
+        addFolder(nil)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didRequestRemoveFolder url: URL) {
+        removeFolder(url)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didRequestDelete urls: [URL]) {
+        performDelete(urls: urls)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL) {
+        performExport(url: url)
+    }
+}
+
+// MARK: - BrowserDelegate
+
+extension MainWindowController: BrowserDelegate {
+    func browser(_ browser: BrowserViewController, didOpenFolder url: URL) {
+        activePanel = .browser
+        navigateToFolder(url)
+        sidebarVC.selectFolder(at: url)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestViewImage url: URL, inList: [ImageFile]) {
+        activePanel = .viewer
+        switchToMode(.viewer)
+        viewerVC.display(imageURL: url, imageList: inList)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestDelete urls: [URL]) {
+        performDelete(urls: urls)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestMove urls: [URL]) {
+        performMove(urls: urls)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestCopy urls: [URL]) {
+        performCopy(urls: urls)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestRename url: URL, newName: String) {
+        performRename(url: url, newName: newName)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestExport url: URL) {
+        performExport(url: url)
+    }
+}
+
+// MARK: - ViewerDelegate
+
+extension MainWindowController: ViewerDelegate {
+    func viewerDidRequestClose(_ viewer: ViewerViewController) {
+        switchToMode(.browser)
+        if let url = currentFolderURL {
+            window?.title = url.lastPathComponent
+        }
+    }
+
+    func viewer(_ viewer: ViewerViewController, didRequestDelete url: URL) {
+        performDelete(urls: [url])
+        viewer.removeCurrentImage()
+    }
+
+    func viewer(_ viewer: ViewerViewController, didRequestExport url: URL) {
+        performExport(url: url)
+    }
+
+    func viewer(_ viewer: ViewerViewController, didRequestRename url: URL, newName: String) {
+        performRename(url: url, newName: newName)
+    }
+
+    func viewer(_ viewer: ViewerViewController, didSwitchToVideo isVideo: Bool) {
+        statusBar.setViewerMode(true, isVideo: isVideo)
+    }
+
+    func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL) {
+        sidebarVC.selectFile(at: url)
+    }
+}
