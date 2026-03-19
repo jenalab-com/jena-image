@@ -20,22 +20,22 @@ enum MainMenu {
 
     private static func createAppMenu() -> NSMenuItem {
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "JenaImage에 대하여", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.string(.about), action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
 
-        let prefs = NSMenuItem(title: "설정…", action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
+        let prefs = NSMenuItem(title: L10n.string(.preferences), action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
         appMenu.addItem(prefs)
 
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "JenaImage 숨기기", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: L10n.string(.hideApp), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
 
-        let hideOthers = NSMenuItem(title: "기타 숨기기", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        let hideOthers = NSMenuItem(title: L10n.string(.hideOthers), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthers)
 
-        appMenu.addItem(withTitle: "모두 보기", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.string(.showAll), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "JenaImage 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.string(.quit), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let item = NSMenuItem()
         item.submenu = appMenu
@@ -45,36 +45,24 @@ enum MainMenu {
     // MARK: - File Menu
 
     private static func createFileMenu() -> NSMenuItem {
-        let fileMenu = NSMenu(title: "파일")
+        let fileMenu = NSMenu(title: L10n.string(.file))
 
-        let addFolder = NSMenuItem(title: "폴더 추가…", action: #selector(MainWindowController.addFolder(_:)), keyEquivalent: "o")
-        fileMenu.addItem(addFolder)
-
+        fileMenu.addItem(withTitle: L10n.string(.addFolder), action: #selector(MainWindowController.addFolder(_:)), keyEquivalent: "o")
+        fileMenu.addItem(NSMenuItem.separator())
+        fileMenu.addItem(withTitle: L10n.string(.revealInFinder), action: #selector(MainWindowController.revealInFinder(_:)), keyEquivalent: "r")
+        fileMenu.addItem(NSMenuItem.separator())
+        fileMenu.addItem(withTitle: L10n.string(.rename), action: #selector(MainWindowController.renameSelected(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: L10n.string(.moveTo), action: #selector(MainWindowController.moveSelected(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: L10n.string(.copyTo), action: #selector(MainWindowController.copySelected(_:)), keyEquivalent: "")
         fileMenu.addItem(NSMenuItem.separator())
 
-        let revealInFinder = NSMenuItem(title: "Finder에서 보기", action: #selector(MainWindowController.revealInFinder(_:)), keyEquivalent: "r")
-        fileMenu.addItem(revealInFinder)
-
-        fileMenu.addItem(NSMenuItem.separator())
-
-        let rename = NSMenuItem(title: "이름 변경", action: #selector(MainWindowController.renameSelected(_:)), keyEquivalent: "")
-        fileMenu.addItem(rename)
-
-        let moveTo = NSMenuItem(title: "이동…", action: #selector(MainWindowController.moveSelected(_:)), keyEquivalent: "")
-        fileMenu.addItem(moveTo)
-
-        let copyTo = NSMenuItem(title: "복사…", action: #selector(MainWindowController.copySelected(_:)), keyEquivalent: "")
-        fileMenu.addItem(copyTo)
-
-        fileMenu.addItem(NSMenuItem.separator())
-
-        let saveAs = NSMenuItem(title: "다른 이름으로 저장…", action: #selector(MainWindowController.exportCurrentImage(_:)), keyEquivalent: "S")
+        let saveAs = NSMenuItem(title: L10n.string(.saveAs), action: #selector(MainWindowController.exportCurrentImage(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(saveAs)
 
         fileMenu.addItem(NSMenuItem.separator())
 
-        let delete = NSMenuItem(title: "삭제", action: #selector(MainWindowController.deleteSelected(_:)), keyEquivalent: "\u{08}")
+        let delete = NSMenuItem(title: L10n.string(.delete), action: #selector(MainWindowController.deleteSelected(_:)), keyEquivalent: "\u{08}")
         delete.keyEquivalentModifierMask = []
         fileMenu.addItem(delete)
 
@@ -86,18 +74,15 @@ enum MainMenu {
     // MARK: - Edit Menu
 
     private static func createEditMenu() -> NSMenuItem {
-        let editMenu = NSMenu(title: "편집")
+        let editMenu = NSMenu(title: L10n.string(.edit))
 
-        let copy = NSMenuItem(title: "복사", action: #selector(MainWindowController.copyFiles(_:)), keyEquivalent: "c")
-        editMenu.addItem(copy)
+        editMenu.addItem(withTitle: L10n.string(.copy), action: #selector(MainWindowController.copyFiles(_:)), keyEquivalent: "c")
 
-        let paste = NSMenuItem(title: "붙여넣기", action: #selector(MainWindowController.pasteFiles(_:)), keyEquivalent: "v")
+        let paste = NSMenuItem(title: L10n.string(.paste), action: #selector(MainWindowController.pasteFiles(_:)), keyEquivalent: "v")
         editMenu.addItem(paste)
 
         editMenu.addItem(NSMenuItem.separator())
-
-        let selectAll = NSMenuItem(title: "모두 선택", action: #selector(MainWindowController.selectAllItems(_:)), keyEquivalent: "a")
-        editMenu.addItem(selectAll)
+        editMenu.addItem(withTitle: L10n.string(.selectAll), action: #selector(MainWindowController.selectAllItems(_:)), keyEquivalent: "a")
 
         let item = NSMenuItem()
         item.submenu = editMenu
@@ -107,10 +92,8 @@ enum MainMenu {
     // MARK: - Image Menu
 
     private static func createImageMenu() -> NSMenuItem {
-        let imageMenu = NSMenu(title: "이미지")
-
-        let editImage = NSMenuItem(title: "이미지 편집…", action: #selector(MainWindowController.openImageEditor(_:)), keyEquivalent: "e")
-        imageMenu.addItem(editImage)
+        let imageMenu = NSMenu(title: L10n.string(.image))
+        imageMenu.addItem(withTitle: L10n.string(.imageEdit), action: #selector(MainWindowController.openImageEditor(_:)), keyEquivalent: "e")
 
         let item = NSMenuItem()
         item.submenu = imageMenu
@@ -120,42 +103,29 @@ enum MainMenu {
     // MARK: - View Menu
 
     private static func createViewMenu() -> NSMenuItem {
-        let viewMenu = NSMenu(title: "보기")
+        let viewMenu = NSMenu(title: L10n.string(.view))
 
-        let toggleSidebar = NSMenuItem(title: "사이드바 보기/숨기기", action: #selector(MainWindowController.toggleSidebar(_:)), keyEquivalent: "s")
+        let toggleSidebar = NSMenuItem(title: L10n.string(.toggleSidebar), action: #selector(MainWindowController.toggleSidebar(_:)), keyEquivalent: "s")
         toggleSidebar.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(toggleSidebar)
-
+        viewMenu.addItem(NSMenuItem.separator())
+        viewMenu.addItem(withTitle: L10n.string(.goBack), action: #selector(MainWindowController.goBack(_:)), keyEquivalent: "[")
         viewMenu.addItem(NSMenuItem.separator())
 
-        let goBack = NSMenuItem(title: "뒤로", action: #selector(MainWindowController.goBack(_:)), keyEquivalent: "[")
-        viewMenu.addItem(goBack)
-
-        viewMenu.addItem(NSMenuItem.separator())
-
-        let prevImage = NSMenuItem(title: "이전 이미지", action: #selector(MainWindowController.navigatePreviousImage(_:)), keyEquivalent: "\u{F700}")  // Up arrow
+        let prevImage = NSMenuItem(title: L10n.string(.prevImage), action: #selector(MainWindowController.navigatePreviousImage(_:)), keyEquivalent: "\u{F700}")
         prevImage.keyEquivalentModifierMask = []
         viewMenu.addItem(prevImage)
 
-        let nextImage = NSMenuItem(title: "다음 이미지", action: #selector(MainWindowController.navigateNextImage(_:)), keyEquivalent: "\u{F701}")  // Down arrow
+        let nextImage = NSMenuItem(title: L10n.string(.nextImage), action: #selector(MainWindowController.navigateNextImage(_:)), keyEquivalent: "\u{F701}")
         nextImage.keyEquivalentModifierMask = []
         viewMenu.addItem(nextImage)
 
         viewMenu.addItem(NSMenuItem.separator())
-
-        let zoomIn = NSMenuItem(title: "확대", action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
-        viewMenu.addItem(zoomIn)
-
-        let zoomOut = NSMenuItem(title: "축소", action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
-        viewMenu.addItem(zoomOut)
-
+        viewMenu.addItem(withTitle: L10n.string(.zoomIn), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
+        viewMenu.addItem(withTitle: L10n.string(.zoomOut), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
         viewMenu.addItem(NSMenuItem.separator())
-
-        let actualSize = NSMenuItem(title: "원본 크기", action: #selector(MainWindowController.zoomActualSize(_:)), keyEquivalent: "0")
-        viewMenu.addItem(actualSize)
-
-        let fitToWindow = NSMenuItem(title: "화면에 맞춤", action: #selector(MainWindowController.zoomFit(_:)), keyEquivalent: "9")
-        viewMenu.addItem(fitToWindow)
+        viewMenu.addItem(withTitle: L10n.string(.actualSize), action: #selector(MainWindowController.zoomActualSize(_:)), keyEquivalent: "0")
+        viewMenu.addItem(withTitle: L10n.string(.fitToWindow), action: #selector(MainWindowController.zoomFit(_:)), keyEquivalent: "9")
 
         let item = NSMenuItem()
         item.submenu = viewMenu
@@ -165,11 +135,11 @@ enum MainMenu {
     // MARK: - Window Menu
 
     private static func createWindowMenu() -> NSMenuItem {
-        let windowMenu = NSMenu(title: "윈도우")
-        windowMenu.addItem(withTitle: "최소화", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
-        windowMenu.addItem(withTitle: "확대/축소", action: #selector(NSWindow.zoom(_:)), keyEquivalent: "")
+        let windowMenu = NSMenu(title: L10n.string(.window))
+        windowMenu.addItem(withTitle: L10n.string(.minimize), action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.string(.zoom), action: #selector(NSWindow.zoom(_:)), keyEquivalent: "")
 
-        let fullScreen = NSMenuItem(title: "전체 화면 시작/종료", action: #selector(MainWindowController.toggleFullScreen(_:)), keyEquivalent: "f")
+        let fullScreen = NSMenuItem(title: L10n.string(.fullScreen), action: #selector(MainWindowController.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreen.keyEquivalentModifierMask = [.command, .control]
         windowMenu.addItem(fullScreen)
 
@@ -182,8 +152,8 @@ enum MainMenu {
     // MARK: - Help Menu
 
     private static func createHelpMenu() -> NSMenuItem {
-        let helpMenu = NSMenu(title: "도움말")
-        helpMenu.addItem(withTitle: "JenaImage 도움말", action: #selector(AppDelegate.showHelpWindow(_:)), keyEquivalent: "?")
+        let helpMenu = NSMenu(title: L10n.string(.help))
+        helpMenu.addItem(withTitle: L10n.string(.appHelp), action: #selector(AppDelegate.showHelpWindow(_:)), keyEquivalent: "?")
 
         let item = NSMenuItem()
         item.submenu = helpMenu

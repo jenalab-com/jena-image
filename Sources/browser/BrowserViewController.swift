@@ -69,6 +69,7 @@ final class BrowserViewController: NSViewController {
         setupScrollView()
         setupCollectionView()
         setupEmptyLabel()
+        observeFolderColorChanges()
     }
 
     // MARK: - Public
@@ -409,9 +410,39 @@ extension BrowserViewController: NSMenuDelegate {
             menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
         }
 
-        for item in menu.items {
+        // 폴더 색상 서브메뉴 (폴더 1개 선택 시)
+        if urls.count == 1 {
+            let isFolder = contents.first(where: { $0.url == urls[0] }).map {
+                if case .folder = $0 { return true } else { return false }
+            } ?? false
+            if isFolder {
+                menu.addItem(NSMenuItem.separator())
+                let colorItem = NSMenuItem(title: "폴더 색상", action: nil, keyEquivalent: "")
+                colorItem.submenu = FolderColorService.createColorMenu(
+                    for: urls[0], target: self, action: #selector(setFolderColor(_:))
+                )
+                menu.addItem(colorItem)
+            }
+        }
+
+        for item in menu.items where item.representedObject == nil {
             item.target = self
             item.representedObject = urls
+        }
+    }
+}
+
+extension BrowserViewController {
+    @objc private func setFolderColor(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        FolderColorService.shared.setColorIndex(sender.tag, for: url)
+    }
+
+    func observeFolderColorChanges() {
+        NotificationCenter.default.addObserver(
+            forName: .folderColorChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.collectionView.reloadData()
         }
     }
 }

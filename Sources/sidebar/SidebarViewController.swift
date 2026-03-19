@@ -40,6 +40,8 @@ final class SidebarViewController: NSViewController {
     private let outlineView = ClickAwareOutlineView()
     private let scrollView = NSScrollView()
     private let addButton = NSButton()
+    private let showFilesToggle = NSButton()
+    private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
     private var isSuppressingSelectionDelegate = false
@@ -58,6 +60,7 @@ final class SidebarViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         registerDragTypes()
+        observeFolderColorChanges()
     }
 
     // MARK: - Public
@@ -169,6 +172,11 @@ final class SidebarViewController: NSViewController {
 
     @objc private func addFolderFromMenu(_ sender: Any?) {
         delegate?.sidebarDidRequestAddFolder(self)
+    }
+
+    @objc private func toggleShowFiles(_ sender: NSButton) {
+        showFilesInSidebar = sender.state == .on
+        outlineView.reloadData()
     }
 
     @objc private func removeFolderFromMenu(_ sender: Any?) {
@@ -316,12 +324,29 @@ final class SidebarViewController: NSViewController {
         addButton.action = #selector(addFolderFromMenu(_:))
         view.addSubview(addButton)
 
+        // 폴더만/파일까지 토글
+        showFilesToggle.translatesAutoresizingMaskIntoConstraints = false
+        showFilesToggle.bezelStyle = .smallSquare
+        showFilesToggle.isBordered = false
+        showFilesToggle.setButtonType(.toggle)
+        showFilesToggle.image = NSImage(systemSymbolName: "doc", accessibilityDescription: "파일 표시")
+        showFilesToggle.toolTip = "파일 표시/숨기기"
+        showFilesToggle.state = .on
+        showFilesToggle.target = self
+        showFilesToggle.action = #selector(toggleShowFiles(_:))
+        view.addSubview(showFilesToggle)
+
         NSLayoutConstraint.activate([
             scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor),
             addButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
             addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2),
             addButton.widthAnchor.constraint(equalToConstant: 24),
             addButton.heightAnchor.constraint(equalToConstant: 24),
+
+            showFilesToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
+            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2),
+            showFilesToggle.widthAnchor.constraint(equalToConstant: 24),
+            showFilesToggle.heightAnchor.constraint(equalToConstant: 24),
         ])
     }
 
@@ -330,6 +355,7 @@ final class SidebarViewController: NSViewController {
     private static let menuExportTag  = 3
     private static let menuRemoveTag  = 4
     private static let menuDeleteTag  = 5
+    private static let menuColorTag   = 6
 
     private func setupContextMenu() {
         let menu = NSMenu()
@@ -361,6 +387,11 @@ final class SidebarViewController: NSViewController {
         deleteItem.target = self
         deleteItem.tag = Self.menuDeleteTag
         menu.addItem(deleteItem)
+
+        menu.addItem(.separator())
+        let colorItem = NSMenuItem(title: "폴더 색상", action: nil, keyEquivalent: "")
+        colorItem.tag = Self.menuColorTag
+        menu.addItem(colorItem)
 
         outlineView.menu = menu
     }
@@ -474,18 +505,19 @@ extension SidebarViewController: NSOutlineViewDataSource {
         if item == nil { return rootNodes.count }
         guard let node = item as? FolderNode else { return 0 }
         node.loadChildren()
-        return node.totalChildCount
+        return showFilesInSidebar ? node.totalChildCount : node.folderChildCount
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         if item == nil { return rootNodes[index] }
         let node = item as! FolderNode
-        return node.child(at: index)!
+        return node.child(at: index, includeFiles: showFilesInSidebar)!
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         guard let node = item as? FolderNode else { return false }
-        return node.hasChildren
+        if showFilesInSidebar { return node.hasChildren }
+        return node.folderChildCount > 0 || !node.isLoaded
     }
 
     // 드래그 소스: 이미지 파일을 드래그 가능하게
@@ -552,7 +584,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
             } else {
                 cell.imageView?.image = NSImage(systemSymbolName: "folder", accessibilityDescription: node.name)
             }
-            cell.imageView?.contentTintColor = nil
+            cell.imageView?.contentTintColor = FolderColorService.shared.color(for: node.url)
 
             // 미디어 파일 개수 표시
             let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
@@ -736,9 +768,35 @@ extension SidebarViewController: NSMenuDelegate {
                 item.isHidden = !isRootFolder
             case Self.menuDeleteTag:
                 item.isHidden = !isDeletable
+            case Self.menuColorTag:
+                // 폴더일 때만 색상 서브메뉴 표시
+                let isFolder = clickedItem is FolderNode
+                item.isHidden = !isFolder
+                if isFolder, let node = clickedItem as? FolderNode {
+                    item.submenu = FolderColorService.createColorMenu(
+                        for: node.url, target: self, action: #selector(setFolderColor(_:))
+                    )
+                }
             default:
                 break
             }
+        }
+    }
+}
+
+// MARK: - Folder Color
+
+extension SidebarViewController {
+    @objc private func setFolderColor(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        FolderColorService.shared.setColorIndex(sender.tag, for: url)
+    }
+
+    func observeFolderColorChanges() {
+        NotificationCenter.default.addObserver(
+            forName: .folderColorChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.outlineView.reloadData()
         }
     }
 }

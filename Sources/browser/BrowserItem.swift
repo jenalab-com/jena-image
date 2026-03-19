@@ -29,13 +29,20 @@ final class BrowserItem: NSCollectionViewItem {
         playBadge.isHidden = true
 
         switch content {
-        case .folder:
+        case .folder(let node):
+            let config = NSImage.SymbolConfiguration(pointSize: 32, weight: .regular)
             thumbnailView.image = NSImage(
                 systemSymbolName: "folder.fill",
                 accessibilityDescription: content.name
-            )
-            thumbnailView.contentTintColor = .controlAccentColor
+            )?.withSymbolConfiguration(config)
+            thumbnailView.contentTintColor = FolderColorService.shared.color(for: node.url)
+            thumbnailView.imageScaling = .scaleNone
+            thumbnailView.layer?.borderWidth = 0
+            thumbnailView.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.1).cgColor
         case .image(let file):
+            thumbnailView.imageScaling = .scaleProportionallyDown
+            thumbnailView.layer?.borderWidth = 0.5
+            thumbnailView.layer?.backgroundColor = nil
             if file.isVideo {
                 thumbnailView.image = thumbnail ?? NSImage(
                     systemSymbolName: "film",

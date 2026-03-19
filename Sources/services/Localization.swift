@@ -41,6 +41,7 @@ enum L10nKey: String {
     // Edit
     case edit
     case copy
+    case paste
     case selectAll
 
     // Image
@@ -147,6 +148,7 @@ enum L10n {
             .delete: "삭제",
             .edit: "편집",
             .copy: "복사",
+            .paste: "붙여넣기",
             .selectAll: "모두 선택",
             .image: "이미지",
             .imageEdit: "이미지 편집…",
@@ -216,6 +218,7 @@ enum L10n {
             .delete: "Delete",
             .edit: "Edit",
             .copy: "Copy",
+            .paste: "Paste",
             .selectAll: "Select All",
             .image: "Image",
             .imageEdit: "Edit Image…",
@@ -285,6 +288,7 @@ enum L10n {
             .delete: "削除",
             .edit: "編集",
             .copy: "コピー",
+            .paste: "ペースト",
             .selectAll: "すべてを選択",
             .image: "イメージ",
             .imageEdit: "イメージを編集…",
@@ -354,6 +358,7 @@ enum L10n {
             .delete: "删除",
             .edit: "编辑",
             .copy: "复制",
+            .paste: "粘贴",
             .selectAll: "全选",
             .image: "图像",
             .imageEdit: "编辑图像…",

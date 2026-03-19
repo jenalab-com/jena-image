@@ -13,6 +13,11 @@ final class FolderNode {
         (children?.count ?? 0) + (imageFiles?.count ?? 0)
     }
 
+    /// 폴더만 자식 수
+    var folderChildCount: Int {
+        children?.count ?? 0
+    }
+
     init(url: URL) {
         self.url = url
         self.name = url.lastPathComponent
@@ -76,11 +81,12 @@ final class FolderNode {
     }
 
     /// 인덱스로 자식 항목 반환 (폴더 먼저, 이미지 뒤)
-    func child(at index: Int) -> Any? {
+    func child(at index: Int, includeFiles: Bool = true) -> Any? {
         let folderCount = children?.count ?? 0
         if index < folderCount {
             return children?[index]
         }
+        guard includeFiles else { return nil }
         let imageIndex = index - folderCount
         return imageFiles?[safe: imageIndex]
     }

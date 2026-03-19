@@ -222,6 +222,8 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func languageChanged(_ sender: NSPopUpButton) {
         let lang = Language.allCases[sender.indexOfSelectedItem]
         settings.language = lang
+        // 메뉴바 즉시 재구성
+        NSApp.mainMenu = MainMenu.create()
     }
 
     @objc private func bgChanged(_ sender: NSPopUpButton) {
