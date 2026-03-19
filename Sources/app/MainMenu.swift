@@ -22,6 +22,11 @@ enum MainMenu {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "JenaImage에 대하여", action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
+
+        let prefs = NSMenuItem(title: "설정…", action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")
+        appMenu.addItem(prefs)
+
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "JenaImage 숨기기", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
 
         let hideOthers = NSMenuItem(title: "기타 숨기기", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -83,8 +88,11 @@ enum MainMenu {
     private static func createEditMenu() -> NSMenuItem {
         let editMenu = NSMenu(title: "편집")
 
-        let copy = NSMenuItem(title: "복사", action: #selector(MainWindowController.copyImageToClipboard(_:)), keyEquivalent: "c")
+        let copy = NSMenuItem(title: "복사", action: #selector(MainWindowController.copyFiles(_:)), keyEquivalent: "c")
         editMenu.addItem(copy)
+
+        let paste = NSMenuItem(title: "붙여넣기", action: #selector(MainWindowController.pasteFiles(_:)), keyEquivalent: "v")
+        editMenu.addItem(paste)
 
         editMenu.addItem(NSMenuItem.separator())
 

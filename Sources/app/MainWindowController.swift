@@ -400,13 +400,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // MARK: - Active Selection Helper
 
-    private var isSidebarActive: Bool {
-        activePanel == .sidebar || sidebarVC.isFocused
+    /// 사이드바에 포커스가 있는지 (first responder 기준)
+    private var isSidebarFocused: Bool {
+        sidebarVC.isFocused
     }
 
     /// 현재 활성 패널에 따른 선택된 URL 목록
     private func activeSelectedURLs() -> [URL] {
-        if isSidebarActive, let url = sidebarVC.selectedItemURL {
+        if isSidebarFocused, let url = sidebarVC.selectedItemURL {
             return [url]
         }
         if contentMode == .viewer, let url = viewerVC.currentImageURL {
@@ -417,14 +418,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     /// 현재 활성 패널에 선택된 항목이 있는지
     private func hasActiveSelection() -> Bool {
-        if isSidebarActive { return sidebarVC.selectedItemIsNonRoot }
+        if isSidebarFocused { return sidebarVC.selectedItemIsNonRoot }
         if contentMode == .viewer { return viewerVC.currentImageURL != nil }
         return !browserVC.selectedURLs().isEmpty
     }
 
     /// 현재 활성 패널에 이미지가 선택되어 있는지
     private func hasActiveImageSelection() -> Bool {
-        if isSidebarActive { return sidebarVC.selectedItemIsImage }
+        if isSidebarFocused { return sidebarVC.selectedItemIsImage }
         if contentMode == .viewer { return viewerVC.currentImageURL != nil }
         return !browserVC.selectedURLs().isEmpty
     }
@@ -440,12 +441,63 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
-    @objc func copyImageToClipboard(_ sender: Any?) {
-        guard let url = activeSelectedURLs().first,
-              let image = NSImage(contentsOf: url) else { return }
+    @objc func copyFiles(_ sender: Any?) {
+        let urls = activeSelectedURLs()
+        guard !urls.isEmpty else { return }
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.writeObjects([image])
+
+        var items: [NSPasteboardWriting] = urls.map { $0 as NSURL }
+        if urls.count == 1, let image = NSImage(contentsOf: urls[0]) {
+            items.append(image)
+        }
+        pasteboard.writeObjects(items)
+    }
+
+    @objc func pasteFiles(_ sender: Any?) {
+        guard let folderURL = currentFolderURL else { return }
+
+        let pasteboard = NSPasteboard.general
+
+        // 클립보드에서 파일 URL 읽기
+        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true,
+        ]) as? [URL], !urls.isEmpty else { return }
+
+        // Finder 잘라내기(⌘⌥V) 감지: com.apple.pasteboard.promised-file-url 또는 cut flag
+        let isCut = pasteboard.types?.contains(NSPasteboard.PasteboardType("com.apple.pasteboard.cut")) == true
+
+        var pastedAny = false
+        for url in urls {
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+
+            if isCut {
+                // 잘라넣기 → 이동
+                let result = fileService.moveFile(from: url, to: folderURL)
+                if case .success = result {
+                    ThumbnailCache.shared.invalidate(for: url)
+                    pastedAny = true
+                    // 원본 폴더 갱신
+                    sidebarVC.reloadFolder(at: url.deletingLastPathComponent())
+                }
+            } else {
+                // 붙여넣기 → 복사
+                let result = fileService.copyFile(from: url, to: folderURL)
+                if case .success = result {
+                    pastedAny = true
+                }
+            }
+        }
+
+        if pastedAny {
+            if isCut {
+                // 잘라넣기 후 클립보드 비우기
+                pasteboard.clearContents()
+            }
+            refreshCurrentFolder()
+            sidebarVC.reloadFolder(at: folderURL)
+        }
     }
 
     @objc func selectAllItems(_ sender: Any?) {
@@ -497,7 +549,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     @objc func renameSelected(_ sender: Any?) {
-        if isSidebarActive {
+        if isSidebarFocused {
             sidebarVC.beginRenamingSelectedItem()
         } else if contentMode == .browser {
             browserVC.beginRenamingSelectedItem()
@@ -510,7 +562,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     @objc func deleteSelected(_ sender: Any?) {
-        if isSidebarActive, sidebarVC.selectedItemIsNonRoot, let url = sidebarVC.selectedItemURL {
+        if isSidebarFocused, sidebarVC.selectedItemIsNonRoot, let url = sidebarVC.selectedItemURL {
             performDelete(urls: [url])
             if contentMode == .viewer {
                 viewerVC.removeCurrentImage()
@@ -531,9 +583,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
         switch menuItem.action {
         // 이미지 선택 필요 (클립보드 복사, 내보내기)
-        case #selector(copyImageToClipboard(_:)),
+        case #selector(copyFiles(_:)),
              #selector(exportCurrentImage(_:)):
             return hasActiveImageSelection()
+
+        // 붙여넣기: 현재 폴더가 있고 클립보드에 파일 URL이 있을 때
+        case #selector(pasteFiles(_:)):
+            guard currentFolderURL != nil else { return false }
+            return NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
 
         // 선택 필요 (이미지 또는 비루트 폴더)
         case #selector(deleteSelected(_:)),
@@ -543,7 +600,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
         // 이름 변경: 사이드바(비루트) 또는 브라우저 선택
         case #selector(renameSelected(_:)):
-            if isSidebarActive { return sidebarVC.selectedItemIsNonRoot }
+            if isSidebarFocused { return sidebarVC.selectedItemIsNonRoot }
             if isViewer { return false }
             return browserVC.hasSelection
 
@@ -568,6 +625,25 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         default:
             return true
         }
+    }
+
+    // MARK: - External Change
+
+    /// 외부(Finder 등)에서 파일이 변경된 후 앱이 활성화될 때 호출
+    func refreshAfterExternalChange() {
+        guard let url = currentFolderURL else { return }
+        let result = fileService.contentsOfFolder(at: url)
+        guard case .success(let contents) = result else { return }
+
+        if contentMode == .browser {
+            browserVC.display(folders: contents.folders, images: contents.images)
+            statusBar.update(
+                folderCount: contents.folders.count,
+                imageCount: contents.images.count,
+                selectionCount: 0
+            )
+        }
+        sidebarVC.reloadCurrentFolder()
     }
 
     // MARK: - Helpers

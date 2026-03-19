@@ -38,10 +38,17 @@ final class ImageDisplayView: NSView {
         )
     }
 
+    private var settingsObserver: NSObjectProtocol?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupViews()
         observeFrameChanges()
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: .settingsChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.scrollView.backgroundColor = AppSettings.shared.viewerBackground.color
+        }
     }
 
     @available(*, unavailable)
@@ -49,6 +56,9 @@ final class ImageDisplayView: NSView {
 
     deinit {
         if let observer = frameObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = settingsObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -258,7 +268,7 @@ final class ImageDisplayView: NSView {
         scrollView.allowsMagnification = true
         scrollView.minMagnification = Self.minMagnification
         scrollView.maxMagnification = Self.maxMagnification
-        scrollView.backgroundColor = .controlBackgroundColor
+        scrollView.backgroundColor = AppSettings.shared.viewerBackground.color
         scrollView.scrollerStyle = .overlay
 
         // CenteringClipView로 교체하여 이미지를 항상 중앙에 배치
@@ -283,6 +293,10 @@ final class ImageDisplayView: NSView {
 /// 스크롤 휠을 줌으로 변환하는 NSScrollView 서브클래스
 private final class ZoomScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
+        guard AppSettings.shared.scrollWheelZoom else {
+            super.scrollWheel(with: event)
+            return
+        }
         let delta = event.scrollingDeltaY
         guard abs(delta) > 0.1 else { return }
 

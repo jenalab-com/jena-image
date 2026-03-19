@@ -14,8 +14,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        mainWindowController?.refreshAfterExternalChange()
+    }
+
     @objc func showHelpWindow(_ sender: Any?) {
         HelpWindowController.shared.show()
+    }
+
+    @objc func showPreferences(_ sender: Any?) {
+        PreferencesWindowController.shared.show()
     }
 
     @objc func showAbout(_ sender: Any?) {
