@@ -11,11 +11,14 @@ final class FolderColorService {
     /// 파스텔톤 색상 팔레트
     static let palette: [(name: String, color: NSColor)] = [
         ("기본",    .controlAccentColor),
-        ("빨강",    NSColor(red: 0.95, green: 0.55, blue: 0.55, alpha: 1)),
-        ("주황",    NSColor(red: 0.96, green: 0.73, blue: 0.47, alpha: 1)),
-        ("초록",    NSColor(red: 0.56, green: 0.86, blue: 0.58, alpha: 1)),
-        ("파랑",    NSColor(red: 0.55, green: 0.70, blue: 0.95, alpha: 1)),
-        ("보라",    NSColor(red: 0.76, green: 0.60, blue: 0.92, alpha: 1)),
+        ("빨강",    NSColor(red: 1.00, green: 0.52, blue: 0.52, alpha: 1)),  // #ff8585
+        ("핑크",    NSColor(red: 1.00, green: 0.64, blue: 0.95, alpha: 1)),  // #ffa4f3
+        ("보라",    NSColor(red: 0.85, green: 0.64, blue: 1.00, alpha: 1)),  // #d9a4ff
+        ("파랑",    NSColor(red: 0.64, green: 0.70, blue: 1.00, alpha: 1)),  // #a4b3ff
+        ("노랑",    NSColor(red: 1.00, green: 0.94, blue: 0.57, alpha: 1)),  // #ffef91
+        ("연두",    NSColor(red: 0.73, green: 0.83, blue: 0.52, alpha: 1)),  // #bbd385
+        ("초록",    NSColor(red: 0.52, green: 0.83, blue: 0.69, alpha: 1)),  // #85d3b0
+        ("하늘",    NSColor(red: 0.64, green: 0.88, blue: 1.00, alpha: 1)),  // #a4e1ff
     ]
 
     /// 폴더 URL에 저장된 색상 인덱스 (0 = 기본)

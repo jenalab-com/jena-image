@@ -579,11 +579,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
                 ?? createSidebarCell(identifier: identifier)
 
             cell.textField?.stringValue = node.name
-            if isRoot {
-                cell.imageView?.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: node.name)
-            } else {
-                cell.imageView?.image = NSImage(systemSymbolName: "folder", accessibilityDescription: node.name)
-            }
+            cell.imageView?.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: node.name)
             cell.imageView?.contentTintColor = FolderColorService.shared.color(for: node.url)
 
             // 미디어 파일 개수 표시
