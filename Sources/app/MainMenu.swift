@@ -8,6 +8,7 @@ enum MainMenu {
         mainMenu.addItem(createAppMenu())
         mainMenu.addItem(createFileMenu())
         mainMenu.addItem(createEditMenu())
+        mainMenu.addItem(createImageMenu())
         mainMenu.addItem(createViewMenu())
         mainMenu.addItem(createWindowMenu())
         mainMenu.addItem(createHelpMenu())
@@ -92,6 +93,19 @@ enum MainMenu {
 
         let item = NSMenuItem()
         item.submenu = editMenu
+        return item
+    }
+
+    // MARK: - Image Menu
+
+    private static func createImageMenu() -> NSMenuItem {
+        let imageMenu = NSMenu(title: "이미지")
+
+        let editImage = NSMenuItem(title: "이미지 편집…", action: #selector(MainWindowController.openImageEditor(_:)), keyEquivalent: "e")
+        imageMenu.addItem(editImage)
+
+        let item = NSMenuItem()
+        item.submenu = imageMenu
         return item
     }
 

@@ -9,6 +9,8 @@ protocol ViewerDelegate: AnyObject {
     func viewer(_ viewer: ViewerViewController, didRequestRename url: URL, newName: String)
     func viewer(_ viewer: ViewerViewController, didSwitchToVideo isVideo: Bool)
     func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL)
+    func viewerDidEndEditing(_ viewer: ViewerViewController)
+    func viewer(_ viewer: ViewerViewController, didSaveEditedImageToFolder folderURL: URL)
 }
 
 // MARK: - ViewController
@@ -22,6 +24,9 @@ final class ViewerViewController: NSViewController {
     private let contentContainer = NSView()
     private let splitView = NSSplitView()
 
+    // 편집 버튼 (우측 상단)
+    private let editButton = NSButton(title: "편집", target: nil, action: nil)
+
     private var imageFiles: [ImageFile] = []
     private var currentIndex: Int = 0
     private var loadTask: Task<Void, Never>?
@@ -29,12 +34,23 @@ final class ViewerViewController: NSViewController {
 
     private let imageService: ImageServiceProtocol
 
+    // 편집 윈도우
+    private var editorWindowController: ImageEditorWindowController?
+
     var currentImageURL: URL? {
         imageFiles[safe: currentIndex]?.url
     }
 
     var currentFile: ImageFile? {
         imageFiles[safe: currentIndex]
+    }
+
+    var isShowingImage: Bool {
+        !isShowingVideo && imageDisplayView.currentImage != nil
+    }
+
+    var isEditing: Bool {
+        editorWindowController != nil
     }
 
     init(imageService: ImageServiceProtocol = ImageService()) {
@@ -51,6 +67,7 @@ final class ViewerViewController: NSViewController {
     override func loadView() {
         view = NSView()
         setupSplitView()
+        setupEditButton()
     }
 
     override func viewDidLoad() {
@@ -79,14 +96,12 @@ final class ViewerViewController: NSViewController {
         thumbnailStrip.display(images: imageList, selectedIndex: currentIndex)
         showMedia(at: currentIndex)
 
-        // 뷰어로 키보드 포커스 이동 (화살표 키 동작을 위해)
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.view.window?.makeFirstResponder(self)
         }
     }
 
-    /// 파일 이름 변경 후 뷰어 상태 갱신
     func updateCurrentImage(oldURL: URL, newURL: URL) {
         guard let index = imageFiles.firstIndex(where: { $0.url == oldURL }),
               let newFile = ImageFile(url: newURL) else { return }
@@ -97,20 +112,46 @@ final class ViewerViewController: NSViewController {
         }
     }
 
-    // MARK: - Zoom (public — called by MainWindowController toolbar)
+    // MARK: - Zoom
 
     func zoomIn() { imageDisplayView.zoomIn() }
     func zoomOut() { imageDisplayView.zoomOut() }
     func zoomActualSize() { imageDisplayView.zoomToActualSize() }
     func zoomFit() { imageDisplayView.fitToView() }
 
-    // MARK: - Flip (public — called by StatusBarView)
+    // MARK: - Flip
 
     func flipHorizontal() { imageDisplayView.flipHorizontal() }
     func flipVertical() { imageDisplayView.flipVertical() }
     func resetFlip() { imageDisplayView.resetFlip() }
 
-    // MARK: - Navigation (public — called by menu)
+    // MARK: - Image Editing
+
+    func openEditor() {
+        guard let image = imageDisplayView.currentImage,
+              let url = currentImageURL,
+              editorWindowController == nil else { return }
+
+        let controller = ImageEditorWindowController(image: image, url: url, imageService: imageService)
+        controller.onComplete = { [weak self] in
+            guard let self else { return }
+            self.editorWindowController = nil
+            self.delegate?.viewerDidEndEditing(self)
+        }
+        controller.onSaved = { [weak self] folderURL in
+            guard let self else { return }
+            self.delegate?.viewer(self, didSaveEditedImageToFolder: folderURL)
+        }
+        controller.showWindow(nil)
+        editorWindowController = controller
+    }
+
+    func closeEditor() {
+        editorWindowController?.close()
+        editorWindowController = nil
+    }
+
+    // MARK: - Navigation
 
     func showPrevious() {
         if let newIndex = thumbnailStrip.selectPrevious() {
@@ -170,12 +211,16 @@ final class ViewerViewController: NSViewController {
     }
 
     private func switchContentView(toVideo: Bool) {
-        guard toVideo != isShowingVideo else { return }
+        let changed = toVideo != isShowingVideo
         isShowingVideo = toVideo
 
         imageDisplayView.isHidden = toVideo
         videoPlayerView.isHidden = !toVideo
-        delegate?.viewer(self, didSwitchToVideo: toVideo)
+        editButton.isHidden = toVideo
+
+        if changed {
+            delegate?.viewer(self, didSwitchToVideo: toVideo)
+        }
     }
 
     // MARK: - Key Handling
@@ -185,21 +230,21 @@ final class ViewerViewController: NSViewController {
         case 53:  // ESC
             videoPlayerView.stop()
             delegate?.viewerDidRequestClose(self)
-        case 126: // ↑ — 이전
+        case 126: // ↑
             if let newIndex = thumbnailStrip.selectPrevious() {
                 showMedia(at: newIndex)
             }
-        case 125: // ↓ — 다음
+        case 125: // ↓
             if let newIndex = thumbnailStrip.selectNext() {
                 showMedia(at: newIndex)
             }
-        case 24 where event.modifierFlags.contains(.command):  // Cmd++
+        case 24 where event.modifierFlags.contains(.command):
             imageDisplayView.zoomIn()
-        case 27 where event.modifierFlags.contains(.command):  // Cmd+-
+        case 27 where event.modifierFlags.contains(.command):
             imageDisplayView.zoomOut()
-        case 29 where event.modifierFlags.contains(.command):  // Cmd+0
+        case 29 where event.modifierFlags.contains(.command):
             imageDisplayView.zoomToActualSize()
-        case 25 where event.modifierFlags.contains(.command):  // Cmd+9
+        case 25 where event.modifierFlags.contains(.command):
             imageDisplayView.fitToView()
         case 51:  // Delete
             if let url = currentImageURL {
@@ -210,7 +255,6 @@ final class ViewerViewController: NSViewController {
         }
     }
 
-    /// 삭제 후 다음 표시 또는 뷰어 종료
     func removeCurrentImage() {
         guard imageFiles.indices.contains(currentIndex) else { return }
         imageFiles.remove(at: currentIndex)
@@ -226,6 +270,28 @@ final class ViewerViewController: NSViewController {
         showMedia(at: newIndex)
     }
 
+    // MARK: - Edit Button Setup
+
+    private func setupEditButton() {
+        editButton.translatesAutoresizingMaskIntoConstraints = false
+        editButton.bezelStyle = .rounded
+        editButton.controlSize = .small
+        editButton.font = .systemFont(ofSize: 12)
+        editButton.target = self
+        editButton.action = #selector(editButtonTapped)
+
+        contentContainer.addSubview(editButton)
+
+        NSLayoutConstraint.activate([
+            editButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
+            editButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -8),
+        ])
+    }
+
+    @objc private func editButtonTapped() {
+        openEditor()
+    }
+
     // MARK: - Setup
 
     private func setupSplitView() {
@@ -233,7 +299,6 @@ final class ViewerViewController: NSViewController {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
 
-        // 컨텐츠 컨테이너 (이미지 뷰 + 비디오 플레이어 중첩)
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         imageDisplayView.translatesAutoresizingMaskIntoConstraints = false
         videoPlayerView.translatesAutoresizingMaskIntoConstraints = false
@@ -254,7 +319,6 @@ final class ViewerViewController: NSViewController {
             videoPlayerView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
         ])
 
-        // 왼쪽: 컨텐츠 / 오른쪽: 썸네일 목록
         splitView.addSubview(contentContainer)
         splitView.addSubview(thumbnailStrip)
 

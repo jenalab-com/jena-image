@@ -1,6 +1,6 @@
 APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
-VERSION      = 1.0.0
+VERSION      = 1.1.0
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
 FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation
@@ -34,6 +34,14 @@ pkg: build
 	pkgbuild --root $(BUILD_DIR) --identifier $(BUNDLE_ID) --version $(VERSION) $(BUILD_DIR)/$(APP_NAME).pkg
 
 dmg: build
+	@rm -rf $(BUILD_DIR)/dmg_staging
+	@mkdir -p $(BUILD_DIR)/dmg_staging
+	@ditto $(APP_BUNDLE) $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
+	@xattr -cr $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
+	@chflags -R nohidden $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
+	@dot_clean $(BUILD_DIR)/dmg_staging
+	@ln -s /Applications $(BUILD_DIR)/dmg_staging/Applications
 	@rm -f $(BUILD_DIR)/$(APP_NAME).dmg
-	hdiutil create -volname $(APP_NAME) -srcfolder $(APP_BUNDLE) -ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
+	hdiutil create -volname $(APP_NAME) -srcfolder $(BUILD_DIR)/dmg_staging -ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
+	@rm -rf $(BUILD_DIR)/dmg_staging
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"

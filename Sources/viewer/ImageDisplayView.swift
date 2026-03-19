@@ -18,6 +18,26 @@ final class ImageDisplayView: NSView {
         scrollView.magnification
     }
 
+    /// 현재 표시 중인 이미지 (flip 적용 전 원본)
+    var currentImage: NSImage? {
+        originalImage
+    }
+
+    /// 이미지가 화면에 표시되는 영역 (오버레이 좌표 계산용)
+    var imageDisplayRect: CGRect {
+        let mag = scrollView.magnification
+        let imgFrame = imageView.frame
+        let clipBounds = clipView.bounds
+        let visibleOrigin = CGPoint(
+            x: (imgFrame.origin.x - clipBounds.origin.x) * mag,
+            y: (imgFrame.origin.y - clipBounds.origin.y) * mag
+        )
+        return CGRect(
+            origin: CGPoint(x: max(0, visibleOrigin.x), y: max(0, visibleOrigin.y)),
+            size: CGSize(width: imgFrame.width * mag, height: imgFrame.height * mag)
+        )
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         setupViews()
@@ -149,9 +169,49 @@ final class ImageDisplayView: NSView {
         }
     }
 
+    // MARK: - Crop Overlay
+
+    private var cropOverlay: CropOverlayView?
+
+    func showCropOverlay(onConfirm: @escaping (CGRect) -> Void, onCancel: @escaping () -> Void) {
+        guard let image = originalImage else { return }
+        removeCropOverlay()
+
+        let overlay = CropOverlayView(frame: scrollView.bounds)
+        overlay.autoresizingMask = [.width, .height]
+        overlay.imageSize = image.size
+        overlay.imageRect = imageDisplayRect
+        overlay.onCropConfirmed = { [weak self] rect in
+            self?.removeCropOverlay()
+            onConfirm(rect)
+        }
+        overlay.onCropCancelled = { [weak self] in
+            self?.removeCropOverlay()
+            onCancel()
+        }
+        scrollView.addSubview(overlay)
+        overlay.resetSelection()
+        overlay.window?.makeFirstResponder(overlay)
+        cropOverlay = overlay
+
+        // 줌/스크롤 비활성화
+        scrollView.allowsMagnification = false
+    }
+
+    func removeCropOverlay() {
+        cropOverlay?.removeFromSuperview()
+        cropOverlay = nil
+        scrollView.allowsMagnification = true
+    }
+
+    var isCropping: Bool {
+        cropOverlay != nil
+    }
+
     // MARK: - Double Click
 
     override func mouseDown(with event: NSEvent) {
+        guard cropOverlay == nil else { return }
         super.mouseDown(with: event)
         if event.clickCount == 2 {
             onDoubleClick?()

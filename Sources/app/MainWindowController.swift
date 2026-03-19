@@ -479,6 +479,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window?.toggleFullScreen(sender)
     }
 
+    // MARK: - Image Editing Actions
+
+    @objc func openImageEditor(_ sender: Any?) {
+        guard contentMode == .viewer, viewerVC.isShowingImage else { return }
+        viewerVC.openEditor()
+    }
+
     @objc func moveSelected(_ sender: Any?) {
         let urls = activeSelectedURLs()
         if !urls.isEmpty { performMove(urls: urls) }
@@ -539,6 +546,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             if isSidebarActive { return sidebarVC.selectedItemIsNonRoot }
             if isViewer { return false }
             return browserVC.hasSelection
+
+        // 이미지 편집: 뷰어 모드 + 이미지 표시 중
+        case #selector(openImageEditor(_:)):
+            return isViewer && viewerVC.isShowingImage
 
         // 뷰어 모드에서만 활성
         case #selector(zoomIn(_:)),
@@ -843,5 +854,17 @@ extension MainWindowController: ViewerDelegate {
 
     func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL) {
         sidebarVC.selectFile(at: url)
+    }
+
+    func viewerDidEndEditing(_ viewer: ViewerViewController) {
+    }
+
+    func viewer(_ viewer: ViewerViewController, didSaveEditedImageToFolder folderURL: URL) {
+        // 저장된 폴더가 현재 폴더이면 브라우저 갱신
+        if folderURL == currentFolderURL {
+            refreshCurrentFolder()
+        }
+        // 사이드바 폴더 미디어 수 갱신
+        sidebarVC.reloadFolder(at: folderURL)
     }
 }
