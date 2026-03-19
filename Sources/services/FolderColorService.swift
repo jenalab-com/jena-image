@@ -10,12 +10,12 @@ final class FolderColorService {
 
     /// 파스텔톤 색상 팔레트
     static let palette: [(name: String, color: NSColor)] = [
-        ("기본",    .controlAccentColor),
+        ("기본",    NSColor(red: 0.64, green: 0.70, blue: 1.00, alpha: 1)),  // #a4b3ff
         ("빨강",    NSColor(red: 1.00, green: 0.52, blue: 0.52, alpha: 1)),  // #ff8585
         ("핑크",    NSColor(red: 1.00, green: 0.64, blue: 0.95, alpha: 1)),  // #ffa4f3
         ("보라",    NSColor(red: 0.85, green: 0.64, blue: 1.00, alpha: 1)),  // #d9a4ff
         ("파랑",    NSColor(red: 0.64, green: 0.70, blue: 1.00, alpha: 1)),  // #a4b3ff
-        ("노랑",    NSColor(red: 1.00, green: 0.94, blue: 0.57, alpha: 1)),  // #ffef91
+        ("노랑",    NSColor(red: 1.00, green: 0.83, blue: 0.57, alpha: 1)),  // #ffd491
         ("연두",    NSColor(red: 0.73, green: 0.83, blue: 0.52, alpha: 1)),  // #bbd385
         ("초록",    NSColor(red: 0.52, green: 0.83, blue: 0.69, alpha: 1)),  // #85d3b0
         ("하늘",    NSColor(red: 0.64, green: 0.88, blue: 1.00, alpha: 1)),  // #a4e1ff

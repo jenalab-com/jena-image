@@ -38,7 +38,7 @@ final class BrowserItem: NSCollectionViewItem {
             thumbnailView.contentTintColor = FolderColorService.shared.color(for: node.url)
             thumbnailView.imageScaling = .scaleNone
             thumbnailView.layer?.borderWidth = 0
-            thumbnailView.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.1).cgColor
+            thumbnailView.layer?.backgroundColor = nil
         case .image(let file):
             thumbnailView.imageScaling = .scaleProportionallyDown
             thumbnailView.layer?.borderWidth = 0.5
