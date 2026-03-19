@@ -34,14 +34,13 @@ pkg: build
 	pkgbuild --root $(BUILD_DIR) --identifier $(BUNDLE_ID) --version $(VERSION) $(BUILD_DIR)/$(APP_NAME).pkg
 
 dmg: build
-	@rm -rf $(BUILD_DIR)/dmg_staging
-	@mkdir -p $(BUILD_DIR)/dmg_staging
-	@ditto $(APP_BUNDLE) $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
-	@xattr -cr $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
-	@chflags -R nohidden $(BUILD_DIR)/dmg_staging/$(APP_NAME).app
-	@dot_clean $(BUILD_DIR)/dmg_staging
-	@ln -s /Applications $(BUILD_DIR)/dmg_staging/Applications
+	@rm -rf /tmp/$(APP_NAME)_dmg_staging
+	@mkdir -p /tmp/$(APP_NAME)_dmg_staging
+	@cp -R $(APP_BUNDLE) /tmp/$(APP_NAME)_dmg_staging/$(APP_NAME).app
+	@xattr -cr /tmp/$(APP_NAME)_dmg_staging
+	@chflags -R nohidden /tmp/$(APP_NAME)_dmg_staging
+	@ln -s /Applications /tmp/$(APP_NAME)_dmg_staging/Applications
 	@rm -f $(BUILD_DIR)/$(APP_NAME).dmg
-	hdiutil create -volname $(APP_NAME) -srcfolder $(BUILD_DIR)/dmg_staging -ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
-	@rm -rf $(BUILD_DIR)/dmg_staging
+	hdiutil create -volname $(APP_NAME) -srcfolder /tmp/$(APP_NAME)_dmg_staging -ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
+	@rm -rf /tmp/$(APP_NAME)_dmg_staging
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
