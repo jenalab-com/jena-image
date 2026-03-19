@@ -24,8 +24,9 @@ final class ViewerViewController: NSViewController {
     private let contentContainer = NSView()
     private let splitView = NSSplitView()
 
-    // 편집 버튼 (우측 상단)
+    // 하단 버튼
     private let editButton = NSButton(title: "편집", target: nil, action: nil)
+    private let thumbnailToggleButton = NSButton(title: "", target: nil, action: nil)
 
     private var imageFiles: [ImageFile] = []
     private var currentIndex: Int = 0
@@ -230,11 +231,11 @@ final class ViewerViewController: NSViewController {
         case 53:  // ESC
             videoPlayerView.stop()
             delegate?.viewerDidRequestClose(self)
-        case 126: // ↑
+        case 126, 123: // ↑, ←
             if let newIndex = thumbnailStrip.selectPrevious() {
                 showMedia(at: newIndex)
             }
-        case 125: // ↓
+        case 125, 124: // ↓, →
             if let newIndex = thumbnailStrip.selectNext() {
                 showMedia(at: newIndex)
             }
@@ -270,7 +271,9 @@ final class ViewerViewController: NSViewController {
         showMedia(at: newIndex)
     }
 
-    // MARK: - Edit Button Setup
+    // MARK: - Bottom Buttons
+
+    private var isThumbnailVisible = true
 
     private func setupEditButton() {
         editButton.translatesAutoresizingMaskIntoConstraints = false
@@ -280,16 +283,41 @@ final class ViewerViewController: NSViewController {
         editButton.target = self
         editButton.action = #selector(editButtonTapped)
 
+        thumbnailToggleButton.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailToggleButton.bezelStyle = .rounded
+        thumbnailToggleButton.controlSize = .small
+        thumbnailToggleButton.image = NSImage(systemSymbolName: "sidebar.right", accessibilityDescription: "썸네일 목록")
+        thumbnailToggleButton.setButtonType(.toggle)
+        thumbnailToggleButton.state = .on
+        thumbnailToggleButton.target = self
+        thumbnailToggleButton.action = #selector(toggleThumbnailStrip)
+
         contentContainer.addSubview(editButton)
+        contentContainer.addSubview(thumbnailToggleButton)
 
         NSLayoutConstraint.activate([
+            thumbnailToggleButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
+            thumbnailToggleButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -8),
+
             editButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
-            editButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -8),
+            editButton.trailingAnchor.constraint(equalTo: thumbnailToggleButton.leadingAnchor, constant: -6),
         ])
     }
 
     @objc private func editButtonTapped() {
         openEditor()
+    }
+
+    @objc private func toggleThumbnailStrip() {
+        isThumbnailVisible.toggle()
+        thumbnailToggleButton.state = isThumbnailVisible ? .on : .off
+
+        if isThumbnailVisible {
+            thumbnailStrip.isHidden = false
+        } else {
+            thumbnailStrip.isHidden = true
+        }
+        splitView.adjustSubviews()
     }
 
     // MARK: - Setup

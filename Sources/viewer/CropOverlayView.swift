@@ -66,6 +66,33 @@ final class CropOverlayView: NSView {
         infoLabel.isHidden = false
     }
 
+    /// imageRect가 변경될 때 선택 영역을 비례적으로 재계산
+    func updateImageRect(_ newRect: CGRect) {
+        let oldRect = imageRect
+        guard oldRect.width > 0, oldRect.height > 0 else {
+            imageRect = newRect
+            resetSelection()
+            return
+        }
+
+        // 선택 영역을 비율(0~1)로 변환 후 새 imageRect에 적용
+        let relX = (selectionRect.origin.x - oldRect.origin.x) / oldRect.width
+        let relY = (selectionRect.origin.y - oldRect.origin.y) / oldRect.height
+        let relW = selectionRect.width / oldRect.width
+        let relH = selectionRect.height / oldRect.height
+
+        imageRect = newRect
+
+        selectionRect = CGRect(
+            x: newRect.origin.x + relX * newRect.width,
+            y: newRect.origin.y + relY * newRect.height,
+            width: relW * newRect.width,
+            height: relH * newRect.height
+        )
+
+        updateLayers()
+    }
+
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {

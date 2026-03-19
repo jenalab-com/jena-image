@@ -4,7 +4,7 @@ import AppKit
 final class ImageDisplayView: NSView {
     var onDoubleClick: (() -> Void)?
 
-    private let scrollView = NSScrollView()
+    private let scrollView = ZoomScrollView()
     private let clipView = CenteringClipView()
     private let imageView = NSImageView()
 
@@ -208,13 +208,44 @@ final class ImageDisplayView: NSView {
         cropOverlay != nil
     }
 
-    // MARK: - Double Click
+    // MARK: - Click-Drag Pan
+
+    private var isPanning = false
+    private var panStart: CGPoint = .zero
 
     override func mouseDown(with event: NSEvent) {
         guard cropOverlay == nil else { return }
-        super.mouseDown(with: event)
+
         if event.clickCount == 2 {
             onDoubleClick?()
+            return
+        }
+
+        // 줌이 적용된 상태에서 클릭 드래그 → 패닝
+        isPanning = true
+        panStart = event.locationInWindow
+        NSCursor.closedHand.push()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard cropOverlay == nil, isPanning else { return }
+
+        let current = event.locationInWindow
+        let dx = current.x - panStart.x
+        let dy = current.y - panStart.y
+        panStart = current
+
+        var origin = clipView.bounds.origin
+        origin.x -= dx
+        origin.y -= dy
+        clipView.setBoundsOrigin(origin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard cropOverlay == nil else { return }
+        if isPanning {
+            isPanning = false
+            NSCursor.pop()
         }
     }
 
@@ -247,10 +278,24 @@ final class ImageDisplayView: NSView {
     }
 }
 
+// MARK: - Zoom Scroll View
+
+/// 스크롤 휠을 줌으로 변환하는 NSScrollView 서브클래스
+private final class ZoomScrollView: NSScrollView {
+    override func scrollWheel(with event: NSEvent) {
+        let delta = event.scrollingDeltaY
+        guard abs(delta) > 0.1 else { return }
+
+        let factor: CGFloat = delta > 0 ? 1.05 : 0.95
+        let newMag = max(minMagnification, min(magnification * factor, maxMagnification))
+        magnification = newMag
+    }
+}
+
 // MARK: - Centering Clip View
 
 /// document가 clip view보다 작을 때 자동으로 중앙 정렬하는 NSClipView 서브클래스
-private final class CenteringClipView: NSClipView {
+final class CenteringClipView: NSClipView {
     override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
         var rect = super.constrainBoundsRect(proposedBounds)
         guard let documentView = documentView else { return rect }

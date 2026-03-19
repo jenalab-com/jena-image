@@ -10,6 +10,11 @@ final class ImageEditorWindowController: NSWindowController {
     private let editingService = ImageEditingService()
     private var editedImage: NSImage
 
+    // Undo/Redo 히스토리 (최대 10개)
+    private var undoStack: [NSImage] = []
+    private var redoStack: [NSImage] = []
+    private let maxHistory = 10
+
     // 좌측: 이미지 표시
     private let imageScrollView = NSScrollView()
     private let imageView = NSImageView()
@@ -25,6 +30,9 @@ final class ImageEditorWindowController: NSWindowController {
     private let cropButton = NSButton(title: "자르기", target: nil, action: nil)
     private let resizeButton = NSButton(title: "이미지 크기", target: nil, action: nil)
     private let canvasButton = NSButton(title: "캔버스 크기", target: nil, action: nil)
+
+    private let undoButton = NSButton(title: "", target: nil, action: nil)
+    private let redoButton = NSButton(title: "", target: nil, action: nil)
 
     private let toolOptionsContainer = NSScrollView()
     private let toolOptionsContent = NSView()
@@ -75,6 +83,34 @@ final class ImageEditorWindowController: NSWindowController {
         setupUI()
         displayImage(image)
         updateSizeLabel()
+        observeScrollViewResize()
+    }
+
+    private var frameObserver: NSObjectProtocol?
+
+    private func observeScrollViewResize() {
+        imageScrollView.postsFrameChangedNotifications = true
+        frameObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: imageScrollView,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.fitImageToView()
+            if let overlay = self.cropOverlay {
+                DispatchQueue.main.async {
+                    // 오버레이 프레임을 스크롤뷰에 맞춤 (autoresizingMask 대체)
+                    overlay.frame = self.imageScrollView.bounds
+                    overlay.updateImageRect(self.computeImageRect())
+                }
+            }
+        }
+    }
+
+    deinit {
+        if let obs = frameObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
     }
 
     @available(*, unavailable)
@@ -101,17 +137,25 @@ final class ImageEditorWindowController: NSWindowController {
         imageScrollView.minMagnification = 0.1
         imageScrollView.maxMagnification = 5.0
         imageScrollView.backgroundColor = .controlBackgroundColor
+        imageScrollView.wantsLayer = true
+        imageScrollView.layer?.cornerRadius = 6
 
         imageView.imageScaling = .scaleNone
         imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageScrollView.documentView = imageView
 
+        // CenteringClipView로 이미지를 항상 중앙 배치
+        let centeringClip = CenteringClipView()
+        centeringClip.documentView = imageView
+        imageScrollView.contentView = centeringClip
+
+        // 이미지 영역에 패딩 — 창 가장자리 리사이즈와 crop 드래그가 겹치지 않게
         imageContainer.addSubview(imageScrollView)
+        let pad: CGFloat = 12
         NSLayoutConstraint.activate([
-            imageScrollView.topAnchor.constraint(equalTo: imageContainer.topAnchor),
-            imageScrollView.bottomAnchor.constraint(equalTo: imageContainer.bottomAnchor),
-            imageScrollView.leadingAnchor.constraint(equalTo: imageContainer.leadingAnchor),
-            imageScrollView.trailingAnchor.constraint(equalTo: imageContainer.trailingAnchor),
+            imageScrollView.topAnchor.constraint(equalTo: imageContainer.topAnchor, constant: pad),
+            imageScrollView.bottomAnchor.constraint(equalTo: imageContainer.bottomAnchor, constant: -pad),
+            imageScrollView.leadingAnchor.constraint(equalTo: imageContainer.leadingAnchor, constant: pad),
+            imageScrollView.trailingAnchor.constraint(equalTo: imageContainer.trailingAnchor, constant: -pad),
         ])
 
         // --- 우측: 편집 도구 ---
@@ -126,6 +170,28 @@ final class ImageEditorWindowController: NSWindowController {
         imageSizeLabel.textColor = .secondaryLabelColor
         imageSizeLabel.translatesAutoresizingMaskIntoConstraints = false
         controlsView.addSubview(imageSizeLabel)
+
+        // Undo/Redo 버튼
+        undoButton.translatesAutoresizingMaskIntoConstraints = false
+        undoButton.bezelStyle = .rounded
+        undoButton.image = NSImage(systemSymbolName: "arrow.uturn.backward", accessibilityDescription: "실행 취소")
+        undoButton.toolTip = "실행 취소 (⌘Z)"
+        undoButton.target = self
+        undoButton.action = #selector(undoTapped)
+        undoButton.isEnabled = false
+
+        redoButton.translatesAutoresizingMaskIntoConstraints = false
+        redoButton.bezelStyle = .rounded
+        redoButton.image = NSImage(systemSymbolName: "arrow.uturn.forward", accessibilityDescription: "다시 실행")
+        redoButton.toolTip = "다시 실행 (⌘⇧Z)"
+        redoButton.target = self
+        redoButton.action = #selector(redoTapped)
+        redoButton.isEnabled = false
+
+        let undoRedoStack = NSStackView(views: [undoButton, redoButton])
+        undoRedoStack.translatesAutoresizingMaskIntoConstraints = false
+        undoRedoStack.spacing = 4
+        controlsView.addSubview(undoRedoStack)
 
         // 도구 버튼
         for (button, action) in [
@@ -180,7 +246,9 @@ final class ImageEditorWindowController: NSWindowController {
 
             imageSizeLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
             imageSizeLabel.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 16),
-            imageSizeLabel.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -16),
+
+            undoRedoStack.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            undoRedoStack.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -16),
 
             toolStack.topAnchor.constraint(equalTo: imageSizeLabel.bottomAnchor, constant: 16),
             toolStack.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 16),
@@ -309,20 +377,20 @@ final class ImageEditorWindowController: NSWindowController {
         ])
     }
 
+    /// 이미지가 스크롤뷰 내에서 실제 표시되는 영역 (중앙 배치·magnification 반영)
+    private func computeImageRect() -> CGRect {
+        let target: NSView = cropOverlay ?? imageScrollView
+        let imgBounds = NSRect(origin: .zero, size: imageView.frame.size)
+        return imageView.convert(imgBounds, to: target)
+    }
+
     private func addCropOverlay() {
         removeCropOverlay()
 
         let overlay = CropOverlayView(frame: imageScrollView.bounds)
         overlay.autoresizingMask = [.width, .height]
         overlay.imageSize = editedImage.size
-
-        // 이미지 표시 영역 계산
-        let mag = imageScrollView.magnification
-        let imgFrame = imageView.frame
-        overlay.imageRect = CGRect(
-            origin: .zero,
-            size: CGSize(width: imgFrame.width * mag, height: imgFrame.height * mag)
-        )
+        overlay.imageRect = computeImageRect()
 
         overlay.onCropConfirmed = { [weak self] cropRect in
             self?.applyCrop(cropRect)
@@ -347,9 +415,7 @@ final class ImageEditorWindowController: NSWindowController {
 
     private func applyCrop(_ cropRect: CGRect) {
         guard let cropped = editingService.cropImage(editedImage, to: cropRect) else { return }
-        editedImage = cropped
-        displayImage(cropped)
-        updateSizeLabel()
+        applyEdit(cropped)
         removeCropOverlay()
         selectTool(.none)
     }
@@ -397,9 +463,7 @@ final class ImageEditorWindowController: NSWindowController {
         let w = max(1, resizeWidthField.integerValue)
         let h = max(1, resizeHeightField.integerValue)
         guard let resized = editingService.resizeImage(editedImage, to: CGSize(width: w, height: h)) else { return }
-        editedImage = resized
-        displayImage(resized)
-        updateSizeLabel()
+        applyEdit(resized)
         selectTool(.none)
     }
 
@@ -546,10 +610,50 @@ final class ImageEditorWindowController: NSWindowController {
 
         let fillColor = canvasTransparentCheck.state == .on ? NSColor.clear : canvasColorWell.color
         guard let resized = editingService.resizeCanvas(editedImage, to: resultSize, fillColor: fillColor, alignment: alignment) else { return }
-        editedImage = resized
-        displayImage(resized)
-        updateSizeLabel()
+        applyEdit(resized)
         selectTool(.none)
+    }
+
+    // MARK: - Undo / Redo
+
+    private func pushUndo() {
+        undoStack.append(editedImage)
+        if undoStack.count > maxHistory {
+            undoStack.removeFirst()
+        }
+        redoStack.removeAll()
+        updateUndoRedoButtons()
+    }
+
+    /// 편집 적용 공통: undo 저장 → 이미지 교체 → 표시 갱신
+    private func applyEdit(_ newImage: NSImage) {
+        pushUndo()
+        editedImage = newImage
+        displayImage(newImage)
+        updateSizeLabel()
+    }
+
+    @objc private func undoTapped() {
+        guard let prev = undoStack.popLast() else { return }
+        redoStack.append(editedImage)
+        editedImage = prev
+        displayImage(prev)
+        updateSizeLabel()
+        updateUndoRedoButtons()
+    }
+
+    @objc private func redoTapped() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(editedImage)
+        editedImage = next
+        displayImage(next)
+        updateSizeLabel()
+        updateUndoRedoButtons()
+    }
+
+    private func updateUndoRedoButtons() {
+        undoButton.isEnabled = !undoStack.isEmpty
+        redoButton.isEnabled = !redoStack.isEmpty
     }
 
     // MARK: - Save / Cancel
@@ -631,6 +735,10 @@ final class ImageEditorWindowController: NSWindowController {
 extension ImageEditorWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         onComplete?()
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        // frameDidChangeNotification에서 처리
     }
 }
 
