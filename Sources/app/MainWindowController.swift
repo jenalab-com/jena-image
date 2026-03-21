@@ -181,14 +181,19 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private func performDelete(urls: [URL]) {
         let count = urls.count
         let alert = NSAlert()
-        alert.messageText = "이미지 \(count)개를 휴지통으로 이동하시겠습니까?"
+        alert.messageText = "\(count)개 항목을 휴지통으로 이동하시겠습니까?"
         alert.informativeText = "이 작업은 취소할 수 있습니다."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "삭제")
         alert.addButton(withTitle: "취소")
-        alert.buttons.first?.hasDestructiveAction = true
+        alert.buttons.first?.keyEquivalent = "\r"
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        // 삭제 대상 폴더의 watcher 해제
+        for url in urls {
+            folderWatcher.unwatch(url)
+        }
 
         var failedURLs: [URL] = []
         for url in urls {
@@ -203,8 +208,15 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             showError(FileServiceError.operationFailed("일부 파일을 삭제할 수 없습니다"))
         }
 
+        // 현재 폴더가 삭제되었으면 부모로 이동
         let parentFolders = Set(urls.map { $0.deletingLastPathComponent() })
-        refreshCurrentFolder()
+        if let current = currentFolderURL, urls.contains(where: { current.path.hasPrefix($0.path) }) {
+            if let parent = parentFolders.first {
+                navigateToFolder(parent)
+            }
+        } else {
+            refreshCurrentFolder()
+        }
         for folder in parentFolders {
             sidebarVC.reloadFolder(at: folder)
         }
@@ -628,6 +640,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         folderChangeWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            // 폴더가 삭제된 경우 무시
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                self.folderWatcher.unwatch(url)
+                return
+            }
             self.sidebarVC.reloadFolder(at: url)
             if url == self.currentFolderURL {
                 self.refreshAfterExternalChange()
@@ -921,6 +938,22 @@ extension MainWindowController: BrowserDelegate {
 
     func browser(_ browser: BrowserViewController, didRequestExport url: URL) {
         performExport(url: url)
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestCreateFolder name: String) {
+        guard let parentURL = currentFolderURL else { return }
+        let result = fileService.createFolder(in: parentURL, name: name)
+        switch result {
+        case .success:
+            sidebarVC.reloadFolder(at: parentURL)
+            refreshCurrentFolder()
+        case .failure(let error):
+            showError(error)
+        }
+    }
+
+    func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL) {
+        performMoveToFolder(urls: urls, target: destination)
     }
 }
 

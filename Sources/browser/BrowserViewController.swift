@@ -5,6 +5,9 @@ import AppKit
 private final class DoubleClickCollectionView: NSCollectionView {
     var onDoubleClick: ((IndexPath) -> Void)?
     var onClickSelectedItem: ((IndexPath) -> Void)?
+    var onDropOnItem: ((_ fileURLs: [URL], _ targetIndexPath: IndexPath) -> Bool)?
+    var onDragOverItem: ((_ targetIndex: Int?) -> Void)?
+    private var didDrag = false
 
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
@@ -15,13 +18,92 @@ private final class DoubleClickCollectionView: NSCollectionView {
         let clickedIndexPath = indexPathForItem(at: clickPoint)
         let wasSelected = clickedIndexPath.flatMap { selectionIndexPaths.contains($0) } ?? false
 
+        didDrag = false
         super.mouseDown(with: event)
+
+        guard !didDrag else { return }
 
         if isDoubleClick, let indexPath = clickedIndexPath {
             onDoubleClick?(indexPath)
         } else if isSingleClick && wasSelected, let indexPath = clickedIndexPath {
             onClickSelectedItem?(indexPath)
         }
+    }
+
+    override func draggingSession(_ session: NSDraggingSession, willBeginAt screenPoint: NSPoint) {
+        didDrag = true
+        super.draggingSession(session, willBeginAt: screenPoint)
+    }
+
+    // MARK: - Drop Handling
+
+    private func itemIndexPath(at windowPoint: NSPoint) -> IndexPath? {
+        guard let layout = collectionViewLayout as? NSCollectionViewFlowLayout else { return nil }
+        let point = convert(windowPoint, from: nil)
+
+        let inset = layout.sectionInset
+        let itemW = layout.itemSize.width
+        let itemH = layout.itemSize.height
+        let gapX = layout.minimumInteritemSpacing
+        let gapY = layout.minimumLineSpacing
+
+        let x = point.x - inset.left
+        let y = point.y - inset.top
+        guard x >= 0, y >= 0 else { return nil }
+
+        let col = Int(x / (itemW + gapX))
+        let row = Int(y / (itemH + gapY))
+
+        // 아이템 영역 내인지 확인 (간격 제외)
+        let cellX = CGFloat(col) * (itemW + gapX)
+        let cellY = CGFloat(row) * (itemH + gapY)
+        guard x <= cellX + itemW, y <= cellY + itemH else { return nil }
+
+        let contentWidth = bounds.width - inset.left - inset.right
+        let cols = max(1, Int((contentWidth + gapX) / (itemW + gapX)))
+        let index = row * cols + col
+
+        let total = numberOfItems(inSection: 0)
+        guard index >= 0, index < total else { return nil }
+        return IndexPath(item: index, section: 0)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if let indexPath = itemIndexPath(at: sender.draggingLocation) {
+            onDragOverItem?(indexPath.item)
+            return .move
+        }
+        onDragOverItem?(nil)
+        return super.draggingUpdated(sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onDragOverItem?(nil)
+        super.draggingExited(sender)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        onDragOverItem?(nil)
+        super.draggingEnded(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        onDragOverItem?(nil)
+        guard let indexPath = itemIndexPath(at: sender.draggingLocation) else {
+            return super.performDragOperation(sender)
+        }
+
+        var fileURLs: [URL] = []
+        for item in sender.draggingPasteboard.pasteboardItems ?? [] {
+            if let urlString = item.string(forType: .fileURL),
+               let url = URL(string: urlString) {
+                fileURLs.append(url)
+            }
+        }
+
+        guard !fileURLs.isEmpty else { return super.performDragOperation(sender) }
+
+        return onDropOnItem?(fileURLs, indexPath) ?? false
     }
 }
 
@@ -35,6 +117,8 @@ protocol BrowserDelegate: AnyObject {
     func browser(_ browser: BrowserViewController, didRequestCopy urls: [URL])
     func browser(_ browser: BrowserViewController, didRequestRename url: URL, newName: String)
     func browser(_ browser: BrowserViewController, didRequestExport url: URL)
+    func browser(_ browser: BrowserViewController, didRequestCreateFolder name: String)
+    func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL)
 }
 
 // MARK: - ViewController
@@ -51,6 +135,7 @@ final class BrowserViewController: NSViewController {
     private var currentFolderURL: URL?
     private var thumbnailTask: Task<Void, Never>?
     private var renameWorkItem: DispatchWorkItem?
+    private var dropHighlightIndex: Int?
 
     private let imageService: ImageServiceProtocol
     private let thumbnailCache: ThumbnailCache
@@ -276,6 +361,31 @@ final class BrowserViewController: NSViewController {
         delegate?.browser(self, didRequestExport: url)
     }
 
+    @objc private func contextNewFolder(_ sender: NSMenuItem) {
+        let alert = NSAlert()
+        alert.messageText = "새 폴더"
+        alert.informativeText = "새 폴더의 이름을 입력하세요."
+        alert.addButton(withTitle: "생성")
+        alert.addButton(withTitle: "취소")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        input.placeholderString = "폴더 이름"
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = input.stringValue.trimmingCharacters(in: .whitespaces)
+        if name.isEmpty {
+            let warn = NSAlert()
+            warn.messageText = "폴더 이름을 입력해 주세요."
+            warn.alertStyle = .warning
+            warn.addButton(withTitle: "확인")
+            warn.runModal()
+            return
+        }
+        delegate?.browser(self, didRequestCreateFolder: name)
+    }
+
     // MARK: - Setup
 
     private func setupScrollView() {
@@ -307,8 +417,9 @@ final class BrowserViewController: NSViewController {
         collectionView.dataSource = self
         collectionView.delegate = self
 
-        // 드래그 소스
+        // 드래그 소스 & 드롭 대상
         collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
+        collectionView.registerForDraggedTypes([.fileURL])
 
         // 더블 클릭
         collectionView.onDoubleClick = { [weak self] indexPath in
@@ -319,6 +430,14 @@ final class BrowserViewController: NSViewController {
         // 이미 선택된 아이템 클릭 → 이름 변경
         collectionView.onClickSelectedItem = { [weak self] indexPath in
             self?.scheduleRename(at: indexPath)
+        }
+
+        // 폴더로 드래그 앤 드롭
+        collectionView.onDragOverItem = { [weak self] targetIndex in
+            self?.handleDragOver(targetIndex: targetIndex)
+        }
+        collectionView.onDropOnItem = { [weak self] fileURLs, targetIndexPath in
+            self?.handleDrop(fileURLs: fileURLs, targetIndexPath: targetIndexPath) ?? false
         }
 
         // 우클릭 컨텍스트 메뉴
@@ -381,6 +500,46 @@ extension BrowserViewController: NSCollectionViewDelegate {
         guard let content = contents[safe: indexPath.item], content.isImage else { return nil }
         return content.url as NSURL
     }
+
+    func collectionView(
+        _ collectionView: NSCollectionView,
+        draggingSession session: NSDraggingSession,
+        endedAt screenPoint: NSPoint,
+        dragOperation operation: NSDragOperation
+    ) {
+        updateDropHighlight(targetIndex: nil)
+    }
+
+    // MARK: - Drop Handling
+
+    private func updateDropHighlight(targetIndex: Int?) {
+        if let prev = dropHighlightIndex, prev != targetIndex {
+            if let item = collectionView.item(at: IndexPath(item: prev, section: 0)) as? BrowserItem {
+                item.setDropHighlight(false)
+            }
+        }
+        if let idx = targetIndex {
+            if let item = collectionView.item(at: IndexPath(item: idx, section: 0)) as? BrowserItem {
+                item.setDropHighlight(true)
+            }
+        }
+        dropHighlightIndex = targetIndex
+    }
+
+    private func handleDragOver(targetIndex: Int?) {
+        guard let idx = targetIndex, let content = contents[safe: idx], content.isFolder else {
+            updateDropHighlight(targetIndex: nil)
+            return
+        }
+        updateDropHighlight(targetIndex: idx)
+    }
+
+    private func handleDrop(fileURLs: [URL], targetIndexPath: IndexPath) -> Bool {
+        updateDropHighlight(targetIndex: nil)
+        guard let target = contents[safe: targetIndexPath.item], target.isFolder else { return false }
+        delegate?.browser(self, didRequestMoveToFolder: fileURLs, destination: target.url)
+        return true
+    }
 }
 
 // MARK: - NSMenuDelegate (우클릭 컨텍스트 메뉴)
@@ -390,45 +549,53 @@ extension BrowserViewController: NSMenuDelegate {
         menu.removeAllItems()
 
         let urls = selectedURLs()
-        guard !urls.isEmpty else { return }
 
-        let hasImages = urls.contains { ImageFile.allSupportedExtensions.contains($0.pathExtension.lowercased()) }
+        if !urls.isEmpty {
+            let hasImages = urls.contains { ImageFile.allSupportedExtensions.contains($0.pathExtension.lowercased()) }
 
-        if urls.count == 1, hasImages {
-            menu.addItem(withTitle: "열기", action: #selector(contextOpen(_:)), keyEquivalent: "")
-            menu.addItem(NSMenuItem.separator())
-            menu.addItem(withTitle: "이름 변경", action: #selector(contextRename(_:)), keyEquivalent: "")
-        }
-
-        menu.addItem(withTitle: "복사", action: #selector(contextCopy(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: "이동", action: #selector(contextMove(_:)), keyEquivalent: "")
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "삭제", action: #selector(contextDelete(_:)), keyEquivalent: "")
-
-        if urls.count == 1, hasImages {
-            menu.addItem(NSMenuItem.separator())
-            menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
-        }
-
-        // 폴더 색상 서브메뉴 (폴더 1개 선택 시)
-        if urls.count == 1 {
-            let isFolder = contents.first(where: { $0.url == urls[0] }).map {
-                if case .folder = $0 { return true } else { return false }
-            } ?? false
-            if isFolder {
+            if urls.count == 1, hasImages {
+                menu.addItem(withTitle: "열기", action: #selector(contextOpen(_:)), keyEquivalent: "")
                 menu.addItem(NSMenuItem.separator())
-                let colorItem = NSMenuItem(title: "폴더 색상", action: nil, keyEquivalent: "")
-                colorItem.submenu = FolderColorService.createColorMenu(
-                    for: urls[0], target: self, action: #selector(setFolderColor(_:))
-                )
-                menu.addItem(colorItem)
+                menu.addItem(withTitle: "이름 변경", action: #selector(contextRename(_:)), keyEquivalent: "")
             }
+
+            menu.addItem(withTitle: "복사", action: #selector(contextCopy(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: "이동", action: #selector(contextMove(_:)), keyEquivalent: "")
+            menu.addItem(NSMenuItem.separator())
+            menu.addItem(withTitle: "삭제", action: #selector(contextDelete(_:)), keyEquivalent: "")
+
+            if urls.count == 1, hasImages {
+                menu.addItem(NSMenuItem.separator())
+                menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
+            }
+
+            // 폴더 색상 서브메뉴 (폴더 1개 선택 시)
+            if urls.count == 1 {
+                let isFolder = contents.first(where: { $0.url == urls[0] }).map {
+                    if case .folder = $0 { return true } else { return false }
+                } ?? false
+                if isFolder {
+                    menu.addItem(NSMenuItem.separator())
+                    let colorItem = NSMenuItem(title: "폴더 색상", action: nil, keyEquivalent: "")
+                    colorItem.submenu = FolderColorService.createColorMenu(
+                        for: urls[0], target: self, action: #selector(setFolderColor(_:))
+                    )
+                    menu.addItem(colorItem)
+                }
+            }
+
+            for item in menu.items where item.representedObject == nil {
+                item.target = self
+                item.representedObject = urls
+            }
+
+            menu.addItem(NSMenuItem.separator())
         }
 
-        for item in menu.items where item.representedObject == nil {
-            item.target = self
-            item.representedObject = urls
-        }
+        // 새 폴더 (항상 표시)
+        let newFolderItem = NSMenuItem(title: "새 폴더", action: #selector(contextNewFolder(_:)), keyEquivalent: "")
+        newFolderItem.target = self
+        menu.addItem(newFolderItem)
     }
 }
 

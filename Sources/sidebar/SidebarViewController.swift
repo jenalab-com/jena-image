@@ -186,21 +186,32 @@ final class SidebarViewController: NSViewController {
     @objc private func createNewSubfolder(_ sender: Any?) {
         guard !isCreatingFolder else { return }
 
-        // 선택된 폴더 결정 (없으면 첫 루트)
-        guard let parentNode = selectedFolderNode() ?? rootNodes.first else { return }
+        // 선택된 폴더 결정 (이미지 선택 시 부모 폴더, 없으면 첫 루트)
+        let parentNode: FolderNode?
+        let row = outlineView.selectedRow
+        if row >= 0 {
+            let item = outlineView.item(atRow: row)
+            if let node = item as? FolderNode {
+                parentNode = node
+            } else {
+                parentNode = parentFolderNode(of: item as Any)
+            }
+        } else {
+            parentNode = rootNodes.first
+        }
+        guard let parentNode else { return }
         newFolderParentNode = parentNode
+        isCreatingFolder = true
+
+        // 임시 폴더 노드를 먼저 추가 (빈 폴더도 expand 가능하도록)
+        let tempNode = FolderNode(url: parentNode.url.appendingPathComponent(".newFolder"), isTemporary: true)
+        parentNode.insertTemporaryChild(tempNode)
+        outlineView.reloadItem(parentNode, reloadChildren: true)
 
         // 부모 폴더 펼침
         if !outlineView.isItemExpanded(parentNode) {
             outlineView.expandItem(parentNode)
         }
-
-        isCreatingFolder = true
-
-        // 임시 폴더 노드 추가
-        let tempNode = FolderNode(url: parentNode.url.appendingPathComponent(".newFolder"), isTemporary: true)
-        parentNode.insertTemporaryChild(tempNode)
-        outlineView.reloadItem(parentNode, reloadChildren: true)
 
         // 임시 노드의 row 찾기
         let tempRow = outlineView.row(forItem: tempNode)
