@@ -13,7 +13,8 @@ struct ImageFile {
         let imageFormat = ImageFormat.from(extension: ext)
         let isVideoFile = Self.videoExtensions.contains(ext)
 
-        guard imageFormat != nil || isVideoFile else { return nil }
+        let isPreviewOnly = Self.previewOnlyExtensions.contains(ext)
+        guard imageFormat != nil || isVideoFile || isPreviewOnly else { return nil }
 
         self.url = url
         self.name = url.lastPathComponent
@@ -32,9 +33,17 @@ struct ImageFile {
     /// 지원하는 영상 확장자
     static let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "avi", "mkv"]
 
-    /// 지원하는 모든 미디어 확장자 (이미지 + 영상)
+    /// 미리보기 전용 확장자 (내보내기 불가, 뷰어에서만 표시)
+    static let previewOnlyExtensions: Set<String> = ["psd", "ai", "svg", "eps"]
+
+    /// 미리보기 전용 파일 여부
+    var isPreviewOnly: Bool {
+        Self.previewOnlyExtensions.contains(fileExtension)
+    }
+
+    /// 지원하는 모든 미디어 확장자 (이미지 + 영상 + 미리보기 전용)
     static let allSupportedExtensions: Set<String> = {
-        ImageFormat.supportedExtensions.union(videoExtensions)
+        ImageFormat.supportedExtensions.union(videoExtensions).union(previewOnlyExtensions)
     }()
 }
 

@@ -37,20 +37,51 @@ protocol ImageServiceProtocol {
 
 final class ImageService: ImageServiceProtocol {
 
+    /// NSImage 폴백이 필요한 확장자 (SVG, AI, EPS 등 CGImageSource 미지원)
+    private static let nsImageFallbackExtensions: Set<String> = ["svg", "ai", "eps"]
+
     func loadImage(at url: URL) async -> Result<NSImage, ImageServiceError> {
-        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-            return .failure(.loadFailed(url))
+        let ext = url.pathExtension.lowercased()
+
+        // SVG, AI, EPS: NSImage로 직접 로드 (PDF 기반 벡터 렌더링)
+        if Self.nsImageFallbackExtensions.contains(ext) {
+            return loadWithNSImage(at: url)
         }
 
-        let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        // PSD 및 기타 래스터: CGImageSource
+        if let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
+            let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            return .success(image)
+        }
+
+        // CGImageSource 실패 시 NSImage 폴백
+        return loadWithNSImage(at: url)
+    }
+
+    private func loadWithNSImage(at url: URL) -> Result<NSImage, ImageServiceError> {
+        guard let image = NSImage(contentsOf: url), image.isValid else {
+            return .failure(.loadFailed(url))
+        }
+        // 벡터 이미지를 고해상도 비트맵으로 변환
+        let size = image.size
+        guard size.width > 0, size.height > 0 else {
+            return .failure(.loadFailed(url))
+        }
         return .success(image)
     }
 
     func generateThumbnail(at url: URL, size: CGSize) async -> Result<NSImage, ImageServiceError> {
+        let ext = url.pathExtension.lowercased()
+
         // 영상 파일은 AVAssetImageGenerator 사용
-        if ImageFile.videoExtensions.contains(url.pathExtension.lowercased()) {
+        if ImageFile.videoExtensions.contains(ext) {
             return await generateVideoThumbnail(at: url, size: size)
+        }
+
+        // SVG, AI, EPS: NSImage로 로드 후 리사이즈
+        if Self.nsImageFallbackExtensions.contains(ext) {
+            return generateNSImageThumbnail(at: url, size: size)
         }
 
         let maxDimension = max(size.width, size.height) * 2  // Retina 대응
@@ -61,14 +92,35 @@ final class ImageService: ImageServiceProtocol {
             kCGImageSourceCreateThumbnailWithTransform: true,
         ]
 
-        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-            return .failure(.thumbnailFailed(url))
+        // CGImageSource 시도, 실패 시 NSImage 폴백 (PSD 일부 버전 등)
+        if let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) {
+            let pixelWidth = CGFloat(cgImage.width)
+            let pixelHeight = CGFloat(cgImage.height)
+            let thumbnail = NSImage(cgImage: cgImage, size: NSSize(width: pixelWidth, height: pixelHeight))
+            return .success(thumbnail)
         }
 
-        let pixelWidth = CGFloat(cgImage.width)
-        let pixelHeight = CGFloat(cgImage.height)
-        let thumbnail = NSImage(cgImage: cgImage, size: NSSize(width: pixelWidth, height: pixelHeight))
+        return generateNSImageThumbnail(at: url, size: size)
+    }
+
+    private func generateNSImageThumbnail(at url: URL, size: CGSize) -> Result<NSImage, ImageServiceError> {
+        guard let image = NSImage(contentsOf: url), image.isValid else {
+            return .failure(.thumbnailFailed(url))
+        }
+        let imgSize = image.size
+        guard imgSize.width > 0, imgSize.height > 0 else {
+            return .failure(.thumbnailFailed(url))
+        }
+        let maxDim = max(size.width, size.height) * 2
+        let scale = min(maxDim / imgSize.width, maxDim / imgSize.height, 1.0)
+        let thumbSize = NSSize(width: imgSize.width * scale, height: imgSize.height * scale)
+        let thumbnail = NSImage(size: thumbSize)
+        thumbnail.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: thumbSize),
+                   from: NSRect(origin: .zero, size: imgSize),
+                   operation: .copy, fraction: 1.0)
+        thumbnail.unlockFocus()
         return .success(thumbnail)
     }
 
