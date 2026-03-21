@@ -37,6 +37,7 @@ protocol FileServiceProtocol {
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func trashFile(at url: URL) -> Result<Void, FileServiceError>
     func renameFile(at url: URL, newName: String) -> Result<URL, FileServiceError>
+    func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError>
     func fileExists(at url: URL) -> Bool
 }
 
@@ -153,6 +154,30 @@ final class FileService: FileServiceProtocol {
             return .success(destination)
         } catch {
             return .failure(.operationFailed("파일 이름을 변경할 수 없습니다: \(error.localizedDescription)"))
+        }
+    }
+
+    func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError> {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        if trimmedName.isEmpty {
+            return .failure(.invalidFileName("폴더 이름이 비어있습니다"))
+        }
+        if trimmedName.contains("/") || trimmedName.contains(":") {
+            return .failure(.invalidFileName("폴더 이름에 '/' 또는 ':'를 사용할 수 없습니다"))
+        }
+
+        let newFolderURL = parentURL.appendingPathComponent(trimmedName)
+
+        if fileManager.fileExists(atPath: newFolderURL.path) {
+            return .failure(.nameConflict(trimmedName))
+        }
+
+        do {
+            try fileManager.createDirectory(at: newFolderURL, withIntermediateDirectories: false)
+            return .success(newFolderURL)
+        } catch {
+            return .failure(.operationFailed("폴더를 생성할 수 없습니다: \(error.localizedDescription)"))
         }
     }
 

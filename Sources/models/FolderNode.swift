@@ -4,6 +4,7 @@ import Foundation
 final class FolderNode {
     let url: URL
     let name: String
+    let isTemporary: Bool
     private(set) var children: [FolderNode]?
     private(set) var imageFiles: [ImageFile]?
     private(set) var isLoaded: Bool = false
@@ -18,9 +19,10 @@ final class FolderNode {
         children?.count ?? 0
     }
 
-    init(url: URL) {
+    init(url: URL, isTemporary: Bool = false) {
         self.url = url
         self.name = url.lastPathComponent
+        self.isTemporary = isTemporary
     }
 
     /// 하위 폴더 + 이미지 로드 (지연 로딩 — 펼침 시점에 호출)
@@ -96,6 +98,17 @@ final class FolderNode {
         children = nil
         imageFiles = nil
         isLoaded = false
+    }
+
+    /// 임시 자식 노드 추가 (새 폴더 생성 UI용)
+    func insertTemporaryChild(_ node: FolderNode) {
+        loadChildren()
+        children?.insert(node, at: 0)
+    }
+
+    /// 임시 자식 노드 제거
+    func removeTemporaryChild() {
+        children?.removeAll { $0.isTemporary }
     }
 }
 
