@@ -119,6 +119,7 @@ final class BrowserItem: NSCollectionViewItem {
     private func setupThumbnailView() {
         thumbnailView.translatesAutoresizingMaskIntoConstraints = false
         thumbnailView.imageScaling = .scaleProportionallyDown
+        thumbnailView.unregisterDraggedTypes()
         thumbnailView.wantsLayer = true
         thumbnailView.layer?.cornerRadius = 6
         thumbnailView.layer?.masksToBounds = true
@@ -171,6 +172,26 @@ final class BrowserItem: NSCollectionViewItem {
             nameLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
             nameLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
         ])
+    }
+
+    // MARK: - Drop Highlight
+
+    private var isDropTarget = false
+
+    func setDropHighlight(_ highlighted: Bool) {
+        guard isDropTarget != highlighted else { return }
+        isDropTarget = highlighted
+        view.wantsLayer = true
+        if highlighted {
+            view.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
+            view.layer?.cornerRadius = 8
+            view.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.6).cgColor
+            view.layer?.borderWidth = 2
+        } else {
+            updateSelectionAppearance()
+            view.layer?.borderColor = nil
+            view.layer?.borderWidth = 0
+        }
     }
 
     private func updateSelectionAppearance() {
