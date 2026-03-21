@@ -26,6 +26,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private let fileService: FileServiceProtocol = FileService()
     private let imageService: ImageServiceProtocol = ImageService()
     private let securityService = SecurityScopeService()
+    private let folderWatcher = FolderWatcher()
 
     // MARK: - Child ViewControllers
 
@@ -77,6 +78,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         setupToolbar()
         setupDelegates()
         setupLayout()
+        setupFolderWatcher()
     }
 
     @available(*, unavailable)
@@ -131,6 +133,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     private func navigateToFolder(_ url: URL) {
         currentFolderURL = url
+        folderWatcher.watch(url)
         switchToMode(.browser)
 
         let result = fileService.contentsOfFolder(at: url)
@@ -265,23 +268,6 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     private func performRename(url: URL, newName: String) {
-        var isDirectory: ObjCBool = false
-        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-
-        if !isDirectory.boolValue {
-            let oldExt = url.pathExtension.lowercased()
-            let newExt = (newName as NSString).pathExtension.lowercased()
-
-            if !newExt.isEmpty, oldExt != newExt {
-                let alert = NSAlert()
-                alert.messageText = "확장자를 변경하면 파일을 열 수 없을 수 있습니다."
-                alert.informativeText = "확장자를 \"\(oldExt)\"에서 \"\(newExt)\"로 변경하시겠습니까?"
-                alert.addButton(withTitle: "변경")
-                alert.addButton(withTitle: "취소")
-                guard alert.runModal() == .alertFirstButtonReturn else { return }
-            }
-        }
-
         let result = fileService.renameFile(at: url, newName: newName)
         switch result {
         case .success(let newURL):
@@ -627,6 +613,30 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
+    // MARK: - Folder Watcher
+
+    private func setupFolderWatcher() {
+        folderWatcher.onChange = { [weak self] changedURL in
+            self?.handleFolderChange(at: changedURL)
+        }
+    }
+
+    private var folderChangeWorkItem: DispatchWorkItem?
+
+    private func handleFolderChange(at url: URL) {
+        // 짧은 시간 내 연속 이벤트를 하나로 합침 (디바운스)
+        folderChangeWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.sidebarVC.reloadFolder(at: url)
+            if url == self.currentFolderURL {
+                self.refreshAfterExternalChange()
+            }
+        }
+        folderChangeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+    }
+
     // MARK: - External Change
 
     /// 외부(Finder 등)에서 파일이 변경된 후 앱이 활성화될 때 호출
@@ -850,6 +860,19 @@ extension MainWindowController: SidebarDelegate {
 
     func sidebarDidRequestAddFolder(_ sidebar: SidebarViewController) {
         addFolder(nil)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didRequestCreateFolder name: String, in parentURL: URL) {
+        let result = fileService.createFolder(in: parentURL, name: name)
+        switch result {
+        case .success:
+            sidebarVC.reloadFolder(at: parentURL)
+            if parentURL == currentFolderURL {
+                refreshCurrentFolder()
+            }
+        case .failure(let error):
+            showError(error)
+        }
     }
 
     func sidebar(_ sidebar: SidebarViewController, didRequestRemoveFolder url: URL) {

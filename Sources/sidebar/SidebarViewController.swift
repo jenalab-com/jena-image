@@ -8,6 +8,7 @@ protocol SidebarDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didReceiveDrop imageURLs: [URL], toFolder url: URL)
     func sidebar(_ sidebar: SidebarViewController, didRequestRename url: URL, newName: String)
     func sidebarDidRequestAddFolder(_ sidebar: SidebarViewController)
+    func sidebar(_ sidebar: SidebarViewController, didRequestCreateFolder name: String, in parentURL: URL)
     func sidebar(_ sidebar: SidebarViewController, didRequestRemoveFolder url: URL)
     func sidebar(_ sidebar: SidebarViewController, didRequestDelete urls: [URL])
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL)
@@ -44,6 +45,8 @@ final class SidebarViewController: NSViewController {
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
+    private var renamingFileExtension: String?
+    private var isRenameHandled = false
     private var isSuppressingSelectionDelegate = false
 
     override func loadView() {
@@ -174,6 +177,102 @@ final class SidebarViewController: NSViewController {
         delegate?.sidebarDidRequestAddFolder(self)
     }
 
+    // MARK: - New Subfolder (+ Button)
+
+    private var isCreatingFolder = false
+    private var newFolderParentNode: FolderNode?
+    private var newFolderDelegate: NewFolderFieldDelegate?
+
+    @objc private func createNewSubfolder(_ sender: Any?) {
+        guard !isCreatingFolder else { return }
+
+        // 선택된 폴더 결정 (없으면 첫 루트)
+        guard let parentNode = selectedFolderNode() ?? rootNodes.first else { return }
+        newFolderParentNode = parentNode
+
+        // 부모 폴더 펼침
+        if !outlineView.isItemExpanded(parentNode) {
+            outlineView.expandItem(parentNode)
+        }
+
+        isCreatingFolder = true
+
+        // 임시 폴더 노드 추가
+        let tempNode = FolderNode(url: parentNode.url.appendingPathComponent(".newFolder"), isTemporary: true)
+        parentNode.insertTemporaryChild(tempNode)
+        outlineView.reloadItem(parentNode, reloadChildren: true)
+
+        // 임시 노드의 row 찾기
+        let tempRow = outlineView.row(forItem: tempNode)
+        guard tempRow >= 0,
+              let cellView = outlineView.view(atColumn: 0, row: tempRow, makeIfNecessary: true) as? NSTableCellView,
+              let textField = cellView.textField else {
+            cleanupNewFolder()
+            return
+        }
+
+        // 편집 모드 전환
+        textField.stringValue = ""
+        textField.placeholderString = "폴더 이름"
+        textField.isEditable = true
+        textField.isBordered = true
+        textField.isBezeled = true
+        textField.bezelStyle = .roundedBezel
+        textField.drawsBackground = true
+        textField.tag = tempRow
+
+        let fieldDelegate = NewFolderFieldDelegate(
+            onCommit: { [weak self] name in
+                self?.commitNewFolder(name: name, textField: textField)
+            },
+            onCancel: { [weak self] in
+                self?.cleanupNewFolder()
+            }
+        )
+        newFolderDelegate = fieldDelegate
+        textField.delegate = fieldDelegate
+        view.window?.makeFirstResponder(textField)
+        textField.currentEditor()?.selectAll(nil)
+    }
+
+    private func commitNewFolder(name: String, textField: NSTextField) {
+        guard let parentNode = newFolderParentNode else { return }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        if trimmedName.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "폴더 이름을 입력해 주세요."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "확인")
+            alert.runModal()
+            // 다시 편집 모드로
+            view.window?.makeFirstResponder(textField)
+            return
+        }
+
+        let parentURL = parentNode.url
+
+        // 임시 노드 제거 및 상태 정리 (delegate 호출 전에 정리)
+        cleanupNewFolder()
+
+        // delegate로 폴더 생성 요청
+        delegate?.sidebar(self, didRequestCreateFolder: trimmedName, in: parentURL)
+    }
+
+    private func cleanupNewFolder() {
+        guard isCreatingFolder else { return }
+        isCreatingFolder = false
+
+        if let parentNode = newFolderParentNode {
+            parentNode.removeTemporaryChild()
+            outlineView.reloadItem(parentNode, reloadChildren: true)
+        }
+
+        newFolderParentNode = nil
+        newFolderDelegate = nil
+    }
+
     @objc private func toggleShowFiles(_ sender: NSButton) {
         showFilesInSidebar = sender.state == .on
         outlineView.reloadData()
@@ -267,6 +366,7 @@ final class SidebarViewController: NSViewController {
         guard let cellView = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
               let textField = cellView.textField else { return }
 
+        isRenameHandled = false
         textField.isEditable = true
         textField.isBordered = true
         textField.isBezeled = true
@@ -274,29 +374,34 @@ final class SidebarViewController: NSViewController {
         textField.drawsBackground = true
         textField.delegate = self
         textField.tag = row
-        view.window?.makeFirstResponder(textField)
 
-        // 이미지 파일은 확장자 제외 선택, 폴더는 전체 선택
+        // 이미지 파일은 확장자 제외하고 파일명만 편집 가능
         let item = outlineView.item(atRow: row)
         if let imageFile = item as? ImageFile {
-            let name = imageFile.name
-            if let dotIndex = name.lastIndex(of: ".") {
-                let range = name.startIndex..<dotIndex
-                textField.currentEditor()?.selectedRange = NSRange(range, in: name)
-            } else {
-                textField.currentEditor()?.selectAll(nil)
+            let ext = (imageFile.name as NSString).pathExtension
+            renamingFileExtension = ext.isEmpty ? nil : ext
+            if !ext.isEmpty {
+                textField.stringValue = (imageFile.name as NSString).deletingPathExtension
             }
         } else {
-            textField.currentEditor()?.selectAll(nil)
+            renamingFileExtension = nil
         }
+
+        view.window?.makeFirstResponder(textField)
+        textField.currentEditor()?.selectAll(nil)
     }
 
     private func endRename(_ textField: NSTextField) {
+        // 원래 이름(확장자 포함)으로 복원
+        if let info = itemInfo(atRow: textField.tag) {
+            textField.stringValue = info.name
+        }
         textField.isEditable = false
         textField.isBordered = false
         textField.isBezeled = false
         textField.drawsBackground = false
         textField.delegate = nil
+        renamingFileExtension = nil
     }
 
     // MARK: - Setup
@@ -318,10 +423,10 @@ final class SidebarViewController: NSViewController {
         addButton.translatesAutoresizingMaskIntoConstraints = false
         addButton.bezelStyle = .smallSquare
         addButton.isBordered = false
-        addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "폴더 추가")
-        addButton.toolTip = "폴더 추가"
+        addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "새 폴더")
+        addButton.toolTip = "선택한 폴더에 새 폴더 만들기"
         addButton.target = self
-        addButton.action = #selector(addFolderFromMenu(_:))
+        addButton.action = #selector(createNewSubfolder(_:))
         view.addSubview(addButton)
 
         // 폴더만/파일까지 토글
@@ -689,18 +794,30 @@ extension SidebarViewController: NSTextFieldDelegate {
         return nil
     }
 
+    private func fullNameFromStem(_ stem: String) -> String {
+        if let ext = renamingFileExtension, !ext.isEmpty {
+            return "\(stem).\(ext)"
+        }
+        return stem
+    }
+
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            guard !isRenameHandled else { return true }
+            isRenameHandled = true
             guard let textField = control as? NSTextField,
                   let info = itemInfo(atRow: textField.tag) else { return false }
-            let newName = textField.stringValue.trimmingCharacters(in: .whitespaces)
+            let stem = textField.stringValue.trimmingCharacters(in: .whitespaces)
+            let newName = fullNameFromStem(stem)
             endRename(textField)
-            if !newName.isEmpty && newName != info.name {
+            if !stem.isEmpty && newName != info.name {
                 delegate?.sidebar(self, didRequestRename: info.url, newName: newName)
             }
             return true
         }
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            guard !isRenameHandled else { return true }
+            isRenameHandled = true
             guard let textField = control as? NSTextField,
                   let info = itemInfo(atRow: textField.tag) else { return false }
             textField.stringValue = info.name
@@ -711,14 +828,17 @@ extension SidebarViewController: NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
+        guard !isRenameHandled else { return }
+        isRenameHandled = true
         guard let textField = obj.object as? NSTextField else { return }
         guard let info = itemInfo(atRow: textField.tag) else {
             endRename(textField)
             return
         }
-        let newName = textField.stringValue.trimmingCharacters(in: .whitespaces)
+        let stem = textField.stringValue.trimmingCharacters(in: .whitespaces)
+        let newName = fullNameFromStem(stem)
         endRename(textField)
-        if !newName.isEmpty && newName != info.name {
+        if !stem.isEmpty && newName != info.name {
             delegate?.sidebar(self, didRequestRename: info.url, newName: newName)
         }
     }
@@ -794,5 +914,40 @@ extension SidebarViewController {
         ) { [weak self] _ in
             self?.outlineView.reloadData()
         }
+    }
+}
+
+// MARK: - NewFolderFieldDelegate
+
+private final class NewFolderFieldDelegate: NSObject, NSTextFieldDelegate {
+    let onCommit: (String) -> Void
+    let onCancel: () -> Void
+    private var isHandled = false
+
+    init(onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self.onCommit = onCommit
+        self.onCancel = onCancel
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            guard !isHandled else { return true }
+            isHandled = true
+            onCommit(control.stringValue)
+            return true
+        }
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            guard !isHandled else { return true }
+            isHandled = true
+            onCancel()
+            return true
+        }
+        return false
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        guard !isHandled else { return }
+        isHandled = true
+        onCancel()
     }
 }

@@ -69,26 +69,33 @@ final class BrowserItem: NSCollectionViewItem {
         guard !isEditingName else { return }
         isEditingName = true
 
-        let editField = NSTextField(string: nameLabel.stringValue)
-        editField.frame = nameLabel.frame
+        let fullName = nameLabel.stringValue
+        let fileExtension = (fullName as NSString).pathExtension
+        let stem = fileExtension.isEmpty ? fullName : (fullName as NSString).deletingPathExtension
+
+        let editField = NSTextField(string: stem)
+        var frame = nameLabel.frame
+        frame.size.height = max(frame.size.height, 22)
+        editField.frame = frame
         editField.font = nameLabel.font
         editField.alignment = .center
         editField.isBordered = true
         editField.focusRingType = .exterior
         editField.tag = 999
-
-        // 확장자 제외 이름만 선택
-        let fullName = editField.stringValue
-        if let dotIndex = fullName.lastIndex(of: ".") {
-            let range = fullName.startIndex..<dotIndex
-            editField.currentEditor()?.selectedRange = NSRange(range, in: fullName)
-        }
+        editField.usesSingleLineMode = true
+        editField.cell?.isScrollable = true
 
         nameLabel.isHidden = true
         view.addSubview(editField)
 
         let fieldDelegate = RenameFieldDelegate(onCommit: { [weak self] newValue in
-            self?.endRename(newName: newValue, completion: completion)
+            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else {
+                self?.endRename(newName: nil, completion: completion)
+                return
+            }
+            let finalName = fileExtension.isEmpty ? trimmed : "\(trimmed).\(fileExtension)"
+            self?.endRename(newName: finalName, completion: completion)
         }, onCancel: { [weak self] in
             self?.endRename(newName: nil, completion: completion)
         })
@@ -188,6 +195,7 @@ final class BrowserItem: NSCollectionViewItem {
 private final class RenameFieldDelegate: NSObject, NSTextFieldDelegate {
     let onCommit: (String) -> Void
     let onCancel: () -> Void
+    private var isHandled = false
 
     init(onCommit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.onCommit = onCommit
@@ -196,10 +204,14 @@ private final class RenameFieldDelegate: NSObject, NSTextFieldDelegate {
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            guard !isHandled else { return true }
+            isHandled = true
             onCommit(control.stringValue)
             return true
         }
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            guard !isHandled else { return true }
+            isHandled = true
             onCancel()
             return true
         }
@@ -207,6 +219,8 @@ private final class RenameFieldDelegate: NSObject, NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
+        guard !isHandled else { return }
+        isHandled = true
         guard let textField = obj.object as? NSTextField else { return }
         onCommit(textField.stringValue)
     }
