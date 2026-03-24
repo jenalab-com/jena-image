@@ -48,15 +48,32 @@ final class ImageService: ImageServiceProtocol {
             return loadWithNSImage(at: url)
         }
 
-        // PSD 및 기타 래스터: CGImageSource
+        // PSD 및 기타 래스터: CGImageSource (EXIF orientation 적용)
         if let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
            let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
-            let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-            return .success(image)
+            let orientedImage = applyEXIFOrientation(cgImage: cgImage, source: imageSource)
+            return .success(orientedImage)
         }
 
         // CGImageSource 실패 시 NSImage 폴백
         return loadWithNSImage(at: url)
+    }
+
+    /// EXIF orientation 메타데이터를 적용하여 올바른 방향의 NSImage 반환
+    private func applyEXIFOrientation(cgImage: CGImage, source: CGImageSource) -> NSImage {
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let orientationValue = properties?[kCGImagePropertyOrientation] as? UInt32 ?? 1
+
+        guard let orientation = CGImagePropertyOrientation(rawValue: orientationValue),
+              orientation != .up else {
+            return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        }
+
+        let ciImage = CIImage(cgImage: cgImage).oriented(forExifOrientation: Int32(orientationValue))
+        let rep = NSCIImageRep(ciImage: ciImage)
+        let image = NSImage(size: rep.size)
+        image.addRepresentation(rep)
+        return image
     }
 
     private func loadWithNSImage(at url: URL) -> Result<NSImage, ImageServiceError> {

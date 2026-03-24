@@ -42,6 +42,10 @@ final class ViewerViewController: NSViewController {
         imageFiles[safe: currentIndex]?.url
     }
 
+    var currentImage: NSImage? {
+        imageDisplayView.currentImage
+    }
+
     var currentFile: ImageFile? {
         imageFiles[safe: currentIndex]
     }
@@ -124,6 +128,8 @@ final class ViewerViewController: NSViewController {
 
     func flipHorizontal() { imageDisplayView.flipHorizontal() }
     func flipVertical() { imageDisplayView.flipVertical() }
+    func rotateLeft() { imageDisplayView.rotateLeft() }
+    func rotateRight() { imageDisplayView.rotateRight() }
     func resetFlip() { imageDisplayView.resetFlip() }
 
     // MARK: - Image Editing

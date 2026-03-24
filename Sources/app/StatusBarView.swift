@@ -5,6 +5,8 @@ final class StatusBarView: NSView {
     var onThumbnailScaleChanged: ((CGFloat) -> Void)?
     var onFlipHorizontal: (() -> Void)?
     var onFlipVertical: (() -> Void)?
+    var onRotateLeft: (() -> Void)?
+    var onRotateRight: (() -> Void)?
     var onResetFlip: (() -> Void)?
 
     private let infoLabel = NSTextField(labelWithString: "")
@@ -15,6 +17,8 @@ final class StatusBarView: NSView {
 
     private let flipHButton = NSButton()
     private let flipVButton = NSButton()
+    private let rotateLeftButton = NSButton()
+    private let rotateRightButton = NSButton()
     private let resetFlipButton = NSButton()
 
     private static let minScale: CGFloat = 0.6
@@ -56,6 +60,8 @@ final class StatusBarView: NSView {
         let showFlip = isViewer && !isVideo
         flipHButton.isHidden = !showFlip
         flipVButton.isHidden = !showFlip
+        rotateLeftButton.isHidden = !showFlip
+        rotateRightButton.isHidden = !showFlip
         resetFlipButton.isHidden = !showFlip
     }
 
@@ -97,6 +103,8 @@ final class StatusBarView: NSView {
         for (button, symbolName, tooltip, action) in [
             (flipHButton, "arrow.left.and.right.righttriangle.left.righttriangle.right", "좌우 반전", #selector(flipHTapped)),
             (flipVButton, "arrow.up.and.down.righttriangle.up.righttriangle.down", "상하 반전", #selector(flipVTapped)),
+            (rotateLeftButton, "rotate.left", "왼쪽으로 회전", #selector(rotateLeftTapped)),
+            (rotateRightButton, "rotate.right", "오른쪽으로 회전", #selector(rotateRightTapped)),
             (resetFlipButton, "arrow.counterclockwise", "원래대로", #selector(resetFlipTapped)),
         ] as [(NSButton, String, String, Selector)] {
             button.translatesAutoresizingMaskIntoConstraints = false
@@ -142,8 +150,18 @@ final class StatusBarView: NSView {
             resetFlipButton.widthAnchor.constraint(equalToConstant: 20),
             resetFlipButton.heightAnchor.constraint(equalToConstant: 20),
 
+            rotateRightButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            rotateRightButton.trailingAnchor.constraint(equalTo: resetFlipButton.leadingAnchor, constant: -8),
+            rotateRightButton.widthAnchor.constraint(equalToConstant: 20),
+            rotateRightButton.heightAnchor.constraint(equalToConstant: 20),
+
+            rotateLeftButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            rotateLeftButton.trailingAnchor.constraint(equalTo: rotateRightButton.leadingAnchor, constant: -8),
+            rotateLeftButton.widthAnchor.constraint(equalToConstant: 20),
+            rotateLeftButton.heightAnchor.constraint(equalToConstant: 20),
+
             flipVButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            flipVButton.trailingAnchor.constraint(equalTo: resetFlipButton.leadingAnchor, constant: -8),
+            flipVButton.trailingAnchor.constraint(equalTo: rotateLeftButton.leadingAnchor, constant: -8),
             flipVButton.widthAnchor.constraint(equalToConstant: 20),
             flipVButton.heightAnchor.constraint(equalToConstant: 20),
 
@@ -160,5 +178,7 @@ final class StatusBarView: NSView {
 
     @objc private func flipHTapped() { onFlipHorizontal?() }
     @objc private func flipVTapped() { onFlipVertical?() }
+    @objc private func rotateLeftTapped() { onRotateLeft?() }
+    @objc private func rotateRightTapped() { onRotateRight?() }
     @objc private func resetFlipTapped() { onResetFlip?() }
 }
