@@ -66,6 +66,9 @@ enum MainMenu {
         delete.keyEquivalentModifierMask = []
         fileMenu.addItem(delete)
 
+        fileMenu.addItem(NSMenuItem.separator())
+        fileMenu.addItem(withTitle: "인쇄…", action: #selector(MainWindowController.printImage(_:)), keyEquivalent: "p")
+
         let item = NSMenuItem()
         item.submenu = fileMenu
         return item

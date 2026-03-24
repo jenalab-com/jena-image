@@ -120,48 +120,71 @@ final class ImageDisplayView: NSView {
         scrollView.magnification = scale
     }
 
-    // MARK: - Flip
+    // MARK: - Flip & Rotate
+
+    private var rotationAngle: Int = 0  // 0, 90, 180, 270
 
     func flipHorizontal() {
         isFlippedHorizontally.toggle()
-        applyFlippedImage()
+        applyTransformedImage()
     }
 
     func flipVertical() {
         isFlippedVertically.toggle()
-        applyFlippedImage()
+        applyTransformedImage()
+    }
+
+    func rotateLeft() {
+        rotationAngle = (rotationAngle + 270) % 360
+        applyTransformedImage()
+    }
+
+    func rotateRight() {
+        rotationAngle = (rotationAngle + 90) % 360
+        applyTransformedImage()
     }
 
     func resetFlip() {
         isFlippedHorizontally = false
         isFlippedVertically = false
-        applyFlippedImage()
+        rotationAngle = 0
+        applyTransformedImage()
     }
 
-    private func applyFlippedImage() {
+    private func applyTransformedImage() {
         guard let original = originalImage else { return }
 
-        if !isFlippedHorizontally && !isFlippedVertically {
+        if !isFlippedHorizontally && !isFlippedVertically && rotationAngle == 0 {
             imageView.image = original
+            imageView.frame = NSRect(origin: .zero, size: original.size)
+            if isFitMode { fitToView() }
             return
         }
 
-        let size = original.size
-        let flipped = NSImage(size: size)
-        flipped.lockFocus()
+        let srcSize = original.size
+        let isRotated90 = (rotationAngle == 90 || rotationAngle == 270)
+        let dstSize = isRotated90
+            ? NSSize(width: srcSize.height, height: srcSize.width)
+            : srcSize
+
+        let result = NSImage(size: dstSize)
+        result.lockFocus()
 
         let transform = NSAffineTransform()
-        transform.translateX(by: isFlippedHorizontally ? size.width : 0,
-                             yBy: isFlippedVertically ? size.height : 0)
+        transform.translateX(by: dstSize.width / 2, yBy: dstSize.height / 2)
+        transform.rotate(byDegrees: CGFloat(rotationAngle))
         transform.scaleX(by: isFlippedHorizontally ? -1 : 1,
                          yBy: isFlippedVertically ? -1 : 1)
+        transform.translateX(by: -srcSize.width / 2, yBy: -srcSize.height / 2)
         transform.concat()
 
-        original.draw(in: NSRect(origin: .zero, size: size),
+        original.draw(in: NSRect(origin: .zero, size: srcSize),
                       from: .zero, operation: .sourceOver, fraction: 1.0)
-        flipped.unlockFocus()
+        result.unlockFocus()
 
-        imageView.image = flipped
+        imageView.image = result
+        imageView.frame = NSRect(origin: .zero, size: dstSize)
+        if isFitMode { fitToView() }
     }
 
     // MARK: - Frame Change Observer

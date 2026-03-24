@@ -24,12 +24,25 @@ final class ImageEditorWindowController: NSWindowController {
     private let imageSizeLabel = NSTextField(labelWithString: "")
 
     // 도구 선택
-    private enum Tool { case none, crop, resize, canvas }
+    private enum Tool { case none, crop, resize, canvas, adjust }
     private var activeTool: Tool = .none
 
     private let cropButton = NSButton(title: "자르기", target: nil, action: nil)
     private let resizeButton = NSButton(title: "이미지 크기", target: nil, action: nil)
     private let canvasButton = NSButton(title: "캔버스 크기", target: nil, action: nil)
+    private let adjustButton = NSButton(title: "색상 보정", target: nil, action: nil)
+
+    // 색상 보정 슬라이더
+    private let brightnessSlider = NSSlider()
+    private let contrastSlider = NSSlider()
+    private let saturationSlider = NSSlider()
+    private let highlightsSlider = NSSlider()
+    private let shadowsSlider = NSSlider()
+    private let brightnessLabel = NSTextField(labelWithString: "0")
+    private let contrastLabel = NSTextField(labelWithString: "1.00")
+    private let saturationLabel = NSTextField(labelWithString: "1.00")
+    private let highlightsLabel = NSTextField(labelWithString: "0")
+    private let shadowsLabel = NSTextField(labelWithString: "0")
 
     private let undoButton = NSButton(title: "", target: nil, action: nil)
     private let redoButton = NSButton(title: "", target: nil, action: nil)
@@ -198,6 +211,7 @@ final class ImageEditorWindowController: NSWindowController {
             (cropButton, #selector(cropTapped)),
             (resizeButton, #selector(resizeTapped)),
             (canvasButton, #selector(canvasTapped)),
+            (adjustButton, #selector(adjustTapped)),
         ] as [(NSButton, Selector)] {
             button.translatesAutoresizingMaskIntoConstraints = false
             button.bezelStyle = .rounded
@@ -206,11 +220,37 @@ final class ImageEditorWindowController: NSWindowController {
             button.action = action
         }
 
-        let toolStack = NSStackView(views: [cropButton, resizeButton, canvasButton])
+        let toolStack = NSStackView(views: [cropButton, resizeButton, canvasButton, adjustButton])
         toolStack.translatesAutoresizingMaskIntoConstraints = false
         toolStack.distribution = .fillEqually
         toolStack.spacing = 6
         controlsView.addSubview(toolStack)
+
+        // 변형 버튼 (좌우 반전, 상하 반전, 왼쪽 회전, 오른쪽 회전)
+        let transformStack = NSStackView()
+        transformStack.translatesAutoresizingMaskIntoConstraints = false
+        transformStack.spacing = 4
+        for (symbolName, tooltip, action) in [
+            ("arrow.left.and.right.righttriangle.left.righttriangle.right", "좌우 반전", #selector(editorFlipH)),
+            ("arrow.up.and.down.righttriangle.up.righttriangle.down", "상하 반전", #selector(editorFlipV)),
+            ("rotate.left", "왼쪽으로 회전", #selector(editorRotateLeft)),
+            ("rotate.right", "오른쪽으로 회전", #selector(editorRotateRight)),
+        ] as [(String, String, Selector)] {
+            let btn = NSButton()
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            btn.bezelStyle = .rounded
+            btn.isBordered = true
+            btn.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: tooltip)
+            btn.toolTip = tooltip
+            btn.target = self
+            btn.action = action
+            NSLayoutConstraint.activate([
+                btn.widthAnchor.constraint(equalToConstant: 32),
+                btn.heightAnchor.constraint(equalToConstant: 28),
+            ])
+            transformStack.addArrangedSubview(btn)
+        }
+        controlsView.addSubview(transformStack)
 
         // 도구 옵션 스크롤 영역
         toolOptionsContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -255,7 +295,10 @@ final class ImageEditorWindowController: NSWindowController {
             toolStack.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -16),
             toolStack.heightAnchor.constraint(equalToConstant: 28),
 
-            separator.topAnchor.constraint(equalTo: toolStack.bottomAnchor, constant: 12),
+            transformStack.topAnchor.constraint(equalTo: toolStack.bottomAnchor, constant: 8),
+            transformStack.centerXAnchor.constraint(equalTo: controlsView.centerXAnchor),
+
+            separator.topAnchor.constraint(equalTo: transformStack.bottomAnchor, constant: 12),
             separator.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 16),
             separator.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -16),
 
@@ -333,6 +376,10 @@ final class ImageEditorWindowController: NSWindowController {
         selectTool(activeTool == .canvas ? .none : .canvas)
     }
 
+    @objc private func adjustTapped() {
+        selectTool(activeTool == .adjust ? .none : .adjust)
+    }
+
     private func selectTool(_ tool: Tool) {
         // 이전 crop 해제
         if activeTool == .crop && tool != .crop {
@@ -343,6 +390,7 @@ final class ImageEditorWindowController: NSWindowController {
         cropButton.state = tool == .crop ? .on : .off
         resizeButton.state = tool == .resize ? .on : .off
         canvasButton.state = tool == .canvas ? .on : .off
+        adjustButton.state = tool == .adjust ? .on : .off
 
         // 옵션 영역 초기화
         toolOptionsContent.subviews.forEach { $0.removeFromSuperview() }
@@ -357,6 +405,8 @@ final class ImageEditorWindowController: NSWindowController {
             showResizeOptions()
         case .canvas:
             showCanvasOptions()
+        case .adjust:
+            showAdjustOptions()
         }
     }
 
@@ -614,6 +664,134 @@ final class ImageEditorWindowController: NSWindowController {
         selectTool(.none)
     }
 
+    // MARK: - Adjust Options
+
+    private func showAdjustOptions() {
+        let stack = NSStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 12
+        toolOptionsContent.addSubview(stack)
+
+        func makeSliderRow(label: String, slider: NSSlider, valueLabel: NSTextField,
+                           min: Double, max: Double, value: Double) -> NSView {
+            let titleLabel = NSTextField(labelWithString: label)
+            titleLabel.translatesAutoresizingMaskIntoConstraints = false
+            titleLabel.font = .systemFont(ofSize: 11)
+
+            slider.translatesAutoresizingMaskIntoConstraints = false
+            slider.minValue = min
+            slider.maxValue = max
+            slider.doubleValue = value
+            slider.controlSize = .small
+            slider.isContinuous = true
+            slider.target = self
+            slider.action = #selector(adjustSliderChanged(_:))
+
+            valueLabel.translatesAutoresizingMaskIntoConstraints = false
+            valueLabel.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
+            valueLabel.textColor = .secondaryLabelColor
+            valueLabel.alignment = .right
+
+            let row = NSStackView(views: [titleLabel, slider, valueLabel])
+            row.translatesAutoresizingMaskIntoConstraints = false
+            row.spacing = 6
+            NSLayoutConstraint.activate([
+                titleLabel.widthAnchor.constraint(equalToConstant: 55),
+                valueLabel.widthAnchor.constraint(equalToConstant: 38),
+            ])
+            return row
+        }
+
+        stack.addArrangedSubview(makeSliderRow(
+            label: "밝기", slider: brightnessSlider, valueLabel: brightnessLabel,
+            min: -0.5, max: 0.5, value: 0))
+        stack.addArrangedSubview(makeSliderRow(
+            label: "대비", slider: contrastSlider, valueLabel: contrastLabel,
+            min: 0.5, max: 2.0, value: 1.0))
+        stack.addArrangedSubview(makeSliderRow(
+            label: "채도", slider: saturationSlider, valueLabel: saturationLabel,
+            min: 0.0, max: 2.0, value: 1.0))
+        stack.addArrangedSubview(makeSliderRow(
+            label: "하이라이트", slider: highlightsSlider, valueLabel: highlightsLabel,
+            min: -1.0, max: 1.0, value: 0))
+        stack.addArrangedSubview(makeSliderRow(
+            label: "섀도우", slider: shadowsSlider, valueLabel: shadowsLabel,
+            min: -1.0, max: 1.0, value: 0))
+
+        let buttonStack = NSStackView()
+        buttonStack.translatesAutoresizingMaskIntoConstraints = false
+        buttonStack.spacing = 8
+
+        let resetBtn = NSButton(title: "초기화", target: self, action: #selector(resetAdjust))
+        resetBtn.translatesAutoresizingMaskIntoConstraints = false
+        resetBtn.bezelStyle = .rounded
+
+        let applyBtn = NSButton(title: "적용", target: self, action: #selector(applyAdjust))
+        applyBtn.translatesAutoresizingMaskIntoConstraints = false
+        applyBtn.bezelStyle = .rounded
+
+        buttonStack.addArrangedSubview(resetBtn)
+        buttonStack.addArrangedSubview(applyBtn)
+        stack.addArrangedSubview(buttonStack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: toolOptionsContent.topAnchor, constant: 8),
+            stack.leadingAnchor.constraint(equalTo: toolOptionsContent.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: toolOptionsContent.trailingAnchor, constant: -16),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: toolOptionsContent.bottomAnchor, constant: -8),
+        ])
+    }
+
+    @objc private func adjustSliderChanged(_ sender: NSSlider) {
+        brightnessLabel.stringValue = String(format: "%.2f", brightnessSlider.doubleValue)
+        contrastLabel.stringValue = String(format: "%.2f", contrastSlider.doubleValue)
+        saturationLabel.stringValue = String(format: "%.2f", saturationSlider.doubleValue)
+        highlightsLabel.stringValue = String(format: "%.2f", highlightsSlider.doubleValue)
+        shadowsLabel.stringValue = String(format: "%.2f", shadowsSlider.doubleValue)
+
+        // 실시간 미리보기
+        guard let preview = editingService.adjustImage(
+            editedImage,
+            brightness: Float(brightnessSlider.doubleValue),
+            contrast: Float(contrastSlider.doubleValue),
+            saturation: Float(saturationSlider.doubleValue),
+            highlights: Float(highlightsSlider.doubleValue),
+            shadows: Float(shadowsSlider.doubleValue)
+        ) else { return }
+        imageView.image = preview
+        imageView.frame = NSRect(origin: .zero, size: preview.size)
+    }
+
+    @objc private func resetAdjust() {
+        brightnessSlider.doubleValue = 0
+        contrastSlider.doubleValue = 1.0
+        saturationSlider.doubleValue = 1.0
+        highlightsSlider.doubleValue = 0
+        shadowsSlider.doubleValue = 0
+        brightnessLabel.stringValue = "0.00"
+        contrastLabel.stringValue = "1.00"
+        saturationLabel.stringValue = "1.00"
+        highlightsLabel.stringValue = "0.00"
+        shadowsLabel.stringValue = "0.00"
+        // 원본으로 복원
+        displayImage(editedImage)
+    }
+
+    @objc private func applyAdjust() {
+        guard let adjusted = editingService.adjustImage(
+            editedImage,
+            brightness: Float(brightnessSlider.doubleValue),
+            contrast: Float(contrastSlider.doubleValue),
+            saturation: Float(saturationSlider.doubleValue),
+            highlights: Float(highlightsSlider.doubleValue),
+            shadows: Float(shadowsSlider.doubleValue)
+        ) else { return }
+        applyEdit(adjusted)
+        selectTool(.none)
+    }
+
     // MARK: - Undo / Redo
 
     private func pushUndo() {
@@ -654,6 +832,24 @@ final class ImageEditorWindowController: NSWindowController {
     private func updateUndoRedoButtons() {
         undoButton.isEnabled = !undoStack.isEmpty
         redoButton.isEnabled = !redoStack.isEmpty
+    }
+
+    // MARK: - Flip & Rotate
+
+    @objc private func editorFlipH() {
+        applyEdit(editingService.flipHorizontal(editedImage))
+    }
+
+    @objc private func editorFlipV() {
+        applyEdit(editingService.flipVertical(editedImage))
+    }
+
+    @objc private func editorRotateLeft() {
+        applyEdit(editingService.rotate(editedImage, degrees: 90))
+    }
+
+    @objc private func editorRotateRight() {
+        applyEdit(editingService.rotate(editedImage, degrees: -90))
     }
 
     // MARK: - Save / Cancel

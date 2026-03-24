@@ -70,8 +70,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window.titleVisibility = .visible
         window.toolbarStyle = .unified
         window.minSize = NSSize(width: 700, height: 500)
-        window.center()
         window.setFrameAutosaveName("MainWindow")
+        if !window.setFrameUsingName("MainWindow") {
+            window.center()
+        }
 
         super.init(window: window)
 
@@ -574,6 +576,32 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
     }
 
+    @objc func printImage(_ sender: Any?) {
+        // 뷰어 모드: 현재 보고 있는 이미지, 브라우저 모드: 선택된 첫 번째 이미지
+        var image: NSImage?
+        if contentMode == .viewer {
+            image = viewerVC.currentImage
+        } else if let url = activeSelectedURLs().first {
+            image = NSImage(contentsOf: url)
+        }
+        guard let printImage = image else { return }
+
+        let imageView = NSImageView(frame: NSRect(origin: .zero, size: printImage.size))
+        imageView.image = printImage
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+
+        let printInfo = NSPrintInfo.shared
+        printInfo.horizontalPagination = .fit
+        printInfo.verticalPagination = .fit
+        printInfo.isHorizontallyCentered = true
+        printInfo.isVerticallyCentered = true
+
+        let printOp = NSPrintOperation(view: imageView, printInfo: printInfo)
+        printOp.showsPrintPanel = true
+        printOp.showsProgressPanel = true
+        printOp.run()
+    }
+
     // MARK: - Menu Validation
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -582,7 +610,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         switch menuItem.action {
         // 이미지 선택 필요 (클립보드 복사, 내보내기)
         case #selector(copyFiles(_:)),
-             #selector(exportCurrentImage(_:)):
+             #selector(exportCurrentImage(_:)),
+             #selector(printImage(_:)):
             return hasActiveImageSelection()
 
         // 붙여넣기: 현재 폴더가 있고 클립보드에 파일 URL이 있을 때
@@ -728,6 +757,12 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
         statusBar.onFlipVertical = { [weak self] in
             self?.viewerVC.flipVertical()
+        }
+        statusBar.onRotateLeft = { [weak self] in
+            self?.viewerVC.rotateLeft()
+        }
+        statusBar.onRotateRight = { [weak self] in
+            self?.viewerVC.rotateRight()
         }
         statusBar.onResetFlip = { [weak self] in
             self?.viewerVC.resetFlip()
