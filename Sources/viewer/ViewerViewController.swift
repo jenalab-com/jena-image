@@ -117,6 +117,14 @@ final class ViewerViewController: NSViewController {
         }
     }
 
+    /// 외부에서 현재 이미지 파일이 변경된 경우 디스크에서 다시 읽어 갱신
+    func reloadCurrentImage() {
+        guard let file = currentFile, !file.isVideo else { return }
+        ThumbnailCache.shared.invalidate(for: file.url)
+        thumbnailStrip.reloadThumbnail(at: currentIndex)
+        showImage(file)
+    }
+
     // MARK: - Zoom
 
     func zoomIn() { imageDisplayView.zoomIn() }
