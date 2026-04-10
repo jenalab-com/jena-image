@@ -44,6 +44,11 @@ final class ThumbnailStripView: NSView {
         scrollToSelectedRow()
     }
 
+    func reloadThumbnail(at index: Int) {
+        guard images.indices.contains(index) else { return }
+        tableView.reloadData(forRowIndexes: IndexSet(integer: index), columnIndexes: IndexSet(integer: 0))
+    }
+
     func selectPrevious() -> Int? {
         guard selectedIndex > 0 else { return nil }
         selectImage(at: selectedIndex - 1)

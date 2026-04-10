@@ -698,6 +698,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
                 imageCount: contents.images.count,
                 selectionCount: 0
             )
+        } else if contentMode == .viewer {
+            viewerVC.reloadCurrentImage()
         }
         sidebarVC.reloadCurrentFolder()
     }
