@@ -442,6 +442,12 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     @objc func copyFiles(_ sender: Any?) {
+        // 텍스트 편집 중이면 텍스트 복사로 위임
+        if let textView = window?.firstResponder as? NSTextView, textView.isFieldEditor {
+            textView.copy(sender)
+            return
+        }
+
         let urls = activeSelectedURLs()
         guard !urls.isEmpty else { return }
 
@@ -456,6 +462,12 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     @objc func pasteFiles(_ sender: Any?) {
+        // 텍스트 편집 중이면 텍스트 붙여넣기로 위임
+        if let textView = window?.firstResponder as? NSTextView, textView.isFieldEditor {
+            textView.paste(sender)
+            return
+        }
+
         guard let folderURL = currentFolderURL else { return }
 
         let pasteboard = NSPasteboard.general
@@ -607,15 +619,22 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let isViewer = contentMode == .viewer
 
+        // 텍스트 편집 중이면 복사/붙여넣기 항상 활성화
+        let isEditingText = (window?.firstResponder as? NSTextView)?.isFieldEditor == true
+
         switch menuItem.action {
-        // 이미지 선택 필요 (클립보드 복사, 내보내기)
-        case #selector(copyFiles(_:)),
-             #selector(exportCurrentImage(_:)),
+        // 복사: 텍스트 편집 중이면 활성, 아니면 이미지 선택 필요
+        case #selector(copyFiles(_:)):
+            if isEditingText { return true }
+            return hasActiveImageSelection()
+
+        case #selector(exportCurrentImage(_:)),
              #selector(printImage(_:)):
             return hasActiveImageSelection()
 
-        // 붙여넣기: 현재 폴더가 있고 클립보드에 파일 URL이 있을 때
+        // 붙여넣기: 텍스트 편집 중이면 활성, 아니면 파일 URL 확인
         case #selector(pasteFiles(_:)):
+            if isEditingText { return true }
             guard currentFolderURL != nil else { return false }
             return NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
 
