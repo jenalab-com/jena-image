@@ -169,8 +169,20 @@ final class BrowserViewController: NSViewController {
 
         emptyLabel.isHidden = !contents.isEmpty
         collectionView.reloadData()
+        collectionView.deselectAll(nil)
 
         loadThumbnails(for: imageItems)
+    }
+
+    /// URL 기반으로 선택 복원
+    func restoreSelection(urls: Set<URL>) {
+        var indexPaths = Set<IndexPath>()
+        for (i, content) in contents.enumerated() {
+            if urls.contains(content.url) {
+                indexPaths.insert(IndexPath(item: i, section: 0))
+            }
+        }
+        collectionView.selectionIndexPaths = indexPaths
     }
 
     func updateThumbnailScale(_ scale: CGFloat) {

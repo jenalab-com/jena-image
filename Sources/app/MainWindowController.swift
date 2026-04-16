@@ -711,11 +711,16 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         guard case .success(let contents) = result else { return }
 
         if contentMode == .browser {
+            // 기존 선택을 URL로 보존 후 복원 (인덱스가 바뀌어도 올바른 항목 유지)
+            let selectedURLs = Set(browserVC.selectedURLs())
             browserVC.display(folders: contents.folders, images: contents.images)
+            if !selectedURLs.isEmpty {
+                browserVC.restoreSelection(urls: selectedURLs)
+            }
             statusBar.update(
                 folderCount: contents.folders.count,
                 imageCount: contents.images.count,
-                selectionCount: 0
+                selectionCount: selectedURLs.count
             )
         } else if contentMode == .viewer {
             viewerVC.reloadCurrentImage()
