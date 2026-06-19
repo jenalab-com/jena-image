@@ -16,6 +16,9 @@ final class AppSettings {
         case defaultExportQuality = "defaultExportQuality"
         case showThumbnailStrip = "showThumbnailStrip"
         case scrollWheelZoom = "scrollWheelZoom"
+        case sortKey = "browserSortKey"
+        case sortAscending = "browserSortAscending"
+        case slideshowInterval = "slideshowInterval"
     }
 
     // MARK: - Language
@@ -100,6 +103,35 @@ final class AppSettings {
             defaults.set(newValue, forKey: Key.scrollWheelZoom.rawValue)
             NotificationCenter.default.post(name: .settingsChanged, object: nil)
         }
+    }
+
+    // MARK: - Browser Sort
+
+    var sortKey: SortKey {
+        get {
+            let raw = defaults.string(forKey: Key.sortKey.rawValue) ?? SortKey.name.rawValue
+            return SortKey(rawValue: raw) ?? .name
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.sortKey.rawValue) }
+    }
+
+    var sortAscending: Bool {
+        get {
+            if defaults.object(forKey: Key.sortAscending.rawValue) == nil { return true }
+            return defaults.bool(forKey: Key.sortAscending.rawValue)
+        }
+        set { defaults.set(newValue, forKey: Key.sortAscending.rawValue) }
+    }
+
+    // MARK: - Slideshow
+
+    /// 슬라이드쇼 자동 넘김 간격(초). 기본 3초.
+    var slideshowInterval: TimeInterval {
+        get {
+            let v = defaults.double(forKey: Key.slideshowInterval.rawValue)
+            return v > 0 ? v : 3.0
+        }
+        set { defaults.set(newValue, forKey: Key.slideshowInterval.rawValue) }
     }
 }
 

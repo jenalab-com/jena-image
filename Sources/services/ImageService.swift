@@ -35,12 +35,21 @@ protocol ImageServiceProtocol {
 
 // MARK: - Implementation
 
-final class ImageService: ImageServiceProtocol {
+// 인스턴스 상태가 없는(stateless) 서비스이므로 백그라운드 Task에서 안전하게 캡처할 수 있다.
+final class ImageService: ImageServiceProtocol, @unchecked Sendable {
 
     /// NSImage 폴백이 필요한 확장자 (SVG, AI, EPS 등 CGImageSource 미지원)
     private static let nsImageFallbackExtensions: Set<String> = ["svg", "ai", "eps"]
 
     func loadImage(at url: URL) async -> Result<NSImage, ImageServiceError> {
+        // async 선언만으로는 호출자(주로 @MainActor) 스레드에서 실행된다.
+        // Task.detached로 감싸 이미지 디코딩을 확실히 백그라운드에서 수행한다.
+        await Task.detached(priority: .userInitiated) { [self] in
+            loadImageSync(at: url)
+        }.value
+    }
+
+    private func loadImageSync(at url: URL) -> Result<NSImage, ImageServiceError> {
         let ext = url.pathExtension.lowercased()
 
         // SVG, AI, EPS: NSImage로 직접 로드 (PDF 기반 벡터 렌더링)
@@ -91,10 +100,19 @@ final class ImageService: ImageServiceProtocol {
     func generateThumbnail(at url: URL, size: CGSize) async -> Result<NSImage, ImageServiceError> {
         let ext = url.pathExtension.lowercased()
 
-        // 영상 파일은 AVAssetImageGenerator 사용
+        // 영상 파일은 AVAssetImageGenerator 사용 (자체적으로 비동기)
         if ImageFile.videoExtensions.contains(ext) {
             return await generateVideoThumbnail(at: url, size: size)
         }
+
+        // 이미지 썸네일 디코딩은 CPU 집약적이므로 백그라운드에서 수행한다.
+        return await Task.detached(priority: .userInitiated) { [self] in
+            generateImageThumbnailSync(at: url, size: size)
+        }.value
+    }
+
+    private func generateImageThumbnailSync(at url: URL, size: CGSize) -> Result<NSImage, ImageServiceError> {
+        let ext = url.pathExtension.lowercased()
 
         // SVG, AI, EPS: NSImage로 로드 후 리사이즈
         if Self.nsImageFallbackExtensions.contains(ext) {

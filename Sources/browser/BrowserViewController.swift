@@ -1,4 +1,5 @@
 import AppKit
+import Quartz
 
 // MARK: - Double-Click Collection View
 
@@ -7,7 +8,17 @@ private final class DoubleClickCollectionView: NSCollectionView {
     var onClickSelectedItem: ((IndexPath) -> Void)?
     var onDropOnItem: ((_ fileURLs: [URL], _ targetIndexPath: IndexPath) -> Bool)?
     var onDragOverItem: ((_ targetIndex: Int?) -> Void)?
+    var onSpaceKey: (() -> Void)?
     private var didDrag = false
+
+    override func keyDown(with event: NSEvent) {
+        // 스페이스바 → QuickLook 미리보기 (keyCode 49 = space)
+        if event.keyCode == 49 {
+            onSpaceKey?()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
 
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
@@ -452,6 +463,11 @@ final class BrowserViewController: NSViewController {
             self?.handleDrop(fileURLs: fileURLs, targetIndexPath: targetIndexPath) ?? false
         }
 
+        // 스페이스바 → QuickLook 미리보기
+        collectionView.onSpaceKey = { [weak self] in
+            self?.toggleQuickLook()
+        }
+
         // 우클릭 컨텍스트 메뉴
         let menu = NSMenu()
         menu.delegate = self
@@ -631,5 +647,60 @@ extension BrowserViewController {
 private extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+// MARK: - QuickLook Preview
+
+extension BrowserViewController {
+
+    /// 스페이스바로 QuickLook 미리보기 패널을 토글한다. (Finder 동작과 동일)
+    func toggleQuickLook() {
+        guard !contents.isEmpty, let panel = QLPreviewPanel.shared() else { return }
+        if QLPreviewPanel.sharedPreviewPanelExists(), panel.isVisible {
+            panel.orderOut(nil)
+        } else {
+            panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        true
+    }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = self
+        panel.delegate = self
+        // 현재 선택 항목부터 미리보기 시작 (없으면 첫 항목)
+        if let first = collectionView.selectionIndexPaths.min() {
+            panel.currentPreviewItemIndex = first.item
+        }
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = nil
+        panel.delegate = nil
+    }
+}
+
+extension BrowserViewController: QLPreviewPanelDataSource {
+    func numberOfPreviewItems(in panel: QLPreviewPanel) -> Int {
+        contents.count
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel, previewItemAt index: Int) -> QLPreviewItem {
+        contents[index].url as NSURL
+    }
+}
+
+extension BrowserViewController: QLPreviewPanelDelegate {
+    /// 미리보기 패널이 떠 있을 때 스페이스바를 다시 누르면 닫는다.
+    /// 그 외 키(←→ 등)는 QuickLook 기본 동작(항목 순회)에 맡긴다.
+    func previewPanel(_ panel: QLPreviewPanel, handle event: NSEvent) -> Bool {
+        if event.type == .keyDown, event.keyCode == 49 {
+            panel.orderOut(nil)
+            return true
+        }
+        return false
     }
 }

@@ -32,6 +32,7 @@ final class ViewerViewController: NSViewController {
     private var currentIndex: Int = 0
     private var loadTask: Task<Void, Never>?
     private var isShowingVideo = false
+    private var slideshowTimer: Timer?
 
     private let imageService: ImageServiceProtocol
 
@@ -68,6 +69,12 @@ final class ViewerViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        // 뷰어를 벗어나면(브라우저 복귀·창 닫기 등) 슬라이드쇼 타이머를 반드시 정지
+        stopSlideshow()
+    }
 
     override func loadView() {
         view = NSView()
@@ -180,6 +187,33 @@ final class ViewerViewController: NSViewController {
         }
     }
 
+    // MARK: - Slideshow
+
+    var isSlideshowRunning: Bool { slideshowTimer != nil }
+
+    func toggleSlideshow() {
+        if isSlideshowRunning { stopSlideshow() } else { startSlideshow() }
+    }
+
+    func startSlideshow() {
+        guard imageFiles.count > 1, slideshowTimer == nil else { return }
+        let interval = AppSettings.shared.slideshowInterval
+        slideshowTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.advanceSlideshow()
+        }
+    }
+
+    func stopSlideshow() {
+        slideshowTimer?.invalidate()
+        slideshowTimer = nil
+    }
+
+    /// 다음 이미지로 넘기되, 마지막이면 처음으로 순환한다.
+    private func advanceSlideshow() {
+        guard !imageFiles.isEmpty else { stopSlideshow(); return }
+        showMedia(at: (currentIndex + 1) % imageFiles.count)
+    }
+
     // MARK: - Media Display
 
     private func showMedia(at index: Int) {
@@ -243,13 +277,19 @@ final class ViewerViewController: NSViewController {
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 53:  // ESC
-            videoPlayerView.stop()
-            delegate?.viewerDidRequestClose(self)
+            if isSlideshowRunning {
+                stopSlideshow()  // 슬라이드쇼 중이면 닫지 않고 정지만
+            } else {
+                videoPlayerView.stop()
+                delegate?.viewerDidRequestClose(self)
+            }
         case 126, 123: // ↑, ←
+            stopSlideshow()  // 수동 조작 시 슬라이드쇼 정지
             if let newIndex = thumbnailStrip.selectPrevious() {
                 showMedia(at: newIndex)
             }
         case 125, 124: // ↓, →
+            stopSlideshow()
             if let newIndex = thumbnailStrip.selectNext() {
                 showMedia(at: newIndex)
             }

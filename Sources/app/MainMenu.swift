@@ -54,6 +54,7 @@ enum MainMenu {
         fileMenu.addItem(withTitle: L10n.string(.rename), action: #selector(MainWindowController.renameSelected(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: L10n.string(.moveTo), action: #selector(MainWindowController.moveSelected(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: L10n.string(.copyTo), action: #selector(MainWindowController.copySelected(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: "복제", action: #selector(MainWindowController.duplicateSelected(_:)), keyEquivalent: "d")
         fileMenu.addItem(NSMenuItem.separator())
 
         let saveAs = NSMenuItem(title: L10n.string(.saveAs), action: #selector(MainWindowController.exportCurrentImage(_:)), keyEquivalent: "S")
@@ -122,6 +123,11 @@ enum MainMenu {
         let nextImage = NSMenuItem(title: L10n.string(.nextImage), action: #selector(MainWindowController.navigateNextImage(_:)), keyEquivalent: "\u{F701}")
         nextImage.keyEquivalentModifierMask = []
         viewMenu.addItem(nextImage)
+
+        viewMenu.addItem(NSMenuItem.separator())
+        let slideshow = NSMenuItem(title: "슬라이드쇼", action: #selector(MainWindowController.toggleSlideshow(_:)), keyEquivalent: "\r")
+        slideshow.keyEquivalentModifierMask = [.command]
+        viewMenu.addItem(slideshow)
 
         viewMenu.addItem(NSMenuItem.separator())
         viewMenu.addItem(withTitle: L10n.string(.zoomIn), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
