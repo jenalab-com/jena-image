@@ -1,6 +1,13 @@
 import AppKit
 import Foundation
 
+// MARK: - Sort
+
+/// 브라우저 정렬 기준
+enum SortKey: String, CaseIterable {
+    case name, date, size, kind
+}
+
 // MARK: - Error
 
 enum FileServiceError: Error, LocalizedError {
@@ -32,9 +39,10 @@ enum FileServiceError: Error, LocalizedError {
 // MARK: - Protocol
 
 protocol FileServiceProtocol {
-    func contentsOfFolder(at url: URL) -> Result<(folders: [URL], images: [URL]), FileServiceError>
+    func contentsOfFolder(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<(folders: [URL], images: [URL]), FileServiceError>
     func moveFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
+    func duplicateFile(at url: URL) -> Result<URL, FileServiceError>
     func trashFile(at url: URL) -> Result<Void, FileServiceError>
     func renameFile(at url: URL, newName: String) -> Result<URL, FileServiceError>
     func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError>
@@ -50,7 +58,7 @@ final class FileService: FileServiceProtocol {
         self.fileManager = fileManager
     }
 
-    func contentsOfFolder(at url: URL) -> Result<(folders: [URL], images: [URL]), FileServiceError> {
+    func contentsOfFolder(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<(folders: [URL], images: [URL]), FileServiceError> {
         guard fileManager.isReadableFile(atPath: url.path) else {
             return .failure(.folderNotReadable(url))
         }
@@ -60,9 +68,10 @@ final class FileService: FileServiceProtocol {
             .skipsPackageDescendants,
         ]
 
+        // 정렬에 필요한 날짜·크기를 열거 시 함께 prefetch (정렬 비교 중 추가 디스크 접근 방지)
         guard let contents = try? fileManager.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey],
             options: options
         ) else {
             return .failure(.folderNotReadable(url))
@@ -80,14 +89,50 @@ final class FileService: FileServiceProtocol {
             }
         }
 
-        let sortedFolders = folders.sorted {
-            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-        }
-        let sortedImages = images.sorted {
+        // 폴더는 항상 위(분리 반환), 폴더/이미지 각각 동일 기준으로 정렬
+        return .success((
+            folders: sortURLs(folders, by: sortKey, ascending: ascending),
+            images: sortURLs(images, by: sortKey, ascending: ascending)
+        ))
+    }
+
+    /// 정렬 기준 값을 한 번씩만 읽어 캐시한 뒤 정렬한다.
+    /// 동률은 이름순으로 안정화하며, 내림차순은 결과를 뒤집는다.
+    private func sortURLs(_ urls: [URL], by key: SortKey, ascending: Bool) -> [URL] {
+        let byName: (URL, URL) -> Bool = {
             $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
         }
 
-        return .success((folders: sortedFolders, images: sortedImages))
+        let result: [URL]
+        switch key {
+        case .name:
+            result = urls.sorted(by: byName)
+        case .kind:
+            result = urls.sorted {
+                let e0 = $0.pathExtension.lowercased(), e1 = $1.pathExtension.lowercased()
+                if e0 != e1 { return e0.localizedStandardCompare(e1) == .orderedAscending }
+                return byName($0, $1)
+            }
+        case .date:
+            let dates: [URL: Date] = Dictionary(uniqueKeysWithValues: urls.map {
+                ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast)
+            })
+            result = urls.sorted {
+                let d0 = dates[$0] ?? .distantPast, d1 = dates[$1] ?? .distantPast
+                if d0 != d1 { return d0 < d1 }
+                return byName($0, $1)
+            }
+        case .size:
+            let sizes: [URL: Int] = Dictionary(uniqueKeysWithValues: urls.map {
+                ($0, (try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            })
+            result = urls.sorted {
+                let s0 = sizes[$0] ?? 0, s1 = sizes[$1] ?? 0
+                if s0 != s1 { return s0 < s1 }
+                return byName($0, $1)
+            }
+        }
+        return ascending ? result : result.reversed()
     }
 
     func moveFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError> {
@@ -117,6 +162,32 @@ final class FileService: FileServiceProtocol {
             return .success(destination)
         } catch {
             return .failure(.operationFailed("파일을 복사할 수 없습니다: \(error.localizedDescription)"))
+        }
+    }
+
+    /// 같은 폴더에 사본을 만든다. 이름 충돌을 피해 "파일 2.ext" 식으로 번호를 붙인다.
+    func duplicateFile(at url: URL) -> Result<URL, FileServiceError> {
+        let folder = url.deletingLastPathComponent()
+        let destination = folder.appendingPathComponent(uniqueName(for: url.lastPathComponent, in: folder))
+        do {
+            try fileManager.copyItem(at: url, to: destination)
+            return .success(destination)
+        } catch {
+            return .failure(.operationFailed("파일을 복제할 수 없습니다: \(error.localizedDescription)"))
+        }
+    }
+
+    /// 폴더 안에서 충돌하지 않는 이름을 만든다 ("이름 2.ext", "이름 3.ext" …).
+    private func uniqueName(for name: String, in folder: URL) -> String {
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        var counter = 2
+        while true {
+            let candidate = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+            if !fileManager.fileExists(atPath: folder.appendingPathComponent(candidate).path) {
+                return candidate
+            }
+            counter += 1
         }
     }
 

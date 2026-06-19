@@ -10,10 +10,12 @@ final class ImageEditorWindowController: NSWindowController {
     private let editingService = ImageEditingService()
     private var editedImage: NSImage
 
-    // Undo/Redo 히스토리 (최대 10개)
+    // Undo/Redo 히스토리
     private var undoStack: [NSImage] = []
     private var redoStack: [NSImage] = []
     private let maxHistory = 10
+    /// 풀해상도 NSImage가 쌓여 메모리가 폭증하지 않도록 히스토리 총량 상한 (추정 바이트)
+    private let maxHistoryBytes = 384 * 1024 * 1024
 
     // 좌측: 이미지 표시
     private let imageScrollView = NSScrollView()
@@ -796,11 +798,37 @@ final class ImageEditorWindowController: NSWindowController {
 
     private func pushUndo() {
         undoStack.append(editedImage)
-        if undoStack.count > maxHistory {
+        redoStack.removeAll()
+        trimHistory()
+        updateUndoRedoButtons()
+    }
+
+    /// 개수·메모리 예산을 넘으면 가장 오래된 항목부터 제거한다.
+    /// 큰 이미지는 풀해상도 NSImage 한 장만으로도 수백 MB이므로 개수 제한만으론 부족하다.
+    private func trimHistory() {
+        while undoStack.count > maxHistory {
             undoStack.removeFirst()
         }
-        redoStack.removeAll()
-        updateUndoRedoButtons()
+        // 직전 동작은 되돌릴 수 있도록 최소 1개는 남긴다.
+        while undoStack.count > 1, historyByteCount() > maxHistoryBytes {
+            undoStack.removeFirst()
+        }
+    }
+
+    private func historyByteCount() -> Int {
+        (undoStack + redoStack).reduce(0) { $0 + Self.estimatedBytes(of: $1) }
+    }
+
+    /// NSImage가 차지하는 대략적인 픽셀 메모리(RGBA 4바이트 기준)를 추정한다.
+    private static func estimatedBytes(of image: NSImage) -> Int {
+        var maxPixels = 0
+        for rep in image.representations {
+            maxPixels = max(maxPixels, rep.pixelsWide * rep.pixelsHigh)
+        }
+        if maxPixels == 0 {
+            maxPixels = Int(image.size.width * image.size.height)
+        }
+        return maxPixels * 4
     }
 
     /// 편집 적용 공통: undo 저장 → 이미지 교체 → 표시 갱신

@@ -3,7 +3,7 @@ BUNDLE_ID    = com.jenalab.jenaimage
 VERSION      = 1.3.0
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
-FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation
+FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz
 
 APP_BUNDLE   = $(BUILD_DIR)/$(APP_NAME).app
 BINARY       = $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
