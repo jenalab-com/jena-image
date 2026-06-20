@@ -344,10 +344,40 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         window?.toolbar = toolbar
     }
 
+    /// 주어진 URL들을 북마크 토글. 모두 북마크돼 있으면 일괄 제거, 아니면 일괄 추가.
+    func toggleBookmark(_ urls: [URL]) {
+        let images = urls.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.map { $0.url }
+        guard !images.isEmpty else { return }
+        let allBookmarked = images.allSatisfy { bookmarkStore.contains($0) }
+        for url in images {
+            if allBookmarked { bookmarkStore.remove(url) } else { bookmarkStore.add(url) }
+        }
+    }
+
+    @objc func toggleBookmarkSelected(_ sender: Any?) {
+        toggleBookmark(browserVC.selectedURLs())
+    }
+
+    func refreshViewerBookmarkButton() {
+        guard let url = viewerVC.currentImageURL else { return }
+        viewerVC.updateBookmarkButton(isBookmarked: bookmarkStore.contains(url))
+    }
+
     private func setupDelegates() {
         sidebarVC.delegate = self
         browserVC.delegate = self
         viewerVC.delegate = self
+
+        browserVC.isBookmarkedProvider = { [weak self] url in self?.bookmarkStore.contains(url) ?? false }
+        viewerVC.onToggleBookmark = { [weak self] url in self?.toggleBookmark([url]) }
+
+        NotificationCenter.default.addObserver(
+            forName: .bookmarksChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            if self.browserVC.isBookmarkMode { self.showBookmarks() }
+            self.refreshViewerBookmarkButton()
+        }
 
         statusBar.onThumbnailScaleChanged = { [weak self] scale in
             self?.browserVC.updateThumbnailScale(scale)

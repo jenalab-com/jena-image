@@ -286,6 +286,10 @@ extension MainWindowController: NSToolbarItemValidation {
             return imageCount >= 2
         }
 
+        if menuItem.action == #selector(toggleBookmarkSelected(_:)) {
+            return browserVC.selectedURLs().compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count >= 1
+        }
+
         switch menuItem.action {
         // 복사: 텍스트 편집 중이면 활성, 아니면 이미지 선택 필요
         case #selector(copyFiles(_:)):

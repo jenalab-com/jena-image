@@ -11,6 +11,7 @@ protocol ViewerDelegate: AnyObject {
     func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL)
     func viewerDidEndEditing(_ viewer: ViewerViewController)
     func viewer(_ viewer: ViewerViewController, didSaveEditedImageToFolder folderURL: URL)
+    func viewerIsBookmarked(_ viewer: ViewerViewController, url: URL) -> Bool
 }
 
 // MARK: - ViewController
@@ -27,6 +28,10 @@ final class ViewerViewController: NSViewController {
     // 하단 버튼
     private let editButton = NSButton(title: "편집", target: nil, action: nil)
     private let thumbnailToggleButton = NSButton(title: "", target: nil, action: nil)
+    private let bookmarkButton = NSButton(title: "", target: nil, action: nil)
+
+    /// MainWindowController가 주입하는 북마크 토글 클로저
+    var onToggleBookmark: ((URL) -> Void)?
 
     private var imageFiles: [ImageFile] = []
     private var currentIndex: Int = 0
@@ -228,6 +233,10 @@ final class ViewerViewController: NSViewController {
         }
 
         delegate?.viewer(self, didNavigateToFile: file.url)
+
+        if let url = currentImageURL {
+            updateBookmarkButton(isBookmarked: delegate?.viewerIsBookmarked(self, url: url) ?? false)
+        }
     }
 
     private func showVideo(_ file: ImageFile) {
@@ -346,8 +355,16 @@ final class ViewerViewController: NSViewController {
         thumbnailToggleButton.target = self
         thumbnailToggleButton.action = #selector(toggleThumbnailStrip)
 
+        bookmarkButton.translatesAutoresizingMaskIntoConstraints = false
+        bookmarkButton.bezelStyle = .rounded
+        bookmarkButton.controlSize = .small
+        bookmarkButton.image = NSImage(systemSymbolName: "star", accessibilityDescription: "북마크")
+        bookmarkButton.target = self
+        bookmarkButton.action = #selector(bookmarkButtonTapped)
+
         contentContainer.addSubview(editButton)
         contentContainer.addSubview(thumbnailToggleButton)
+        contentContainer.addSubview(bookmarkButton)
 
         NSLayoutConstraint.activate([
             thumbnailToggleButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
@@ -355,7 +372,20 @@ final class ViewerViewController: NSViewController {
 
             editButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
             editButton.trailingAnchor.constraint(equalTo: thumbnailToggleButton.leadingAnchor, constant: -6),
+
+            bookmarkButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
+            bookmarkButton.trailingAnchor.constraint(equalTo: editButton.leadingAnchor, constant: -6),
         ])
+    }
+
+    func updateBookmarkButton(isBookmarked: Bool) {
+        let name = isBookmarked ? "star.fill" : "star"
+        bookmarkButton.image = NSImage(systemSymbolName: name, accessibilityDescription: "북마크")
+    }
+
+    @objc private func bookmarkButtonTapped() {
+        guard let url = currentImageURL else { return }
+        onToggleBookmark?(url)
     }
 
     @objc private func editButtonTapped() {
