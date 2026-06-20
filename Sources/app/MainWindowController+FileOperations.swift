@@ -27,6 +27,7 @@ extension MainWindowController {
                 failedURLs.append(url)
             } else {
                 ThumbnailCache.shared.invalidate(for: url)
+                bookmarkStore.remove(url)
             }
         }
 
@@ -120,6 +121,7 @@ extension MainWindowController {
         switch result {
         case .success(let newURL):
             ThumbnailCache.shared.invalidate(for: url)
+            bookmarkStore.rename(from: url, to: newURL)
             if contentMode == .viewer {
                 viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)
             }
