@@ -147,6 +147,11 @@ extension MainWindowController: SidebarDelegate {
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL) {
         performExport(url: url)
     }
+
+    func sidebarDidSelectBookmarks(_ sidebar: SidebarViewController) {
+        activePanel = .sidebar
+        showBookmarks()
+    }
 }
 
 // MARK: - BrowserDelegate

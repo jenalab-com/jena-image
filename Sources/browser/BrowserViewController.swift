@@ -141,7 +141,9 @@ final class BrowserViewController: NSViewController {
     private let collectionView = DoubleClickCollectionView()
     private let scrollView = NSScrollView()
     private let emptyLabel = NSTextField(labelWithString: "이 폴더는 비어 있습니다")
+    private let bookmarkEmptyLabel = NSTextField(labelWithString: "북마크가 비어 있어요")
 
+    private(set) var isBookmarkMode = false
     private var contents: [BrowserContent] = []
     private var imageFiles: [ImageFile] = []
     private var currentFolderURL: URL?
@@ -166,12 +168,14 @@ final class BrowserViewController: NSViewController {
         setupScrollView()
         setupCollectionView()
         setupEmptyLabel()
+        setupBookmarkEmptyLabel()
         observeFolderColorChanges()
     }
 
     // MARK: - Public
 
     func display(folders: [URL], images: [URL]) {
+        isBookmarkMode = false
         thumbnailTask?.cancel()
 
         let folderNodes = folders.map { BrowserContent.folder(FolderNode(url: $0)) }
@@ -180,10 +184,28 @@ final class BrowserViewController: NSViewController {
         contents = folderNodes + imageItems.map { BrowserContent.image($0) }
 
         emptyLabel.isHidden = !contents.isEmpty
+        bookmarkEmptyLabel.isHidden = true
         collectionView.reloadData()
         collectionView.deselectAll(nil)
 
         loadThumbnails(for: imageItems)
+    }
+
+    /// 북마크(임의 위치 이미지) 평면 목록을 표시한다.
+    func displayBookmarks(_ files: [ImageFile]) {
+        isBookmarkMode = true
+        thumbnailTask?.cancel()
+        imageFiles = files
+        contents = files.map { BrowserContent.image($0) }
+        collectionView.reloadData()
+        collectionView.deselectAll(nil)
+        loadThumbnails(for: files)
+        updateEmptyState()
+    }
+
+    private func updateEmptyState() {
+        emptyLabel.isHidden = true
+        bookmarkEmptyLabel.isHidden = !(isBookmarkMode && contents.isEmpty)
     }
 
     /// URL 기반으로 선택 복원
@@ -492,6 +514,20 @@ final class BrowserViewController: NSViewController {
         NSLayoutConstraint.activate([
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+    }
+
+    private func setupBookmarkEmptyLabel() {
+        bookmarkEmptyLabel.translatesAutoresizingMaskIntoConstraints = false
+        bookmarkEmptyLabel.font = .systemFont(ofSize: 14)
+        bookmarkEmptyLabel.textColor = .secondaryLabelColor
+        bookmarkEmptyLabel.alignment = .center
+        bookmarkEmptyLabel.isHidden = true
+        view.addSubview(bookmarkEmptyLabel)
+
+        NSLayoutConstraint.activate([
+            bookmarkEmptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            bookmarkEmptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
     }
 }
