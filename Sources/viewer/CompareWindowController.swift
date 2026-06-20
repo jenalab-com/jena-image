@@ -20,6 +20,8 @@ final class CompareWindowController: NSWindowController {
     private let syncToggle = NSButton(checkboxWithTitle: "줌·팬 동기화", target: nil, action: nil)
     private weak var activePane: ComparePaneView?
     private var candidateStrip: CompareCandidateStrip?
+    /// 모든 칸을 동일 크기로 묶는 제약(그리드 재구성마다 갱신).
+    private var equalSizeConstraints: [NSLayoutConstraint] = []
 
     init(files: [ImageFile], imageService: ImageServiceProtocol) {
         self.imageService = imageService
@@ -166,7 +168,7 @@ final class CompareWindowController: NSWindowController {
             }
             gridView.addRow(with: rowViews)
         }
-        // 모든 칸이 균등하게 늘어나도록
+        // 각 칸이 셀을 가득 채우도록
         for col in 0..<shape.cols {
             gridView.column(at: col).xPlacement = .fill
         }
@@ -176,7 +178,22 @@ final class CompareWindowController: NSWindowController {
         for pane in panes {
             pane.setContentHuggingPriority(.defaultLow, for: .horizontal)
             pane.setContentHuggingPriority(.defaultLow, for: .vertical)
+            // 이미지 크기가 칸 너비를 끌어당기지 않도록 압축 저항도 낮춘다.
+            pane.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            pane.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         }
+
+        // 칸 너비/높이를 서로 동일하게 묶어 균등 분할(.fill만으론 컬럼 폭이
+        // 콘텐츠 크기를 따라가 한쪽이 더 넓어지는 문제를 막는다).
+        NSLayoutConstraint.deactivate(equalSizeConstraints)
+        equalSizeConstraints.removeAll()
+        if let first = panes.first {
+            for pane in panes.dropFirst() {
+                equalSizeConstraints.append(pane.widthAnchor.constraint(equalTo: first.widthAnchor))
+                equalSizeConstraints.append(pane.heightAnchor.constraint(equalTo: first.heightAnchor))
+            }
+        }
+        NSLayoutConstraint.activate(equalSizeConstraints)
     }
 }
 
