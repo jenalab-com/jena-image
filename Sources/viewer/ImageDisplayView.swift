@@ -250,7 +250,7 @@ final class ImageDisplayView: NSView {
 
         clipView.postsBoundsChangedNotifications = true
         clipBoundsObserver = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification, object: clipView, queue: .main
+            forName: NSView.boundsDidChangeNotification, object: clipView, queue: nil
         ) { [weak self] _ in
             self?.notifyTransformChanged()
         }
@@ -350,6 +350,7 @@ final class ImageDisplayView: NSView {
         scrollView.maxMagnification = Self.maxMagnification
         scrollView.backgroundColor = AppSettings.shared.viewerBackground.color
         scrollView.scrollerStyle = .overlay
+        scrollView.onMagnificationChanged = { [weak self] in self?.notifyTransformChanged() }
 
         // CenteringClipView로 교체하여 이미지를 항상 중앙에 배치
         clipView.documentView = imageView
@@ -372,6 +373,8 @@ final class ImageDisplayView: NSView {
 
 /// 스크롤 휠을 줌으로 변환하는 NSScrollView 서브클래스
 private final class ZoomScrollView: NSScrollView {
+    var onMagnificationChanged: (() -> Void)?
+
     override func scrollWheel(with event: NSEvent) {
         guard AppSettings.shared.scrollWheelZoom else {
             super.scrollWheel(with: event)
@@ -383,6 +386,7 @@ private final class ZoomScrollView: NSScrollView {
         let factor: CGFloat = delta > 0 ? 1.05 : 0.95
         let newMag = max(minMagnification, min(magnification * factor, maxMagnification))
         magnification = newMag
+        onMagnificationChanged?()
     }
 }
 
