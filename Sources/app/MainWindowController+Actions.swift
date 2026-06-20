@@ -265,11 +265,26 @@ extension MainWindowController {
 
 extension MainWindowController {
 
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        if item.itemIdentifier == ToolbarID.compare {
+            let imageCount = browserVC.selectedURLs()
+                .compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
+            return imageCount >= 2
+        }
+        return true
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let isViewer = contentMode == .viewer
 
         // 텍스트 편집 중이면 복사/붙여넣기 항상 활성화
         let isEditingText = (window?.firstResponder as? NSTextView)?.isFieldEditor == true
+
+        if menuItem.action == #selector(compareSelected(_:)) {
+            let imageCount = browserVC.selectedURLs()
+                .compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
+            return imageCount >= 2
+        }
 
         switch menuItem.action {
         // 복사: 텍스트 편집 중이면 활성, 아니면 이미지 선택 필요
