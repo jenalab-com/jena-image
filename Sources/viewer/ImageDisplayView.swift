@@ -10,6 +10,7 @@ final class ImageDisplayView: NSView {
 
     private var isFitMode = true
     private var frameObserver: NSObjectProtocol?
+    private var clipBoundsObserver: NSObjectProtocol?
 
     private static let minMagnification: CGFloat = 0.1
     private static let maxMagnification: CGFloat = 5.0
@@ -61,11 +62,53 @@ final class ImageDisplayView: NSView {
         if let observer = settingsObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = clipBoundsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     private var isFlippedHorizontally = false
     private var isFlippedVertically = false
     private var originalImage: NSImage?
+
+    // MARK: - 동기화용 변환 노출
+
+    /// 줌·팬이 바뀔 때 호출(외부 동기화용). (배율, 0~1 정규화된 이미지 내 가시 중심)
+    var onTransformChanged: ((_ magnification: CGFloat, _ centerInImage: CGPoint) -> Void)?
+
+    /// 동기화 적용 중에는 콜백을 되쏘지 않기 위한 플래그.
+    private var isApplyingExternalTransform = false
+
+    /// 현재 가시 영역의 중심을 이미지 좌표 기준 0~1로 정규화한 값.
+    var normalizedVisibleCenter: CGPoint {
+        let w = imageView.frame.width, h = imageView.frame.height
+        guard w > 0, h > 0 else { return CGPoint(x: 0.5, y: 0.5) }
+        let center = CGPoint(x: clipView.bounds.midX, y: clipView.bounds.midY)
+        return CGPoint(x: center.x / w, y: center.y / h)
+    }
+
+    /// 외부(다른 칸)에서 전달된 배율·중심을 적용한다. 콜백은 발생시키지 않는다.
+    func applyTransform(magnification: CGFloat, centerInImage: CGPoint) {
+        isApplyingExternalTransform = true
+        defer { isApplyingExternalTransform = false }
+
+        isFitMode = false
+        scrollView.magnification = magnification
+
+        let w = imageView.frame.width, h = imageView.frame.height
+        guard w > 0, h > 0 else { return }
+        let target = CGPoint(x: centerInImage.x * w, y: centerInImage.y * h)
+        let origin = CGPoint(x: target.x - clipView.bounds.width / 2,
+                             y: target.y - clipView.bounds.height / 2)
+        clipView.setBoundsOrigin(origin)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    /// 줌·팬 변경을 외부에 알린다.
+    private func notifyTransformChanged() {
+        guard !isApplyingExternalTransform else { return }
+        onTransformChanged?(scrollView.magnification, normalizedVisibleCenter)
+    }
 
     // MARK: - Public
 
@@ -92,17 +135,20 @@ final class ImageDisplayView: NSView {
         isFitMode = false
         let newMag = min(scrollView.magnification * 1.25, Self.maxMagnification)
         scrollView.animator().magnification = newMag
+        notifyTransformChanged()
     }
 
     func zoomOut() {
         isFitMode = false
         let newMag = max(scrollView.magnification / 1.25, Self.minMagnification)
         scrollView.animator().magnification = newMag
+        notifyTransformChanged()
     }
 
     func zoomToActualSize() {
         isFitMode = false
         scrollView.animator().magnification = 1.0
+        notifyTransformChanged()
     }
 
     func fitToView() {
@@ -200,6 +246,13 @@ final class ImageDisplayView: NSView {
             guard let self, self.isFitMode else { return }
             self.fitToView()
         }
+
+        clipView.postsBoundsChangedNotifications = true
+        clipBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification, object: clipView, queue: .main
+        ) { [weak self] _ in
+            self?.notifyTransformChanged()
+        }
     }
 
     // MARK: - Crop Overlay
@@ -272,6 +325,7 @@ final class ImageDisplayView: NSView {
         origin.x -= dx
         origin.y -= dy
         clipView.setBoundsOrigin(origin)
+        notifyTransformChanged()
     }
 
     override func mouseUp(with event: NSEvent) {
