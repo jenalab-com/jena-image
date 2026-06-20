@@ -212,6 +212,10 @@ extension MainWindowController: BrowserDelegate {
     func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL]) {
         toggleBookmark(urls)
     }
+
+    func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL]) {
+        urls.forEach { bookmarkStore.remove($0) }
+    }
 }
 
 // MARK: - ViewerDelegate

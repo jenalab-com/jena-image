@@ -43,7 +43,19 @@ final class BrowserItem: NSCollectionViewItem {
             thumbnailView.imageScaling = .scaleProportionallyDown
             thumbnailView.layer?.borderWidth = 0.5
             thumbnailView.layer?.backgroundColor = nil
-            if file.isVideo {
+
+            // 깨진 북마크: 파일이 존재하지 않으면 경고 플레이스홀더 표시
+            if !FileManager.default.fileExists(atPath: file.url.path) {
+                let config = NSImage.SymbolConfiguration(pointSize: 28, weight: .regular)
+                thumbnailView.image = NSImage(
+                    systemSymbolName: "exclamationmark.triangle",
+                    accessibilityDescription: "원본을 찾을 수 없음"
+                )?.withSymbolConfiguration(config)
+                thumbnailView.contentTintColor = .tertiaryLabelColor
+                thumbnailView.imageScaling = .scaleNone
+                nameLabel.textColor = .tertiaryLabelColor
+                playBadge.isHidden = true
+            } else if file.isVideo {
                 thumbnailView.image = thumbnail ?? NSImage(
                     systemSymbolName: "film",
                     accessibilityDescription: content.name

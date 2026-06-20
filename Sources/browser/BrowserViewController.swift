@@ -132,6 +132,7 @@ protocol BrowserDelegate: AnyObject {
     func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL)
     func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL])
     func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL])
+    func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL])
 }
 
 // MARK: - ViewController
@@ -310,7 +311,15 @@ final class BrowserViewController: NSViewController {
         case .folder(let node):
             delegate?.browser(self, didOpenFolder: node.url)
         case .image(let file):
-            delegate?.browser(self, didRequestViewImage: file.url, inList: imageFiles)
+            // 깨진 북마크(파일 없음)는 열기 불가
+            guard FileManager.default.fileExists(atPath: file.url.path) else { return }
+            let list: [ImageFile]
+            if isBookmarkMode {
+                list = contents.compactMap { if case .image(let f) = $0 { return f } else { return nil } }
+            } else {
+                list = imageFiles
+            }
+            delegate?.browser(self, didRequestViewImage: file.url, inList: list)
         }
     }
 
@@ -375,9 +384,21 @@ final class BrowserViewController: NSViewController {
 
     @objc private func contextOpen(_ sender: NSMenuItem) {
         guard let urls = sender.representedObject as? [URL], let url = urls.first else { return }
-        if ImageFile(url: url) != nil {
-            delegate?.browser(self, didRequestViewImage: url, inList: imageFiles)
+        guard ImageFile(url: url) != nil,
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        let list: [ImageFile]
+        if isBookmarkMode {
+            list = contents.compactMap { if case .image(let f) = $0 { return f } else { return nil } }
+        } else {
+            list = imageFiles
         }
+        delegate?.browser(self, didRequestViewImage: url, inList: list)
+    }
+
+    @objc private func contextRemoveBookmark(_ sender: NSMenuItem) {
+        let urls = selectedURLs()
+        guard !urls.isEmpty else { return }
+        delegate?.browserDidRequestRemoveBookmark(self, urls: urls)
     }
 
     @objc private func contextRename(_ sender: NSMenuItem) {
@@ -630,6 +651,41 @@ extension BrowserViewController: NSMenuDelegate {
         menu.removeAllItems()
 
         let urls = selectedURLs()
+
+        // ── 북마크 모드 전용 메뉴 ──────────────────────────────────────────────
+        if isBookmarkMode {
+            if urls.isEmpty { return }
+
+            // 깨진 북마크(파일 없음)가 하나라도 포함되면 열기/이름변경/삭제 비활성화
+            let hasBroken = urls.contains { !FileManager.default.fileExists(atPath: $0.path) }
+
+            let openItem = NSMenuItem(title: "열기", action: hasBroken ? nil : #selector(contextOpen(_:)), keyEquivalent: "")
+            openItem.target = self
+            openItem.representedObject = urls
+            menu.addItem(openItem)
+
+            let removeItem = NSMenuItem(title: "빼기", action: #selector(contextRemoveBookmark(_:)), keyEquivalent: "")
+            removeItem.target = self
+            removeItem.representedObject = urls
+            menu.addItem(removeItem)
+
+            menu.addItem(NSMenuItem.separator())
+
+            if urls.count == 1 {
+                let renameItem = NSMenuItem(title: "이름 변경", action: hasBroken ? nil : #selector(contextRename(_:)), keyEquivalent: "")
+                renameItem.target = self
+                renameItem.representedObject = urls
+                menu.addItem(renameItem)
+            }
+
+            let deleteItem = NSMenuItem(title: "삭제", action: hasBroken ? nil : #selector(contextDelete(_:)), keyEquivalent: "")
+            deleteItem.target = self
+            deleteItem.representedObject = urls
+            menu.addItem(deleteItem)
+
+            return
+        }
+        // ──────────────────────────────────────────────────────────────────────
 
         if !urls.isEmpty {
             let hasImages = urls.contains { ImageFile.allSupportedExtensions.contains($0.pathExtension.lowercased()) }
