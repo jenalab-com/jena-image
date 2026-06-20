@@ -20,10 +20,13 @@
 
 - **Folder Sidebar** — Register folders and browse the folder tree with hierarchical navigation; media count shown per folder
 - **Grid Browser** — View images and folders as a thumbnail grid with adjustable size; video files show a play badge
-- **Image Viewer** — In-panel viewer with zoom, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
+- **Image Viewer** — In-panel viewer with zoom, rotate, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
+- **Image Compare** — Select 2–4 images and view them side by side in a separate window with synchronized zoom/pan; swap any pane from a bottom candidate strip
+- **Image Editing** — Crop, resize, canvas size, and color adjustment (brightness/contrast/saturation/highlights/shadows) with undo/redo; EXIF orientation handling and print support
+- **Slideshow & QuickLook** — Auto-advancing slideshow and QuickLook preview
 - **Video Player** — Play MP4, MOV, M4V, AVI, MKV files inline with AVKit
 - **Format Conversion** — Export images to JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF
-- **File Management** — Rename, move, copy, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete
+- **File Management** — Rename, move, copy, duplicate, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete
 - **Keyboard Shortcuts** — Full keyboard support for all major operations
 
 ## Screenshots
@@ -68,7 +71,7 @@ Sources/
 ├── app/          # AppDelegate, MainWindowController, Menus, Toolbar
 ├── sidebar/      # Folder tree navigation (NSOutlineView)
 ├── browser/      # Image/folder grid (NSCollectionView)
-├── viewer/       # Image display, zoom, thumbnail strip
+├── viewer/       # Image display, zoom, thumbnail strip, compare, editor
 ├── services/     # ImageService, FileService, SecurityScopeService
 └── models/       # FolderNode, ImageFile, ImageFormat
 ```
@@ -79,14 +82,19 @@ Sources/
 |--------|----------|
 | Add Folder | `⌘O` |
 | Save As (Export) | `⇧⌘S` |
+| Duplicate | `⌘D` |
+| Print | `⌘P` |
 | Delete | `⌫` |
 | Reveal in Finder | `⌘R` |
 | Copy to Clipboard | `⌘C` |
 | Select All | `⌘A` |
+| Compare Selected | `⌘\` |
+| Edit Image | `⌘E` |
 | Toggle Sidebar | `⌥⌘S` |
 | Back | `⌘[` |
 | Previous File (Viewer) | `↑` |
 | Next File (Viewer) | `↓` |
+| Slideshow | `⌘↩` |
 | Zoom In | `⌘+` |
 | Zoom Out | `⌘-` |
 | Actual Size | `⌘0` |
