@@ -26,6 +26,7 @@ final class BrowserItem: NSCollectionViewItem {
 
     func configure(with content: BrowserContent, thumbnail: NSImage?) {
         nameLabel.stringValue = content.name
+        nameLabel.textColor = .labelColor  // 셀 재사용 리셋(깨진 북마크 회색이 남지 않도록)
         playBadge.isHidden = true
 
         switch content {
