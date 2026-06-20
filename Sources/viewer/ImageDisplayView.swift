@@ -3,6 +3,7 @@ import AppKit
 /// 확대/축소/패닝 가능한 이미지 뷰
 final class ImageDisplayView: NSView {
     var onDoubleClick: (() -> Void)?
+    var onSingleClick: (() -> Void)?
 
     private let scrollView = ZoomScrollView()
     private let clipView = CenteringClipView()
@@ -306,6 +307,8 @@ final class ImageDisplayView: NSView {
             onDoubleClick?()
             return
         }
+
+        onSingleClick?()
 
         // 줌이 적용된 상태에서 클릭 드래그 → 패닝
         isPanning = true

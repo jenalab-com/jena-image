@@ -18,6 +18,8 @@ final class CompareWindowController: NSWindowController {
     private let gridView = NSGridView()
     private var syncCoordinator: CompareSyncCoordinator?
     private let syncToggle = NSButton(checkboxWithTitle: "줌·팬 동기화", target: nil, action: nil)
+    private weak var activePane: ComparePaneView?
+    private var candidateStrip: CompareCandidateStrip?
 
     init(files: [ImageFile], imageService: ImageServiceProtocol) {
         self.imageService = imageService
@@ -34,10 +36,14 @@ final class CompareWindowController: NSWindowController {
 
         self.panes = files.map { ComparePaneView(file: $0, imageService: imageService) }
         self.syncCoordinator = CompareSyncCoordinator(panes: panes)
-        for pane in panes { pane.onRequestClose = { [weak self] p in self?.removePane(p) } }
+        for pane in panes {
+            pane.onRequestClose = { [weak self] p in self?.removePane(p) }
+            pane.onActivated = { [weak self] p in self?.setActivePane(p) }
+        }
         setupGrid()
         panes.forEach { $0.load() }
         updateCloseButtons()
+        panes.first.map { setActivePane($0) }
     }
 
     @available(*, unavailable)
@@ -59,6 +65,16 @@ final class CompareWindowController: NSWindowController {
         gridView.columnSpacing = 2
         rebuildGrid()
         container.addSubview(gridView)
+
+        let strip = CompareCandidateStrip(
+            files: buildCandidates(from: panes.map { $0.file }),
+            imageService: imageService
+        )
+        strip.onSelect = { [weak self] file in self?.handleCandidateSelected(file) }
+        strip.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(strip)
+        self.candidateStrip = strip
+
         window.contentView = container
 
         NSLayoutConstraint.activate([
@@ -66,9 +82,14 @@ final class CompareWindowController: NSWindowController {
             syncToggle.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
 
             gridView.topAnchor.constraint(equalTo: syncToggle.bottomAnchor, constant: 8),
-            gridView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             gridView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             gridView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            gridView.bottomAnchor.constraint(equalTo: strip.topAnchor, constant: -8),
+
+            strip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            strip.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            strip.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            strip.heightAnchor.constraint(equalToConstant: 70),
         ])
     }
 
@@ -83,6 +104,46 @@ final class CompareWindowController: NSWindowController {
         syncCoordinator = CompareSyncCoordinator(panes: panes)  // 콜백 재배선
         syncCoordinator?.isEnabled = (syncToggle.state == .on)
         updateCloseButtons()
+        // 닫힌 칸이 활성이었다면 첫 칸으로 활성 이동.
+        if activePane === pane || activePane == nil {
+            panes.first.map { setActivePane($0) }
+        }
+    }
+
+    private func setActivePane(_ pane: ComparePaneView) {
+        activePane?.setActive(false)
+        activePane = pane
+        pane.setActive(true)
+    }
+
+    private func handleCandidateSelected(_ file: ImageFile) {
+        let target = activePane ?? panes.first
+        target?.setFile(file)
+        if let target { setActivePane(target) }
+    }
+
+    private func buildCandidates(from files: [ImageFile]) -> [ImageFile] {
+        var seen = Set<URL>()
+        var result: [ImageFile] = []
+        let folderImages: [ImageFile]
+        if let parent = files.first?.url.deletingLastPathComponent() {
+            let serviceResult = FileService().contentsOfFolder(
+                at: parent,
+                sortKey: AppSettings.shared.sortKey,
+                ascending: AppSettings.shared.sortAscending
+            )
+            if case .success(let (_, imageURLs)) = serviceResult {
+                folderImages = imageURLs.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }
+            } else {
+                folderImages = []
+            }
+        } else {
+            folderImages = []
+        }
+        for f in files + folderImages where !seen.contains(f.url) {
+            seen.insert(f.url); result.append(f)
+        }
+        return result
     }
 
     /// 2칸이면 닫기 비활성(최소 2칸 유지).
