@@ -263,7 +263,7 @@ extension MainWindowController {
 
 // MARK: - Menu Validation
 
-extension MainWindowController {
+extension MainWindowController: NSToolbarItemValidation {
 
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         if item.itemIdentifier == ToolbarID.compare {

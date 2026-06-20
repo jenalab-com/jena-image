@@ -594,7 +594,8 @@ extension BrowserViewController: NSMenuDelegate {
                 menu.addItem(withTitle: "이름 변경", action: #selector(contextRename(_:)), keyEquivalent: "")
             }
 
-            if urls.count >= 2 {
+            let nonVideoCount = urls.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
+            if nonVideoCount >= 2 {
                 menu.addItem(withTitle: "비교", action: #selector(contextCompare(_:)), keyEquivalent: "")
                 menu.addItem(NSMenuItem.separator())
             }

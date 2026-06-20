@@ -28,6 +28,7 @@ final class CompareWindowController: NSWindowController {
         window.title = "비교"
         window.center()
         super.init(window: window)
+        window.delegate = self
 
         self.panes = files.map { ComparePaneView(file: $0, imageService: imageService) }
         setupGrid()
@@ -82,5 +83,13 @@ final class CompareWindowController: NSWindowController {
             pane.setContentHuggingPriority(.defaultLow, for: .horizontal)
             pane.setContentHuggingPriority(.defaultLow, for: .vertical)
         }
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension CompareWindowController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        onClose?()
     }
 }
