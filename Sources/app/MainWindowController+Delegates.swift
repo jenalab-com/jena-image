@@ -208,6 +208,10 @@ extension MainWindowController: BrowserDelegate {
     func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL]) {
         compareFiles(urls)
     }
+
+    func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL]) {
+        toggleBookmark(urls)
+    }
 }
 
 // MARK: - ViewerDelegate
@@ -242,6 +246,10 @@ extension MainWindowController: ViewerDelegate {
     }
 
     func viewerDidEndEditing(_ viewer: ViewerViewController) {
+    }
+
+    func viewerIsBookmarked(_ viewer: ViewerViewController, url: URL) -> Bool {
+        bookmarkStore.contains(url)
     }
 
     func viewer(_ viewer: ViewerViewController, didSaveEditedImageToFolder folderURL: URL) {

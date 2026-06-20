@@ -131,12 +131,16 @@ protocol BrowserDelegate: AnyObject {
     func browser(_ browser: BrowserViewController, didRequestCreateFolder name: String)
     func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL)
     func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL])
+    func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL])
 }
 
 // MARK: - ViewController
 
 final class BrowserViewController: NSViewController {
     weak var delegate: BrowserDelegate?
+
+    /// MainWindowController가 주입하는 북마크 상태 조회 클로저
+    var isBookmarkedProvider: ((URL) -> Bool)?
 
     private let collectionView = DoubleClickCollectionView()
     private let scrollView = NSScrollView()
@@ -413,6 +417,12 @@ final class BrowserViewController: NSViewController {
         delegate?.browserDidRequestCompare(self, urls: urls)
     }
 
+    @objc private func contextToggleBookmark(_ sender: NSMenuItem) {
+        let urls = selectedURLs()
+        guard !urls.isEmpty else { return }
+        delegate?.browserDidToggleBookmark(self, urls: urls)
+    }
+
     @objc private func contextNewFolder(_ sender: NSMenuItem) {
         let alert = NSAlert()
         alert.messageText = "새 폴더"
@@ -659,6 +669,14 @@ extension BrowserViewController: NSMenuDelegate {
                     )
                     menu.addItem(colorItem)
                 }
+            }
+
+            // 북마크 토글 (이미지가 1장 이상 선택된 경우)
+            let imageURLs = urls.filter { ImageFile(url: $0)?.isVideo == false }
+            if !imageURLs.isEmpty {
+                let allBookmarked = imageURLs.allSatisfy { isBookmarkedProvider?($0) ?? false }
+                let title = allBookmarked ? "북마크에서 빼기" : "북마크에 추가"
+                menu.addItem(withTitle: title, action: #selector(contextToggleBookmark(_:)), keyEquivalent: "")
             }
 
             for item in menu.items where item.representedObject == nil {

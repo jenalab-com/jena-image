@@ -133,6 +133,9 @@ enum MainMenu {
         let compare = NSMenuItem(title: "비교", action: #selector(MainWindowController.compareSelected(_:)), keyEquivalent: "\\")
         viewMenu.addItem(compare)
 
+        let bookmark = NSMenuItem(title: "북마크 토글", action: #selector(MainWindowController.toggleBookmarkSelected(_:)), keyEquivalent: "b")
+        viewMenu.addItem(bookmark)
+
         viewMenu.addItem(NSMenuItem.separator())
         viewMenu.addItem(withTitle: L10n.string(.zoomIn), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
         viewMenu.addItem(withTitle: L10n.string(.zoomOut), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
