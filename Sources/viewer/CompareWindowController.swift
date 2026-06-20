@@ -16,6 +16,8 @@ final class CompareWindowController: NSWindowController {
     private let imageService: ImageServiceProtocol
     private var panes: [ComparePaneView] = []
     private let gridView = NSGridView()
+    private var syncCoordinator: CompareSyncCoordinator?
+    private let syncToggle = NSButton(checkboxWithTitle: "줌·팬 동기화", target: nil, action: nil)
 
     init(files: [ImageFile], imageService: ImageServiceProtocol) {
         self.imageService = imageService
@@ -31,6 +33,7 @@ final class CompareWindowController: NSWindowController {
         window.delegate = self
 
         self.panes = files.map { ComparePaneView(file: $0, imageService: imageService) }
+        self.syncCoordinator = CompareSyncCoordinator(panes: panes)
         setupGrid()
         panes.forEach { $0.load() }
     }
@@ -43,6 +46,12 @@ final class CompareWindowController: NSWindowController {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
+        syncToggle.translatesAutoresizingMaskIntoConstraints = false
+        syncToggle.state = .on
+        syncToggle.target = self
+        syncToggle.action = #selector(toggleSync(_:))
+        container.addSubview(syncToggle)
+
         gridView.translatesAutoresizingMaskIntoConstraints = false
         gridView.rowSpacing = 2
         gridView.columnSpacing = 2
@@ -51,11 +60,18 @@ final class CompareWindowController: NSWindowController {
         window.contentView = container
 
         NSLayoutConstraint.activate([
-            gridView.topAnchor.constraint(equalTo: container.topAnchor),
+            syncToggle.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            syncToggle.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+
+            gridView.topAnchor.constraint(equalTo: syncToggle.bottomAnchor, constant: 8),
             gridView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             gridView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             gridView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
+    }
+
+    @objc private func toggleSync(_ sender: NSButton) {
+        syncCoordinator?.isEnabled = (sender.state == .on)
     }
 
     /// 현재 panes로 그리드를 다시 구성한다(칸 추가/제거 시 재호출 — Task 3에서 사용).
