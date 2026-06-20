@@ -7,6 +7,7 @@ final class ComparePaneView: NSView {
     private let imageService: ImageServiceProtocol
 
     var onRequestClose: ((ComparePaneView) -> Void)?
+    var onActivated: ((ComparePaneView) -> Void)?
     private let closeButton = NSButton()
 
     private(set) var file: ImageFile
@@ -36,6 +37,22 @@ final class ComparePaneView: NSView {
         }
     }
 
+    func setActive(_ active: Bool) {
+        layer?.borderColor = (active ? NSColor.controlAccentColor : NSColor.separatorColor).cgColor
+        layer?.borderWidth = active ? 3 : 1
+    }
+
+    /// 표시 이미지를 다른 파일로 교체한다.
+    func setFile(_ file: ImageFile) {
+        self.file = file
+        load()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onActivated?(self)
+        super.mouseDown(with: event)
+    }
+
     @objc private func closeTapped() { onRequestClose?(self) }
 
     func setCloseEnabled(_ enabled: Bool) {
@@ -47,6 +64,11 @@ final class ComparePaneView: NSView {
         wantsLayer = true
         layer?.borderWidth = 1
         layer?.borderColor = NSColor.separatorColor.cgColor
+
+        imageDisplayView.onSingleClick = { [weak self] in
+            guard let self else { return }
+            self.onActivated?(self)
+        }
 
         imageDisplayView.translatesAutoresizingMaskIntoConstraints = false
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
