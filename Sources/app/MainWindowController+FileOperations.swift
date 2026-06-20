@@ -42,7 +42,7 @@ extension MainWindowController {
                 navigateToFolder(parent)
             }
         } else {
-            refreshCurrentFolder()
+            if !browserVC.isBookmarkMode { refreshCurrentFolder() }
         }
         for folder in parentFolders {
             sidebarVC.reloadFolder(at: folder)
@@ -125,7 +125,7 @@ extension MainWindowController {
             if contentMode == .viewer {
                 viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)
             }
-            refreshCurrentFolder()
+            if !browserVC.isBookmarkMode { refreshCurrentFolder() }
             let parentFolder = url.deletingLastPathComponent()
             sidebarVC.reloadFolder(at: parentFolder)
         case .failure(let error):
