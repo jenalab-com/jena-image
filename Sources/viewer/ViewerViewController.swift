@@ -275,6 +275,7 @@ final class ViewerViewController: NSViewController {
         imageDisplayView.isHidden = toVideo
         videoPlayerView.isHidden = !toVideo
         editButton.isHidden = toVideo
+        bookmarkButton.isHidden = toVideo
 
         if changed {
             delegate?.viewer(self, didSwitchToVideo: toVideo)
