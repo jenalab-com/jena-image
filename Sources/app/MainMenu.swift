@@ -130,6 +130,10 @@ enum MainMenu {
         viewMenu.addItem(slideshow)
 
         viewMenu.addItem(NSMenuItem.separator())
+        let compare = NSMenuItem(title: "비교", action: #selector(MainWindowController.compareSelected(_:)), keyEquivalent: "\\")
+        viewMenu.addItem(compare)
+
+        viewMenu.addItem(NSMenuItem.separator())
         viewMenu.addItem(withTitle: L10n.string(.zoomIn), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
         viewMenu.addItem(withTitle: L10n.string(.zoomOut), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
         viewMenu.addItem(NSMenuItem.separator())

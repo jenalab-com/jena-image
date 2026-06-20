@@ -13,6 +13,7 @@ extension MainWindowController: NSToolbarDelegate {
             .flexibleSpace,
             ToolbarID.sort,
             ToolbarID.addFolder,
+            ToolbarID.compare,
         ]
     }
 
@@ -74,6 +75,13 @@ extension MainWindowController: NSToolbarDelegate {
             item.toolTip = "사이드바에 폴더 추가"
             item.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "폴더 추가")
             item.action = #selector(addFolder(_:))
+            item.target = self
+
+        case ToolbarID.compare:
+            item.label = "비교"
+            item.toolTip = "선택한 이미지 비교"
+            item.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "비교")
+            item.action = #selector(compareSelected(_:))
             item.target = self
 
         default:
@@ -190,6 +198,10 @@ extension MainWindowController: BrowserDelegate {
 
     func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL) {
         performMoveToFolder(urls: urls, target: destination)
+    }
+
+    func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL]) {
+        compareFiles(urls)
     }
 }
 

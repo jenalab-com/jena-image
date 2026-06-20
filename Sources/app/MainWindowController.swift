@@ -29,6 +29,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomFit = NSToolbarItem.Identifier("zoomFit")
         static let addFolder = NSToolbarItem.Identifier("addFolder")
         static let sort = NSToolbarItem.Identifier("sort")
+        static let compare = NSToolbarItem.Identifier("compare")
     }
 
     // MARK: - Dependencies
@@ -65,6 +66,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // 폴더 변경 디바운스용 (FolderWatcher 콜백에서 사용)
     var folderChangeWorkItem: DispatchWorkItem?
+
+    // 비교 창 보관
+    private var compareWindowController: CompareWindowController?
 
     // 정렬 툴바 메뉴 (열릴 때 menuNeedsUpdate로 현재 상태를 갱신)
     lazy var sortMenu: NSMenu = {
@@ -133,6 +137,20 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         securityService.startAccessing(url)
         sidebarVC.addFolder(url)
         navigateToFolder(url)
+    }
+
+    /// 선택된 URL들로 비교 창을 연다(2장 이상, 비디오 제외).
+    func compareFiles(_ urls: [URL]) {
+        let files = urls.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }
+        guard files.count >= 2 else { return }
+        let controller = CompareWindowController(files: Array(files.prefix(4)), imageService: ImageService())
+        controller.onClose = { [weak self] in self?.compareWindowController = nil }
+        controller.showWindow(nil)
+        compareWindowController = controller
+    }
+
+    @objc func compareSelected(_ sender: Any?) {
+        compareFiles(browserVC.selectedURLs())
     }
 
     func removeFolder(_ url: URL) {

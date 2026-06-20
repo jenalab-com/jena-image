@@ -130,6 +130,7 @@ protocol BrowserDelegate: AnyObject {
     func browser(_ browser: BrowserViewController, didRequestExport url: URL)
     func browser(_ browser: BrowserViewController, didRequestCreateFolder name: String)
     func browser(_ browser: BrowserViewController, didRequestMoveToFolder urls: [URL], destination: URL)
+    func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL])
 }
 
 // MARK: - ViewController
@@ -384,6 +385,12 @@ final class BrowserViewController: NSViewController {
         delegate?.browser(self, didRequestExport: url)
     }
 
+    @objc private func contextCompare(_ sender: NSMenuItem) {
+        let urls = selectedURLs()
+        guard urls.count >= 2 else { return }
+        delegate?.browserDidRequestCompare(self, urls: urls)
+    }
+
     @objc private func contextNewFolder(_ sender: NSMenuItem) {
         let alert = NSAlert()
         alert.messageText = "새 폴더"
@@ -585,6 +592,11 @@ extension BrowserViewController: NSMenuDelegate {
                 menu.addItem(withTitle: "열기", action: #selector(contextOpen(_:)), keyEquivalent: "")
                 menu.addItem(NSMenuItem.separator())
                 menu.addItem(withTitle: "이름 변경", action: #selector(contextRename(_:)), keyEquivalent: "")
+            }
+
+            if urls.count >= 2 {
+                menu.addItem(withTitle: "비교", action: #selector(contextCompare(_:)), keyEquivalent: "")
+                menu.addItem(NSMenuItem.separator())
             }
 
             menu.addItem(withTitle: "복사", action: #selector(contextCopy(_:)), keyEquivalent: "")
