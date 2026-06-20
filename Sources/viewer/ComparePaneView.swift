@@ -6,6 +6,9 @@ final class ComparePaneView: NSView {
     private let nameLabel = NSTextField(labelWithString: "")
     private let imageService: ImageServiceProtocol
 
+    var onRequestClose: ((ComparePaneView) -> Void)?
+    private let closeButton = NSButton()
+
     private(set) var file: ImageFile
 
     init(file: ImageFile, imageService: ImageServiceProtocol) {
@@ -33,6 +36,13 @@ final class ComparePaneView: NSView {
         }
     }
 
+    @objc private func closeTapped() { onRequestClose?(self) }
+
+    func setCloseEnabled(_ enabled: Bool) {
+        closeButton.isHidden = !enabled
+        closeButton.isEnabled = enabled
+    }
+
     private func setupViews() {
         wantsLayer = true
         layer?.borderWidth = 1
@@ -44,6 +54,18 @@ final class ComparePaneView: NSView {
         nameLabel.alignment = .center
         nameLabel.lineBreakMode = .byTruncatingMiddle
         nameLabel.textColor = .secondaryLabelColor
+
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
+        closeButton.bezelStyle = .circular
+        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "닫기")
+        closeButton.isBordered = false
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+        addSubview(closeButton)
+        NSLayoutConstraint.activate([
+            closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+        ])
 
         addSubview(imageDisplayView)
         addSubview(nameLabel)
