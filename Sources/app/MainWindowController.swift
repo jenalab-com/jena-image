@@ -38,6 +38,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     let imageService: ImageServiceProtocol = ImageService()
     let securityService = SecurityScopeService()
     let folderWatcher = FolderWatcher()
+    let bookmarkStore = BookmarkStore()
 
     // MARK: - Child ViewControllers
 
@@ -286,6 +287,15 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             )
             self.sidebarVC.reloadCurrentFolder()
         }
+    }
+
+    /// 사이드바 북마크 항목 → 메인을 북마크 그리드로 전환.
+    func showBookmarks() {
+        switchToMode(.browser)
+        let files = bookmarkStore.bookmarks.compactMap { ImageFile(url: $0) }
+        browserVC.displayBookmarks(files)
+        window?.title = "북마크"
+        statusBar.update(folderCount: 0, imageCount: files.count, selectionCount: 0)
     }
 
     // MARK: - Helpers

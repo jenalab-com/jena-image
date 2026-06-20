@@ -12,6 +12,7 @@ protocol SidebarDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didRequestRemoveFolder url: URL)
     func sidebar(_ sidebar: SidebarViewController, didRequestDelete urls: [URL])
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL)
+    func sidebarDidSelectBookmarks(_ sidebar: SidebarViewController)
 }
 
 // MARK: - Click-Aware Outline View
@@ -42,6 +43,7 @@ final class SidebarViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let addButton = NSButton()
     private let showFilesToggle = NSButton()
+    private let bookmarksButton = NSButton()
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
@@ -54,6 +56,7 @@ final class SidebarViewController: NSViewController {
         visualEffect.material = .sidebar
         visualEffect.blendingMode = .behindWindow
         view = visualEffect
+        setupBookmarksRow()
         setupScrollView()
         setupOutlineView()
         setupAddButton()
@@ -417,6 +420,32 @@ final class SidebarViewController: NSViewController {
 
     // MARK: - Setup
 
+    private func setupBookmarksRow() {
+        bookmarksButton.translatesAutoresizingMaskIntoConstraints = false
+        bookmarksButton.title = " 북마크"
+        bookmarksButton.image = NSImage(systemSymbolName: "star.fill", accessibilityDescription: "북마크")
+        bookmarksButton.imagePosition = .imageLeading
+        bookmarksButton.bezelStyle = .inline
+        bookmarksButton.isBordered = false
+        bookmarksButton.alignment = .left
+        bookmarksButton.contentTintColor = .controlAccentColor
+        bookmarksButton.target = self
+        bookmarksButton.action = #selector(bookmarksTapped)
+        view.addSubview(bookmarksButton)
+
+        NSLayoutConstraint.activate([
+            bookmarksButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
+            bookmarksButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            bookmarksButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            bookmarksButton.heightAnchor.constraint(equalToConstant: 28),
+        ])
+    }
+
+    @objc private func bookmarksTapped() {
+        outlineView.deselectAll(nil)
+        delegate?.sidebarDidSelectBookmarks(self)
+    }
+
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -424,7 +453,7 @@ final class SidebarViewController: NSViewController {
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: bookmarksButton.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
