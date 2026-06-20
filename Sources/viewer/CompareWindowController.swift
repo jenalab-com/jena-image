@@ -34,8 +34,10 @@ final class CompareWindowController: NSWindowController {
 
         self.panes = files.map { ComparePaneView(file: $0, imageService: imageService) }
         self.syncCoordinator = CompareSyncCoordinator(panes: panes)
+        for pane in panes { pane.onRequestClose = { [weak self] p in self?.removePane(p) } }
         setupGrid()
         panes.forEach { $0.load() }
+        updateCloseButtons()
     }
 
     @available(*, unavailable)
@@ -72,6 +74,21 @@ final class CompareWindowController: NSWindowController {
 
     @objc private func toggleSync(_ sender: NSButton) {
         syncCoordinator?.isEnabled = (sender.state == .on)
+    }
+
+    private func removePane(_ pane: ComparePaneView) {
+        guard panes.count > 2, let idx = panes.firstIndex(where: { $0 === pane }) else { return }
+        panes.remove(at: idx)
+        rebuildGrid()
+        syncCoordinator = CompareSyncCoordinator(panes: panes)  // 콜백 재배선
+        syncCoordinator?.isEnabled = (syncToggle.state == .on)
+        updateCloseButtons()
+    }
+
+    /// 2칸이면 닫기 비활성(최소 2칸 유지).
+    private func updateCloseButtons() {
+        let enabled = panes.count > 2
+        panes.forEach { $0.setCloseEnabled(enabled) }
     }
 
     /// 현재 panes로 그리드를 다시 구성한다(칸 추가/제거 시 재호출 — Task 3에서 사용).
