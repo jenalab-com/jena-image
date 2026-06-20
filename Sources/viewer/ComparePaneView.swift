@@ -61,14 +61,11 @@ final class ComparePaneView: NSView {
         closeButton.isBordered = false
         closeButton.target = self
         closeButton.action = #selector(closeTapped)
-        addSubview(closeButton)
-        NSLayoutConstraint.activate([
-            closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-        ])
 
         addSubview(imageDisplayView)
         addSubview(nameLabel)
+        // 닫기 버튼은 이미지 위에 떠 있어야 하므로 마지막에 추가(z-order 최상단).
+        addSubview(closeButton)
 
         NSLayoutConstraint.activate([
             imageDisplayView.topAnchor.constraint(equalTo: topAnchor),
@@ -78,6 +75,8 @@ final class ComparePaneView: NSView {
             nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             nameLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             nameLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+            closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
         ])
     }
 }
