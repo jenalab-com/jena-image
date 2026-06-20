@@ -13,7 +13,15 @@ final class ThumbnailStripView: NSView {
     private let imageService: ImageServiceProtocol
 
     private static let thumbnailSize = CGSize(width: 80, height: 60)
-    private static let rowHeight: CGFloat = 76
+    private static let nameFont = NSFont.systemFont(ofSize: 10)
+    private static let maxNameLines = 3
+    /// 셀 좌우 여백(leading 4 + trailing 4)
+    private static let nameHorizontalInset: CGFloat = 8
+    /// 썸네일 위(4) + 썸네일-텍스트 간격(2) + 텍스트 아래(4)
+    private static let rowVerticalPadding: CGFloat = 10
+
+    /// 마지막으로 row 높이를 계산한 테이블 너비. 너비가 바뀌면 재계산한다.
+    private var lastLayoutWidth: CGFloat = 0
 
     init(
         imageService: ImageServiceProtocol = ImageService(),
@@ -72,7 +80,7 @@ final class ThumbnailStripView: NSView {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ThumbnailColumn"))
         tableView.addTableColumn(column)
         tableView.headerView = nil
-        tableView.rowHeight = Self.rowHeight
+        tableView.usesAutomaticRowHeights = false
         tableView.dataSource = self
         tableView.delegate = self
         tableView.selectionHighlightStyle = .regular
@@ -88,6 +96,17 @@ final class ThumbnailStripView: NSView {
 
     private func scrollToSelectedRow() {
         tableView.scrollRowToVisible(selectedIndex)
+    }
+
+    // MARK: - Layout
+
+    override func layout() {
+        super.layout()
+        // 스플릿 뷰 폭이 바뀌면 이름 줄 수가 달라지므로 row 높이를 다시 계산한다.
+        let width = tableView.bounds.width
+        guard abs(width - lastLayoutWidth) > 0.5, !images.isEmpty else { return }
+        lastLayoutWidth = width
+        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0 ..< images.count))
     }
 }
 
@@ -120,6 +139,31 @@ extension ThumbnailStripView: NSTableViewDelegate {
         return cell
     }
 
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        let name = images[row].nameWithoutExtension
+        return Self.rowVerticalPadding + Self.thumbnailSize.height + nameHeight(for: name)
+    }
+
+    /// 주어진 이름을 현재 셀 너비에서 그렸을 때의 텍스트 높이(최대 3줄, 그 이상은 잘림).
+    private func nameHeight(for name: String) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [.font: Self.nameFont]
+        let singleLine = ("X" as NSString).boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        ).height
+
+        let available = max(tableView.bounds.width - Self.nameHorizontalInset, 1)
+        let full = (name as NSString).boundingRect(
+            with: CGSize(width: available, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        ).height
+
+        let lines = min(max(1, Int((full / singleLine).rounded())), Self.maxNameLines)
+        return ceil(singleLine * CGFloat(lines))
+    }
+
     func tableViewSelectionDidChange(_ notification: Notification) {
         let row = tableView.selectedRow
         guard row >= 0, row != selectedIndex else { return }
@@ -139,10 +183,12 @@ extension ThumbnailStripView: NSTableViewDelegate {
 
         let textField = NSTextField()
         textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.font = .systemFont(ofSize: 10)
-        textField.lineBreakMode = .byTruncatingMiddle
+        textField.font = Self.nameFont
+        textField.lineBreakMode = .byTruncatingTail
+        textField.usesSingleLineMode = false
+        textField.cell?.wraps = true
         textField.alignment = .center
-        textField.maximumNumberOfLines = 1
+        textField.maximumNumberOfLines = Self.maxNameLines
         textField.isEditable = false
         textField.isSelectable = false
         textField.isBordered = false
