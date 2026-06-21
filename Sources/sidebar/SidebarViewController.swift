@@ -483,14 +483,15 @@ final class SidebarViewController: NSViewController {
         view.addSubview(showFilesToggle)
 
         NSLayoutConstraint.activate([
-            scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor),
-            addButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
-            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            // 스크롤 콘텐츠와 하단 바 사이 여백 + 하단 바 자체의 상하좌우 패딩 확보
+            scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor, constant: -8),
+            addButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
             addButton.widthAnchor.constraint(equalToConstant: 24),
             addButton.heightAnchor.constraint(equalToConstant: 24),
 
-            showFilesToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
-            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            showFilesToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
             showFilesToggle.widthAnchor.constraint(equalToConstant: 24),
             showFilesToggle.heightAnchor.constraint(equalToConstant: 24),
         ])
