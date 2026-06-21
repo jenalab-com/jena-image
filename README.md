@@ -22,6 +22,7 @@
 - **Grid Browser** — View images and folders as a thumbnail grid with adjustable size; video files show a play badge
 - **Image Viewer** — In-panel viewer with zoom, rotate, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
 - **Image Compare** — Select 2–4 images and view them side by side in a separate window with synchronized zoom/pan; swap any pane from a bottom candidate strip
+- **Bookmarks** — Bookmark images from anywhere and collect them under a "Bookmarks" section in the sidebar; bookmarked images show a star badge in the grid. Remove, delete, or rename from the bookmark view; missing originals show a placeholder
 - **Image Editing** — Crop, resize, canvas size, and color adjustment (brightness/contrast/saturation/highlights/shadows) with undo/redo; EXIF orientation handling and print support
 - **Slideshow & QuickLook** — Auto-advancing slideshow and QuickLook preview
 - **Video Player** — Play MP4, MOV, M4V, AVI, MKV files inline with AVKit
@@ -89,6 +90,7 @@ Sources/
 | Copy to Clipboard | `⌘C` |
 | Select All | `⌘A` |
 | Compare Selected | `⌘\` |
+| Toggle Bookmark | `⌘B` |
 | Edit Image | `⌘E` |
 | Toggle Sidebar | `⌥⌘S` |
 | Back | `⌘[` |
