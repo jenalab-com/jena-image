@@ -15,6 +15,17 @@ protocol SidebarDelegate: AnyObject {
     func sidebarDidSelectBookmarks(_ sidebar: SidebarViewController)
 }
 
+// MARK: - Sidebar Sentinel Types
+
+/// 아웃라인 뷰 섹션 헤더 (그룹 행)
+private final class SidebarGroup {
+    let title: String
+    init(_ title: String) { self.title = title }
+}
+
+/// 즐겨찾기 섹션의 북마크 항목
+private final class SidebarBookmarksRow {}
+
 // MARK: - Click-Aware Outline View
 
 private final class ClickAwareOutlineView: NSOutlineView {
@@ -43,7 +54,6 @@ final class SidebarViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let addButton = NSButton()
     private let showFilesToggle = NSButton()
-    private let bookmarksButton = NSButton()
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
@@ -51,12 +61,16 @@ final class SidebarViewController: NSViewController {
     private var isRenameHandled = false
     private var isSuppressingSelectionDelegate = false
 
+    // MARK: - 섹션 센티넬 (source-list 구조)
+    private let favoritesGroup = SidebarGroup("즐겨찾기")
+    private let foldersGroup   = SidebarGroup("폴더")
+    private let bookmarksRow   = SidebarBookmarksRow()
+
     override func loadView() {
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .sidebar
         visualEffect.blendingMode = .behindWindow
         view = visualEffect
-        setupBookmarksRow()
         setupScrollView()
         setupOutlineView()
         setupAddButton()
@@ -75,6 +89,7 @@ final class SidebarViewController: NSViewController {
     func setFolders(_ urls: [URL]) {
         rootNodes = urls.map { FolderNode(url: $0) }
         outlineView.reloadData()
+        expandGroups()
     }
 
     /// 폴더 하나 추가
@@ -83,6 +98,7 @@ final class SidebarViewController: NSViewController {
         guard !rootNodes.contains(where: { $0.url.standardizedFileURL == url.standardizedFileURL }) else { return }
         rootNodes.append(FolderNode(url: url))
         outlineView.reloadData()
+        expandGroups()
         // 새로 추가된 폴더 선택
         let row = outlineView.row(forItem: rootNodes.last!)
         if row >= 0 {
@@ -94,6 +110,7 @@ final class SidebarViewController: NSViewController {
     func removeFolder(at url: URL) {
         rootNodes.removeAll { $0.url.standardizedFileURL == url.standardizedFileURL }
         outlineView.reloadData()
+        expandGroups()
     }
 
     func selectFolder(at url: URL) {
@@ -172,6 +189,13 @@ final class SidebarViewController: NSViewController {
             guard let node = findNode(for: componentURL) else { break }
             outlineView.expandItem(node)
         }
+    }
+
+    // MARK: - 그룹 섹션 펼침 유지
+
+    private func expandGroups() {
+        outlineView.expandItem(favoritesGroup)
+        outlineView.expandItem(foldersGroup)
     }
 
     // MARK: - Context Menu
@@ -290,6 +314,7 @@ final class SidebarViewController: NSViewController {
     @objc private func toggleShowFiles(_ sender: NSButton) {
         showFilesInSidebar = sender.state == .on
         outlineView.reloadData()
+        expandGroups()
     }
 
     @objc private func removeFolderFromMenu(_ sender: Any?) {
@@ -362,6 +387,7 @@ final class SidebarViewController: NSViewController {
             // 이미지: 이름 변경
             scheduleRename(at: row)
         }
+        // 센티넬 타입(SidebarGroup, SidebarBookmarksRow)은 무시
     }
 
     // MARK: - Rename
@@ -420,40 +446,15 @@ final class SidebarViewController: NSViewController {
 
     // MARK: - Setup
 
-    private func setupBookmarksRow() {
-        bookmarksButton.translatesAutoresizingMaskIntoConstraints = false
-        bookmarksButton.title = " 북마크"
-        bookmarksButton.image = NSImage(systemSymbolName: "star.fill", accessibilityDescription: "북마크")
-        bookmarksButton.imagePosition = .imageLeading
-        bookmarksButton.bezelStyle = .inline
-        bookmarksButton.isBordered = false
-        bookmarksButton.alignment = .left
-        bookmarksButton.contentTintColor = .controlAccentColor
-        bookmarksButton.target = self
-        bookmarksButton.action = #selector(bookmarksTapped)
-        view.addSubview(bookmarksButton)
-
-        NSLayoutConstraint.activate([
-            bookmarksButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
-            bookmarksButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            bookmarksButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-            bookmarksButton.heightAnchor.constraint(equalToConstant: 28),
-        ])
-    }
-
-    @objc private func bookmarksTapped() {
-        outlineView.deselectAll(nil)
-        delegate?.sidebarDidSelectBookmarks(self)
-    }
-
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.documentView = outlineView
         view.addSubview(scrollView)
 
+        // scrollView를 safeAreaLayoutGuide.topAnchor에 직접 고정 (트래픽 라이트 여백 확보)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: bookmarksButton.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
@@ -484,12 +485,12 @@ final class SidebarViewController: NSViewController {
         NSLayoutConstraint.activate([
             scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor),
             addButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
-            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2),
+            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
             addButton.widthAnchor.constraint(equalToConstant: 24),
             addButton.heightAnchor.constraint(equalToConstant: 24),
 
             showFilesToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
-            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2),
+            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
             showFilesToggle.widthAnchor.constraint(equalToConstant: 24),
             showFilesToggle.heightAnchor.constraint(equalToConstant: 24),
         ])
@@ -550,6 +551,12 @@ final class SidebarViewController: NSViewController {
         outlineView.dataSource = self
         outlineView.delegate = self
         outlineView.rowSizeStyle = .default
+        // source-list 스타일 적용 (macOS 11 이하 호환을 위해 style 설정 후 deprecated API 폴백)
+        if #available(macOS 12.0, *) {
+            outlineView.style = .sourceList
+        } else {
+            outlineView.selectionHighlightStyle = .sourceList
+        }
 
         outlineView.onClickSelectedRow = { [weak self] row in
             self?.handleClickOnSelectedRow(at: row)
@@ -646,26 +653,45 @@ final class SidebarViewController: NSViewController {
 // MARK: - NSOutlineViewDataSource
 
 extension SidebarViewController: NSOutlineViewDataSource {
+
+    // MARK: 트리 구조
+    // nil → [favoritesGroup, foldersGroup]
+    // favoritesGroup → [bookmarksRow]
+    // foldersGroup   → rootNodes
+    // FolderNode     → 기존 로직 유지
+
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        if item == nil { return rootNodes.count }
+        if item == nil { return 2 }
+        if item is SidebarGroup {
+            if (item as AnyObject) === favoritesGroup { return 1 }
+            if (item as AnyObject) === foldersGroup   { return rootNodes.count }
+        }
         guard let node = item as? FolderNode else { return 0 }
         node.loadChildren()
         return showFilesInSidebar ? node.totalChildCount : node.folderChildCount
     }
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        if item == nil { return rootNodes[index] }
+        if item == nil {
+            return index == 0 ? favoritesGroup : foldersGroup
+        }
+        if let group = item as? SidebarGroup {
+            if group === favoritesGroup { return bookmarksRow }
+            if group === foldersGroup   { return rootNodes[index] }
+        }
         let node = item as! FolderNode
         return node.child(at: index, includeFiles: showFilesInSidebar)!
     }
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        if item is SidebarGroup { return true }
+        if item is SidebarBookmarksRow { return false }
         guard let node = item as? FolderNode else { return false }
         if showFilesInSidebar { return node.hasChildren }
         return node.folderChildCount > 0 || !node.isLoaded
     }
 
-    // 드래그 소스: 이미지 파일을 드래그 가능하게
+    // 드래그 소스: 이미지 파일을 드래그 가능하게 (센티넬은 nil 반환)
     func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         if let imageFile = item as? ImageFile {
             return imageFile.url as NSURL
@@ -684,7 +710,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
         renameWorkItem = nil
     }
 
-    // 드래그 앤 드롭 타겟
+    // 드래그 앤 드롭 타겟 (FolderNode만 허용; 센티넬은 [] 반환)
     func outlineView(
         _ outlineView: NSOutlineView,
         validateDrop info: NSDraggingInfo,
@@ -716,7 +742,42 @@ extension SidebarViewController: NSOutlineViewDataSource {
 // MARK: - NSOutlineViewDelegate
 
 extension SidebarViewController: NSOutlineViewDelegate {
+
+    /// 그룹 헤더 판별 — SidebarGroup만 true
+    func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+        return item is SidebarGroup
+    }
+
+    /// 그룹은 선택 불가; 나머지는 모두 선택 가능
+    func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+        return !(item is SidebarGroup)
+    }
+
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        // 그룹 헤더 셀 (시스템 source-list 그룹 행 스타일)
+        if let group = item as? SidebarGroup {
+            let id = NSUserInterfaceItemIdentifier("GroupCell")
+            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
+                ?? makeGroupCell(identifier: id)
+            cell.textField?.stringValue = group.title
+            return cell
+        }
+
+        // 북마크 행 셀
+        if item is SidebarBookmarksRow {
+            let id = NSUserInterfaceItemIdentifier("BookmarksCell")
+            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
+                ?? createSidebarCell(identifier: id)
+            cell.textField?.stringValue = "북마크"
+            let starImage = NSImage(systemSymbolName: "star.fill", accessibilityDescription: "북마크")
+            cell.imageView?.image = starImage
+            cell.imageView?.contentTintColor = .controlAccentColor
+            let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
+            countLabel?.stringValue = ""
+            return cell
+        }
+
+        // 폴더 셀
         if let node = item as? FolderNode {
             let isRoot = rootNodes.contains(where: { $0.url == node.url })
             let identifier = NSUserInterfaceItemIdentifier(isRoot ? "RootFolderCell" : "FolderCell")
@@ -735,6 +796,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
             return cell
         }
 
+        // 이미지 셀
         if let imageFile = item as? ImageFile {
             let identifier = NSUserInterfaceItemIdentifier("ImageCell")
             let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
@@ -762,6 +824,12 @@ extension SidebarViewController: NSOutlineViewDelegate {
         guard row >= 0 else { return }
         let item = outlineView.item(atRow: row)
 
+        // 북마크 행 선택
+        if item is SidebarBookmarksRow {
+            delegate?.sidebarDidSelectBookmarks(self)
+            return
+        }
+
         if let node = item as? FolderNode {
             // 첫 선택 시 자동 펼침
             if !outlineView.isItemExpanded(node) {
@@ -780,6 +848,28 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     private static let countLabelTag = 100
+
+    /// 그룹 헤더 전용 셀 생성 — 시스템 secondaryLabel 색상의 작은 레이블
+    private func makeGroupCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+        let cell = NSTableCellView()
+        cell.identifier = identifier
+
+        let label = NSTextField(labelWithString: "")
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        cell.addSubview(label)
+        cell.textField = label
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+            label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
+            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+        ])
+
+        return cell
+    }
 
     private func createSidebarCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
         let cell = NSTableCellView()
@@ -895,6 +985,13 @@ extension SidebarViewController: NSMenuDelegate {
         }
 
         let clickedItem = outlineView.item(atRow: clickedRow)
+
+        // 센티넬 타입(그룹 헤더, 북마크 행)은 메뉴 항목 전부 숨김
+        if clickedItem is SidebarGroup || clickedItem is SidebarBookmarksRow {
+            for item in menu.items { item.isHidden = true }
+            return
+        }
+
         let isRootFolder: Bool
         let isDeletable: Bool
 
