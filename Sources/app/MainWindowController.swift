@@ -26,6 +26,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let back = NSToolbarItem.Identifier("back")
         static let zoomIn = NSToolbarItem.Identifier("zoomIn")
         static let zoomOut = NSToolbarItem.Identifier("zoomOut")
+        static let zoomActualSize = NSToolbarItem.Identifier("zoomActualSize")
         static let zoomFit = NSToolbarItem.Identifier("zoomFit")
         static let addFolder = NSToolbarItem.Identifier("addFolder")
         static let sort = NSToolbarItem.Identifier("sort")
@@ -264,6 +265,15 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             return
         }
 
+        // 북마크 보기 중이면 폴더 열거로 덮지 않는다(북마크 그리드를 유지·갱신).
+        // FolderWatcher가 감시 폴더 변경(이름변경·삭제 등)을 감지해 호출하더라도
+        // 북마크 뷰에서 폴더 리스트로 튕기지 않도록 한다.
+        if browserVC.isBookmarkMode {
+            showBookmarks()
+            sidebarVC.reloadCurrentFolder()
+            return
+        }
+
         // 브라우저 모드: 디렉토리 열거를 백그라운드에서 수행.
         let sortKey = AppSettings.shared.sortKey
         let ascending = AppSettings.shared.sortAscending
@@ -327,7 +337,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             switch item.itemIdentifier {
             case ToolbarID.back:
                 item.isEnabled = contentMode == .viewer
-            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomFit:
+            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize, ToolbarID.zoomFit:
                 item.isEnabled = contentMode == .viewer
             default: break
             }
@@ -375,7 +385,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             forName: .bookmarksChanged, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            if self.browserVC.isBookmarkMode { self.showBookmarks() }
+            if self.browserVC.isBookmarkMode {
+                self.showBookmarks()
+            } else {
+                self.browserVC.refreshBookmarkIndicators()  // 폴더 보기의 ★ 배지 갱신
+            }
             self.refreshViewerBookmarkButton()
         }
 
