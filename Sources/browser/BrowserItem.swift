@@ -8,6 +8,7 @@ final class BrowserItem: NSCollectionViewItem {
     private let thumbnailView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let playBadge = NSImageView()
+    private let bookmarkBadge = NSImageView()
     private var isEditingName = false
     private var renameDelegate: RenameFieldDelegate?
 
@@ -15,6 +16,7 @@ final class BrowserItem: NSCollectionViewItem {
         view = NSView(frame: NSRect(origin: .zero, size: Self.itemSize))
         setupThumbnailView()
         setupPlayBadge()
+        setupBookmarkBadge()
         setupNameLabel()
     }
 
@@ -24,10 +26,11 @@ final class BrowserItem: NSCollectionViewItem {
 
     // MARK: - Configuration
 
-    func configure(with content: BrowserContent, thumbnail: NSImage?) {
+    func configure(with content: BrowserContent, thumbnail: NSImage?, isBookmarked: Bool = false) {
         nameLabel.stringValue = content.name
         nameLabel.textColor = .labelColor  // 셀 재사용 리셋(깨진 북마크 회색이 남지 않도록)
         playBadge.isHidden = true
+        bookmarkBadge.isHidden = !(content.isImage && isBookmarked)
 
         switch content {
         case .folder(let node):
@@ -168,6 +171,32 @@ final class BrowserItem: NSCollectionViewItem {
             playBadge.centerYAnchor.constraint(equalTo: thumbnailView.centerYAnchor),
             playBadge.widthAnchor.constraint(equalToConstant: 28),
             playBadge.heightAnchor.constraint(equalToConstant: 28),
+        ])
+    }
+
+    private func setupBookmarkBadge() {
+        bookmarkBadge.translatesAutoresizingMaskIntoConstraints = false
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .bold)
+        bookmarkBadge.image = NSImage(systemSymbolName: "star.fill", accessibilityDescription: "북마크됨")?
+            .withSymbolConfiguration(config)
+        bookmarkBadge.contentTintColor = .systemYellow
+        bookmarkBadge.imageScaling = .scaleNone
+        bookmarkBadge.wantsLayer = true
+        bookmarkBadge.shadow = {
+            let s = NSShadow()
+            s.shadowColor = NSColor.black.withAlphaComponent(0.6)
+            s.shadowBlurRadius = 2
+            s.shadowOffset = NSSize(width: 0, height: -1)
+            return s
+        }()
+        bookmarkBadge.isHidden = true
+        view.addSubview(bookmarkBadge)
+
+        NSLayoutConstraint.activate([
+            bookmarkBadge.topAnchor.constraint(equalTo: thumbnailView.topAnchor, constant: 4),
+            bookmarkBadge.trailingAnchor.constraint(equalTo: thumbnailView.trailingAnchor, constant: -4),
+            bookmarkBadge.widthAnchor.constraint(equalToConstant: 16),
+            bookmarkBadge.heightAnchor.constraint(equalToConstant: 16),
         ])
     }
 

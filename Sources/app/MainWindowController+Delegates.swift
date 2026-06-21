@@ -9,6 +9,7 @@ extension MainWindowController: NSToolbarDelegate {
             .flexibleSpace,
             ToolbarID.zoomOut,
             ToolbarID.zoomIn,
+            ToolbarID.zoomActualSize,
             ToolbarID.zoomFit,
             .flexibleSpace,
             ToolbarID.sort,
@@ -50,6 +51,14 @@ extension MainWindowController: NSToolbarDelegate {
             item.toolTip = "축소"
             item.image = NSImage(systemSymbolName: "minus.magnifyingglass", accessibilityDescription: "축소")
             item.action = #selector(zoomOut(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomActualSize:
+            item.label = "원본 크기"
+            item.toolTip = "원본 크기(100%)"
+            item.image = NSImage(systemSymbolName: "1.magnifyingglass", accessibilityDescription: "원본 크기")
+            item.action = #selector(zoomActualSize(_:))
             item.target = self
             item.isEnabled = false
 

@@ -587,8 +587,15 @@ extension BrowserViewController: NSCollectionViewDataSource {
             return nil
         }()
 
-        item.configure(with: content, thumbnail: thumbnail)
+        // 북마크 그리드 자체에선 모두 북마크이므로 배지 생략, 일반 폴더 보기에서만 표시.
+        let isBookmarked = !isBookmarkMode && (isBookmarkedProvider?(content.url) ?? false)
+        item.configure(with: content, thumbnail: thumbnail, isBookmarked: isBookmarked)
         return item
+    }
+
+    /// 북마크 변경 시 그리드의 ★ 배지를 갱신한다(일반 폴더 보기에서 호출).
+    func refreshBookmarkIndicators() {
+        collectionView.reloadData()
     }
 }
 
