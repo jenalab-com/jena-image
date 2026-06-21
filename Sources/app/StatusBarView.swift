@@ -125,11 +125,11 @@ final class StatusBarView: NSView {
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
 
             infoLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 1),
-            infoLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            infoLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
 
             // 썸네일 슬라이더 (브라우저 모드)
             largeIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            largeIcon.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            largeIcon.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             largeIcon.widthAnchor.constraint(equalToConstant: 14),
             largeIcon.heightAnchor.constraint(equalToConstant: 14),
 
@@ -146,7 +146,7 @@ final class StatusBarView: NSView {
 
             // 이미지 반전 버튼 (뷰어 모드)
             resetFlipButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            resetFlipButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            resetFlipButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             resetFlipButton.widthAnchor.constraint(equalToConstant: 20),
             resetFlipButton.heightAnchor.constraint(equalToConstant: 20),
 
