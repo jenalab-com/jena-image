@@ -100,6 +100,36 @@ final class FolderNode {
         isLoaded = false
     }
 
+    /// 디스크를 다시 읽어 자식 목록을 갱신한다.
+    ///
+    /// 단순 `invalidateChildren()` + `loadChildren()`과 달리, URL이 그대로인 하위 폴더는
+    /// **기존 노드 인스턴스를 재사용**한다. NSOutlineView는 아이템을 객체 동일성으로 추적하므로
+    /// 이렇게 해야 새로고침 후에도 펼쳐둔 하위 폴더가 접히지 않는다.
+    ///
+    /// - Parameter recursive: true면 이미 로드된(= 펼쳐본 적 있는) 하위 폴더까지 함께 갱신한다.
+    ///   로드되지 않은 폴더는 건드리지 않으므로 트리 전체를 훑는 비용은 발생하지 않는다.
+    func refresh(recursive: Bool = true, using fileManager: FileManager = .default) {
+        let previous = children ?? []
+        // 사용자가 이름 입력 중인 임시 노드는 디스크에 없으므로 갱신 후 되살려 준다.
+        let temporaryNodes = previous.filter { $0.isTemporary }
+        var reusable: [URL: FolderNode] = [:]
+        for child in previous where !child.isTemporary {
+            reusable[child.url] = child
+        }
+
+        invalidateChildren()
+        loadChildren(using: fileManager)
+
+        children = (children ?? []).map { fresh -> FolderNode in
+            guard let existing = reusable[fresh.url] else { return fresh }
+            if recursive && existing.isLoaded {
+                existing.refresh(recursive: true, using: fileManager)
+            }
+            return existing
+        }
+        children?.insert(contentsOf: temporaryNodes, at: 0)
+    }
+
     /// 임시 자식 노드 추가 (새 폴더 생성 UI용)
     func insertTemporaryChild(_ node: FolderNode) {
         loadChildren()

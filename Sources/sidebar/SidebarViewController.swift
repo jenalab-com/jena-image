@@ -13,6 +13,12 @@ protocol SidebarDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didRequestDelete urls: [URL])
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL)
     func sidebarDidSelectBookmarks(_ sidebar: SidebarViewController)
+    /// 폴더가 펼쳐짐 — 파일시스템 감시 대상에 추가할 시점
+    func sidebar(_ sidebar: SidebarViewController, didExpandFolder url: URL)
+    /// 폴더가 접힘 — 감시 대상에서 제외할 시점
+    func sidebar(_ sidebar: SidebarViewController, didCollapseFolder url: URL)
+    /// 상단 새로고침 버튼 — 트리와 현재 폴더 내용을 함께 다시 읽는다
+    func sidebarDidRequestReload(_ sidebar: SidebarViewController)
 }
 
 // MARK: - Sidebar Sentinel Types
@@ -54,6 +60,7 @@ final class SidebarViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let addButton = NSButton()
     private let showFilesToggle = NSButton()
+    private let reloadButton = NSButton()
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
@@ -71,6 +78,7 @@ final class SidebarViewController: NSViewController {
         visualEffect.material = .sidebar
         visualEffect.blendingMode = .behindWindow
         view = visualEffect
+        setupHeaderBar()
         setupScrollView()
         setupOutlineView()
         setupAddButton()
@@ -159,16 +167,53 @@ final class SidebarViewController: NSViewController {
 
     func reloadCurrentFolder() {
         guard let selected = selectedFolderNode() else { return }
-        selected.invalidateChildren()
-        selected.loadChildren()
-        outlineView.reloadItem(selected, reloadChildren: true)
+        reload(node: selected)
     }
 
     func reloadFolder(at url: URL) {
         guard let node = findNode(for: url) else { return }
-        node.invalidateChildren()
-        node.loadChildren()
+        reload(node: node)
+    }
+
+    /// 사이드바 전체 새로고침 — 모든 루트와, 이미 펼쳐본 하위 폴더를 디스크에서 다시 읽는다.
+    /// 펼침 상태와 선택 항목은 그대로 유지된다.
+    @objc func reloadAll(_ sender: Any?) {
+        for root in rootNodes {
+            reload(node: root)
+        }
+    }
+
+    @objc private func reloadTapped(_ sender: Any?) {
+        delegate?.sidebarDidRequestReload(self)
+    }
+
+    /// 노드 하나를 디스크 기준으로 갱신하고, 선택 항목을 URL 기준으로 복원한다.
+    private func reload(node: FolderNode) {
+        let selectedURL = selectedItemURL
+        node.refresh()
         outlineView.reloadItem(node, reloadChildren: true)
+        restoreSelection(to: selectedURL)
+    }
+
+    /// 새로고침으로 행 번호가 밀렸을 때, 같은 URL의 행을 다시 선택한다.
+    /// (델리게이트를 억제해 폴더 재진입·뷰어 전환 같은 부작용을 막는다)
+    private func restoreSelection(to url: URL?) {
+        guard let url else { return }
+        if let current = selectedItemURL, current == url { return }
+
+        for row in 0..<outlineView.numberOfRows {
+            let item = outlineView.item(atRow: row)
+            let itemURL: URL?
+            if let node = item as? FolderNode { itemURL = node.url }
+            else if let file = item as? ImageFile { itemURL = file.url }
+            else { itemURL = nil }
+
+            guard itemURL == url else { continue }
+            isSuppressingSelectionDelegate = true
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            isSuppressingSelectionDelegate = false
+            return
+        }
     }
 
     /// 루트 노드에서 하위 폴더까지 순차적으로 펼침
@@ -446,15 +491,34 @@ final class SidebarViewController: NSViewController {
 
     // MARK: - Setup
 
+    /// 폴더 리스트 상단 바 — 새로고침 버튼을 오른쪽에 둔다.
+    private func setupHeaderBar() {
+        reloadButton.translatesAutoresizingMaskIntoConstraints = false
+        reloadButton.bezelStyle = .smallSquare
+        reloadButton.isBordered = false
+        reloadButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "새로고침")
+        reloadButton.toolTip = "폴더 목록 새로고침 (⌘⇧R)"
+        reloadButton.target = self
+        reloadButton.action = #selector(reloadTapped(_:))
+        view.addSubview(reloadButton)
+
+        NSLayoutConstraint.activate([
+            reloadButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
+            reloadButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            reloadButton.widthAnchor.constraint(equalToConstant: 24),
+            reloadButton.heightAnchor.constraint(equalToConstant: 24),
+        ])
+    }
+
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.documentView = outlineView
         view.addSubview(scrollView)
 
-        // scrollView를 safeAreaLayoutGuide.topAnchor에 직접 고정 (트래픽 라이트 여백 확보)
+        // scrollView는 상단 바 아래에 붙인다 (상단 바 자체가 트래픽 라이트 여백을 확보)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: reloadButton.bottomAnchor, constant: 4),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
@@ -574,6 +638,20 @@ final class SidebarViewController: NSViewController {
     var isFocused: Bool {
         guard let firstResponder = view.window?.firstResponder else { return false }
         return firstResponder === outlineView || (firstResponder as? NSView)?.isDescendant(of: outlineView) == true
+    }
+
+    /// 사이드바에 등록된 루트 폴더 URL 목록
+    var rootFolderURLs: [URL] {
+        rootNodes.map { $0.url }
+    }
+
+    /// 현재 펼쳐져 있는 폴더 URL 목록 (파일시스템 감시 대상 산정용)
+    var expandedFolderURLs: [URL] {
+        (0..<outlineView.numberOfRows).compactMap { row in
+            guard let node = outlineView.item(atRow: row) as? FolderNode,
+                  outlineView.isItemExpanded(node) else { return nil }
+            return node.url
+        }
     }
 
     /// 현재 선택된 항목의 URL (이미지 또는 비루트 폴더)
@@ -846,6 +924,16 @@ extension SidebarViewController: NSOutlineViewDelegate {
     func outlineViewItemWillExpand(_ notification: Notification) {
         guard let node = notification.userInfo?["NSObject"] as? FolderNode else { return }
         node.loadChildren()
+    }
+
+    func outlineViewItemDidExpand(_ notification: Notification) {
+        guard let node = notification.userInfo?["NSObject"] as? FolderNode else { return }
+        delegate?.sidebar(self, didExpandFolder: node.url)
+    }
+
+    func outlineViewItemDidCollapse(_ notification: Notification) {
+        guard let node = notification.userInfo?["NSObject"] as? FolderNode else { return }
+        delegate?.sidebar(self, didCollapseFolder: node.url)
     }
 
     private static let countLabelTag = 100

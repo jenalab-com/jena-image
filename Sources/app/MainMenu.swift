@@ -112,6 +112,11 @@ enum MainMenu {
         let toggleSidebar = NSMenuItem(title: L10n.string(.toggleSidebar), action: #selector(MainWindowController.toggleSidebar(_:)), keyEquivalent: "s")
         toggleSidebar.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(toggleSidebar)
+
+        let refresh = NSMenuItem(title: "새로고침", action: #selector(MainWindowController.refreshAll(_:)), keyEquivalent: "R")
+        refresh.keyEquivalentModifierMask = [.command, .shift]
+        viewMenu.addItem(refresh)
+
         viewMenu.addItem(NSMenuItem.separator())
         viewMenu.addItem(withTitle: L10n.string(.goBack), action: #selector(MainWindowController.goBack(_:)), keyEquivalent: "[")
         viewMenu.addItem(NSMenuItem.separator())

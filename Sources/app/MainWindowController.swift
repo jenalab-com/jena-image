@@ -66,8 +66,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     var contentMode: ContentMode = .browser
     var activePanel: ActivePanel = .browser
 
-    // 폴더 변경 디바운스용 (FolderWatcher 콜백에서 사용)
-    var folderChangeWorkItem: DispatchWorkItem?
+    // 폴더 변경 디바운스용 (FolderWatcher 콜백에서 사용) — 폴더별로 따로 관리해야
+    // 서로 다른 폴더의 연속 변경이 서로를 취소하지 않는다.
+    var folderChangeWorkItems: [URL: DispatchWorkItem] = [:]
 
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
@@ -127,6 +128,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             securityService.startAccessing(url)
         }
         sidebarVC.setFolders(urls)
+        syncWatchedFolders()
         if let first = urls.first {
             navigateToFolder(first)
         } else {
@@ -159,6 +161,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         securityService.stopAccessing(url)
         securityService.removeBookmark(for: url)
         sidebarVC.removeFolder(at: url)
+        folderWatcher.unwatch(url)
         // 현재 보고 있던 폴더가 제거되면 첫 번째 폴더로 이동
         if currentFolderURL?.path.hasPrefix(url.path) == true {
             if let first = securityService.restoreBookmarks().first {
@@ -175,7 +178,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func navigateToFolder(_ url: URL) {
         currentFolderURL = url
-        folderWatcher.watch(url)
+        syncWatchedFolders()
         switchToMode(.browser)
 
         let sortKey = AppSettings.shared.sortKey
@@ -236,22 +239,41 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     private func handleFolderChange(at url: URL) {
-        // 짧은 시간 내 연속 이벤트를 하나로 합침 (디바운스)
-        folderChangeWorkItem?.cancel()
+        // 짧은 시간 내 같은 폴더의 연속 이벤트를 하나로 합침 (디바운스)
+        folderChangeWorkItems[url]?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            // 폴더가 삭제된 경우 무시
+            self.folderChangeWorkItems.removeValue(forKey: url)
+            // 폴더 자체가 사라진 경우: 감시를 끊고 부모를 갱신해 목록에서 지운다
             guard FileManager.default.fileExists(atPath: url.path) else {
                 self.folderWatcher.unwatch(url)
+                self.sidebarVC.reloadFolder(at: url.deletingLastPathComponent())
                 return
             }
             self.sidebarVC.reloadFolder(at: url)
+            // 새로 생긴 하위 폴더도 바로 감시 대상에 넣는다
+            self.syncWatchedFolders()
             if url == self.currentFolderURL {
                 self.refreshAfterExternalChange()
             }
         }
-        folderChangeWorkItem = workItem
+        folderChangeWorkItems[url] = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+    }
+
+    /// 감시 대상을 "루트 폴더 + 현재 폴더 + 사이드바에서 펼쳐진 폴더"로 맞춘다.
+    /// 접히거나 사라진 폴더는 감시를 해제해 파일 디스크립터가 무한정 늘지 않게 한다.
+    func syncWatchedFolders() {
+        var targets = Set(sidebarVC.rootFolderURLs)
+        targets.formUnion(sidebarVC.expandedFolderURLs)
+        if let currentFolderURL { targets.insert(currentFolderURL) }
+
+        for url in folderWatcher.watchedURLs where !targets.contains(url) {
+            folderWatcher.unwatch(url)
+        }
+        for url in targets {
+            folderWatcher.watch(url)
+        }
     }
 
     /// 외부(Finder 등)에서 파일이 변경된 후 앱이 활성화될 때 호출
@@ -309,6 +331,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     // MARK: - Helpers
+
+    /// 사이드바 트리 + 현재 폴더 내용을 모두 디스크 기준으로 다시 읽는다 (⌘⇧R / 사이드바 새로고침 버튼)
+    @objc func refreshAll(_ sender: Any?) {
+        sidebarVC.reloadAll(sender)
+        syncWatchedFolders()
+        refreshAfterExternalChange()
+    }
 
     func refreshCurrentFolder() {
         guard let url = currentFolderURL else { return }
