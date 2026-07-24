@@ -7,9 +7,18 @@ final class FolderWatcher {
     private let queue = DispatchQueue(label: "com.jenalab.folderwatcher", qos: .utility)
     var onChange: ((URL) -> Void)?
 
+    /// 열린 파일 디스크립터가 무한정 늘지 않도록 동시 감시 폴더 수를 제한
+    private static let maxWatchedFolders = 256
+
+    /// 현재 감시 중인 폴더 목록
+    var watchedURLs: [URL] {
+        Array(sources.keys)
+    }
+
     /// 지정 폴더 감시 시작 (이미 감시 중이면 무시)
     func watch(_ url: URL) {
         guard sources[url] == nil else { return }
+        guard sources.count < Self.maxWatchedFolders else { return }
 
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return }

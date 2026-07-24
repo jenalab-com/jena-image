@@ -161,6 +161,19 @@ extension MainWindowController: SidebarDelegate {
         activePanel = .sidebar
         showBookmarks()
     }
+
+    func sidebar(_ sidebar: SidebarViewController, didExpandFolder url: URL) {
+        // 펼친 폴더는 그 안에서 일어나는 생성·삭제를 바로 반영해야 하므로 감시 대상에 넣는다
+        syncWatchedFolders()
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didCollapseFolder url: URL) {
+        syncWatchedFolders()
+    }
+
+    func sidebarDidRequestReload(_ sidebar: SidebarViewController) {
+        refreshAll(nil)
+    }
 }
 
 // MARK: - BrowserDelegate
