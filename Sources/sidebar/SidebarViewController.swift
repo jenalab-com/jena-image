@@ -19,6 +19,8 @@ protocol SidebarDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didCollapseFolder url: URL)
     /// 상단 새로고침 버튼 — 트리와 현재 폴더 내용을 함께 다시 읽는다
     func sidebarDidRequestReload(_ sidebar: SidebarViewController)
+    /// 상단 "하위 폴더 포함" 토글 — 현재 폴더를 새 모드로 다시 읽을 시점
+    func sidebar(_ sidebar: SidebarViewController, didToggleRecursive enabled: Bool)
 }
 
 // MARK: - Sidebar Sentinel Types
@@ -61,6 +63,8 @@ final class SidebarViewController: NSViewController {
     private let addButton = NSButton()
     private let showFilesToggle = NSButton()
     private let reloadButton = NSButton()
+    private let addRootFolderButton = NSButton()
+    private let recursiveToggle = NSButton()
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
@@ -185,6 +189,22 @@ final class SidebarViewController: NSViewController {
 
     @objc private func reloadTapped(_ sender: Any?) {
         delegate?.sidebarDidRequestReload(self)
+    }
+
+    @objc private func recursiveTapped(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        AppSettings.shared.recursiveBrowsing = enabled
+        updateRecursiveToggleAppearance()
+        delegate?.sidebar(self, didToggleRecursive: enabled)
+    }
+
+    /// 켜짐 상태는 강조색으로 표시해 한눈에 모드를 알 수 있게 한다.
+    private func updateRecursiveToggleAppearance() {
+        let on = recursiveToggle.state == .on
+        recursiveToggle.contentTintColor = on ? .controlAccentColor : nil
+        recursiveToggle.toolTip = on
+            ? "하위 폴더 이미지 포함 보기: 켜짐 (클릭하면 끔)"
+            : "하위 폴더 이미지 포함 보기: 꺼짐 (클릭하면 켬)"
     }
 
     /// 노드 하나를 디스크 기준으로 갱신하고, 선택 항목을 URL 기준으로 복원한다.
@@ -491,8 +511,17 @@ final class SidebarViewController: NSViewController {
 
     // MARK: - Setup
 
-    /// 폴더 리스트 상단 바 — 새로고침 버튼을 오른쪽에 둔다.
+    /// 폴더 리스트 상단 바 — 왼쪽에 [폴더 추가], 오른쪽에 [하위 폴더 포함 토글][새로고침] 순으로 둔다.
     private func setupHeaderBar() {
+        addRootFolderButton.translatesAutoresizingMaskIntoConstraints = false
+        addRootFolderButton.bezelStyle = .smallSquare
+        addRootFolderButton.isBordered = false
+        addRootFolderButton.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "폴더 추가")
+        addRootFolderButton.toolTip = "사이드바에 폴더 추가"
+        addRootFolderButton.target = self
+        addRootFolderButton.action = #selector(addFolderFromMenu(_:))
+        view.addSubview(addRootFolderButton)
+
         reloadButton.translatesAutoresizingMaskIntoConstraints = false
         reloadButton.bezelStyle = .smallSquare
         reloadButton.isBordered = false
@@ -502,11 +531,35 @@ final class SidebarViewController: NSViewController {
         reloadButton.action = #selector(reloadTapped(_:))
         view.addSubview(reloadButton)
 
+        recursiveToggle.translatesAutoresizingMaskIntoConstraints = false
+        recursiveToggle.bezelStyle = .smallSquare
+        recursiveToggle.isBordered = false
+        recursiveToggle.setButtonType(.toggle)
+        recursiveToggle.image = NSImage(
+            systemSymbolName: "square.stack.3d.down.right",
+            accessibilityDescription: "하위 폴더 이미지 포함"
+        )
+        recursiveToggle.state = AppSettings.shared.recursiveBrowsing ? .on : .off
+        recursiveToggle.target = self
+        recursiveToggle.action = #selector(recursiveTapped(_:))
+        view.addSubview(recursiveToggle)
+        updateRecursiveToggleAppearance()
+
         NSLayoutConstraint.activate([
             reloadButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
             reloadButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             reloadButton.widthAnchor.constraint(equalToConstant: 24),
             reloadButton.heightAnchor.constraint(equalToConstant: 24),
+
+            addRootFolderButton.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
+            addRootFolderButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            addRootFolderButton.widthAnchor.constraint(equalToConstant: 24),
+            addRootFolderButton.heightAnchor.constraint(equalToConstant: 24),
+
+            recursiveToggle.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
+            recursiveToggle.trailingAnchor.constraint(equalTo: reloadButton.leadingAnchor, constant: -2),
+            recursiveToggle.widthAnchor.constraint(equalToConstant: 24),
+            recursiveToggle.heightAnchor.constraint(equalToConstant: 24),
         ])
     }
 

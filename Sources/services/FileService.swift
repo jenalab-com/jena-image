@@ -40,6 +40,7 @@ enum FileServiceError: Error, LocalizedError {
 
 protocol FileServiceProtocol {
     func contentsOfFolder(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<(folders: [URL], images: [URL]), FileServiceError>
+    func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<[URL], FileServiceError>
     func moveFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func duplicateFile(at url: URL) -> Result<URL, FileServiceError>
@@ -94,6 +95,35 @@ final class FileService: FileServiceProtocol {
             folders: sortURLs(folders, by: sortKey, ascending: ascending),
             images: sortURLs(images, by: sortKey, ascending: ascending)
         ))
+    }
+
+    /// 폴더와 모든 하위 폴더의 이미지를 한 평면 목록으로 모아 정렬해 돌려준다.
+    /// 숨김 파일·패키지 내부·심볼릭 링크 순환은 건너뛴다(enumerator 기본 동작).
+    func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<[URL], FileServiceError> {
+        guard fileManager.isReadableFile(atPath: url.path) else {
+            return .failure(.folderNotReadable(url))
+        }
+
+        let options: FileManager.DirectoryEnumerationOptions = [
+            .skipsHiddenFiles,
+            .skipsPackageDescendants,
+        ]
+        guard let enumerator = fileManager.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey],
+            options: options
+        ) else {
+            return .failure(.folderNotReadable(url))
+        }
+
+        var images: [URL] = []
+        for case let item as URL in enumerator {
+            guard (try? item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+            if ImageFile.allSupportedExtensions.contains(item.pathExtension.lowercased()) {
+                images.append(item)
+            }
+        }
+        return .success(sortURLs(images, by: sortKey, ascending: ascending))
     }
 
     /// 정렬 기준 값을 한 번씩만 읽어 캐시한 뒤 정렬한다.

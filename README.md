@@ -19,6 +19,7 @@
 ## Features
 
 - **Folder Sidebar** — Register folders and browse the folder tree with hierarchical navigation; media count shown per folder
+- **Recursive Browsing** — Toggle in the sidebar header to show every image under the selected folder and all its subfolders as one flat grid
 - **Grid Browser** — View images and folders as a thumbnail grid with adjustable size; video files show a play badge
 - **Image Viewer** — In-panel viewer with zoom, rotate, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
 - **Image Compare** — Select 2–4 images and view them side by side in a separate window with synchronized zoom/pan; swap any pane from a bottom candidate strip

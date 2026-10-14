@@ -13,7 +13,6 @@ extension MainWindowController: NSToolbarDelegate {
             ToolbarID.zoomFit,
             .flexibleSpace,
             ToolbarID.sort,
-            ToolbarID.addFolder,
             ToolbarID.compare,
         ]
     }
@@ -78,13 +77,6 @@ extension MainWindowController: NSToolbarDelegate {
             menuItem.menu = sortMenu
             menuItem.showsIndicator = true
             return menuItem
-
-        case ToolbarID.addFolder:
-            item.label = "폴더 추가"
-            item.toolTip = "사이드바에 폴더 추가"
-            item.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "폴더 추가")
-            item.action = #selector(addFolder(_:))
-            item.target = self
 
         case ToolbarID.compare:
             item.label = "비교"
@@ -155,6 +147,21 @@ extension MainWindowController: SidebarDelegate {
 
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL) {
         performExport(url: url)
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, didToggleRecursive enabled: Bool) {
+        // 북마크 보기 중이면 폴더 목록으로 튕기지 않고, 다음 폴더 선택부터 새 모드가 적용된다.
+        guard !browserVC.isBookmarkMode, let url = currentFolderURL else { return }
+        if contentMode == .viewer {
+            // 뷰어에서 토글하면 현재 이미지는 그대로 두고 좌우 탐색 목록만 새 모드로 바꾼다.
+            // (하위 폴더 이미지를 보던 중 끄면 현재 폴더 목록에 없을 수 있으므로 그때는 유지)
+            let list = imageFilesInCurrentFolder()
+            if let current = viewerVC.currentImageURL, list.contains(where: { $0.url == current }) {
+                viewerVC.display(imageURL: current, imageList: list)
+            }
+            return
+        }
+        navigateToFolder(url)
     }
 
     func sidebarDidSelectBookmarks(_ sidebar: SidebarViewController) {
