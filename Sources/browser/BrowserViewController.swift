@@ -152,6 +152,16 @@ final class BrowserViewController: NSViewController {
     private var contents: [BrowserContent] = []
     private var imageFiles: [ImageFile] = []
     private var currentFolderURL: URL?
+    /// 하위 폴더 포함 보기의 기준 폴더. nil이면 일반 보기(경로 줄 없음).
+    private var recursiveRootURL: URL?
+    private var thumbnailScale: CGFloat = 1.0
+
+    /// 그리드 썸네일 요청 크기(pt). 생성 시 2배(레티나)로 만들어지므로 설정 픽셀의 절반을 요청한다.
+    private var thumbnailRequestSize: CGSize {
+        let pt = CGFloat(AppSettings.shared.thumbnailMaxPixel.rawValue) / 2
+        return CGSize(width: pt, height: pt)
+    }
+    private var thumbnailMinPixelSize: Int { AppSettings.shared.thumbnailMaxPixel.rawValue }
     private var thumbnailTask: Task<Void, Never>?
     private var renameWorkItem: DispatchWorkItem?
     private var dropHighlightIndex: Int?
@@ -179,9 +189,14 @@ final class BrowserViewController: NSViewController {
 
     // MARK: - Public
 
-    func display(folders: [URL], images: [URL]) {
+    /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
+    func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
         isBookmarkMode = false
         thumbnailTask?.cancel()
+        if recursiveRootURL != recursiveRoot {
+            recursiveRootURL = recursiveRoot
+            applyItemSize()
+        }
 
         let folderNodes = folders.map { BrowserContent.folder(FolderNode(url: $0)) }
         let imageItems = images.compactMap { ImageFile(url: $0) }
@@ -200,6 +215,10 @@ final class BrowserViewController: NSViewController {
     func displayBookmarks(_ files: [ImageFile]) {
         isBookmarkMode = true
         thumbnailTask?.cancel()
+        if recursiveRootURL != nil {
+            recursiveRootURL = nil
+            applyItemSize()
+        }
         imageFiles = files
         contents = files.map { BrowserContent.image($0) }
         collectionView.reloadData()
@@ -225,10 +244,16 @@ final class BrowserViewController: NSViewController {
     }
 
     func updateThumbnailScale(_ scale: CGFloat) {
+        thumbnailScale = scale
+        applyItemSize()
+    }
+
+    /// 셀 크기 = 기본 크기 × 배율. 하위 폴더 포함 보기에선 경로 줄 높이만큼 더한다(글자 크기는 고정이므로 배율 미적용).
+    private func applyItemSize() {
         guard let layout = collectionView.collectionViewLayout as? NSCollectionViewFlowLayout else { return }
-        let baseWidth: CGFloat = 120
-        let baseHeight: CGFloat = 140
-        layout.itemSize = NSSize(width: baseWidth * scale, height: baseHeight * scale)
+        let base = BrowserItem.itemSize
+        let extra: CGFloat = recursiveRootURL == nil ? 0 : BrowserItem.pathLineHeight
+        layout.itemSize = NSSize(width: base.width * thumbnailScale, height: base.height * thumbnailScale + extra)
         layout.invalidateLayout()
     }
 
@@ -254,7 +279,8 @@ final class BrowserViewController: NSViewController {
     // MARK: - Thumbnail Loading
 
     private func loadThumbnails(for images: [ImageFile]) {
-        let thumbnailSize = CGSize(width: 100, height: 100)
+        let thumbnailSize = thumbnailRequestSize
+        let minPixel = thumbnailMinPixelSize
 
         thumbnailTask = Task { [weak self] in
             guard let self else { return }
@@ -262,7 +288,8 @@ final class BrowserViewController: NSViewController {
             for file in images {
                 guard !Task.isCancelled else { return }
 
-                if let cached = self.thumbnailCache.thumbnail(for: file.url) {
+                // 스트립용 작은 썸네일이 캐시돼 있으면 건너뛰고 큰 크기로 다시 만든다.
+                if let cached = self.thumbnailCache.thumbnail(for: file.url, minPixelSize: minPixel) {
                     await MainActor.run { self.updateCellThumbnail(for: file.url, image: cached) }
                     continue
                 }
@@ -589,8 +616,24 @@ extension BrowserViewController: NSCollectionViewDataSource {
 
         // 북마크 그리드 자체에선 모두 북마크이므로 배지 생략, 일반 폴더 보기에서만 표시.
         let isBookmarked = !isBookmarkMode && (isBookmarkedProvider?(content.url) ?? false)
-        item.configure(with: content, thumbnail: thumbnail, isBookmarked: isBookmarked)
+        item.configure(
+            with: content,
+            thumbnail: thumbnail,
+            isBookmarked: isBookmarked,
+            folderPath: relativeFolderComponents(of: content)
+        )
         return item
+    }
+
+    /// 하위 폴더 포함 보기에서 기준 폴더 → 파일의 부모 폴더까지의 상대 경로 구성 요소.
+    /// 일반 보기이거나 기준 폴더 직속이면 nil(경로 줄 숨김이 아니라 빈 줄 — 셀 높이는 모드 단위로 통일).
+    private func relativeFolderComponents(of content: BrowserContent) -> [String]? {
+        guard let root = recursiveRootURL, content.isImage else { return nil }
+        let rootComps = root.standardizedFileURL.pathComponents
+        let parentComps = content.url.deletingLastPathComponent().standardizedFileURL.pathComponents
+        guard parentComps.count > rootComps.count,
+              Array(parentComps.prefix(rootComps.count)) == rootComps else { return [] }
+        return Array(parentComps.dropFirst(rootComps.count))
     }
 
     /// 북마크 변경 시 그리드의 ★ 배지를 갱신한다(일반 폴더 보기에서 호출).

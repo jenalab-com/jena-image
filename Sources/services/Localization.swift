@@ -71,6 +71,7 @@ enum L10nKey: String {
 
     // Preferences
     case general
+    case thumbnails
     case language
     case appearance
     case viewer
@@ -168,6 +169,7 @@ enum L10n {
             .help: "도움말",
             .appHelp: "JenaImage 도움말",
             .general: "일반",
+            .thumbnails: "썸네일",
             .language: "언어",
             .appearance: "화면",
             .viewer: "뷰어",
@@ -238,6 +240,7 @@ enum L10n {
             .help: "Help",
             .appHelp: "JenaImage Help",
             .general: "General",
+            .thumbnails: "Thumbnails",
             .language: "Language",
             .appearance: "Appearance",
             .viewer: "Viewer",
@@ -308,6 +311,7 @@ enum L10n {
             .help: "ヘルプ",
             .appHelp: "JenaImage ヘルプ",
             .general: "一般",
+            .thumbnails: "サムネイル",
             .language: "言語",
             .appearance: "外観",
             .viewer: "ビューア",
@@ -378,6 +382,7 @@ enum L10n {
             .help: "帮助",
             .appHelp: "JenaImage 帮助",
             .general: "通用",
+            .thumbnails: "缩略图",
             .language: "语言",
             .appearance: "外观",
             .viewer: "查看器",

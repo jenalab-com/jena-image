@@ -28,7 +28,6 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomOut = NSToolbarItem.Identifier("zoomOut")
         static let zoomActualSize = NSToolbarItem.Identifier("zoomActualSize")
         static let zoomFit = NSToolbarItem.Identifier("zoomFit")
-        static let addFolder = NSToolbarItem.Identifier("addFolder")
         static let sort = NSToolbarItem.Identifier("sort")
         static let compare = NSToolbarItem.Identifier("compare")
     }
@@ -108,6 +107,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         setupDelegates()
         setupLayout()
         setupFolderWatcher()
+        setupThumbnailSettings()
     }
 
     @available(*, unavailable)
@@ -181,18 +181,18 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         syncWatchedFolders()
         switchToMode(.browser)
 
-        let sortKey = AppSettings.shared.sortKey
-        let ascending = AppSettings.shared.sortAscending
         // 디렉토리 열거를 백그라운드에서 수행해 대용량 폴더에서도 UI를 막지 않는다.
         Task { @MainActor in
-            let result = await Task.detached(priority: .userInitiated) { [fileService] in
-                fileService.contentsOfFolder(at: url, sortKey: sortKey, ascending: ascending)
-            }.value
+            let result = await self.enumerateFolderContents(at: url)
             // 열거 도중 다른 폴더로 전환했거나 뷰어로 빠졌으면 결과를 폐기 (stale 방지)
             guard self.currentFolderURL == url, self.contentMode == .browser else { return }
             switch result {
             case .success(let contents):
-                self.browserVC.display(folders: contents.folders, images: contents.images)
+                self.browserVC.display(
+                    folders: contents.folders,
+                    images: contents.images,
+                    recursiveRoot: AppSettings.shared.recursiveBrowsing ? url : nil
+                )
                 self.window?.title = url.lastPathComponent
                 self.statusBar.update(
                     folderCount: contents.folders.count,
@@ -228,6 +228,26 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         splitViewController.addSplitViewItem(newItem)
 
         updateToolbarState()
+    }
+
+    // MARK: - Thumbnail Settings
+
+    /// 앱 시작 시 저장된 캐시 한도를 반영하고, 설정 창의 "적용"을 받는다.
+    func setupThumbnailSettings() {
+        ThumbnailCache.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
+        NotificationCenter.default.addObserver(
+            forName: .thumbnailSettingsApplied, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.applyThumbnailSettings()
+        }
+    }
+
+    /// 한도 갱신 + 캐시 비움 + 현재 폴더 재로드. 비용이 드는 작업이라 실시간이 아니라 "적용" 때만 수행.
+    private func applyThumbnailSettings() {
+        ThumbnailCache.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
+        ThumbnailCache.shared.clearAll()
+        guard contentMode == .browser, !browserVC.isBookmarkMode else { return }
+        refreshAfterExternalChange()
     }
 
     // MARK: - Folder Watcher
@@ -297,18 +317,18 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
 
         // 브라우저 모드: 디렉토리 열거를 백그라운드에서 수행.
-        let sortKey = AppSettings.shared.sortKey
-        let ascending = AppSettings.shared.sortAscending
         Task { @MainActor in
-            let result = await Task.detached(priority: .userInitiated) { [fileService] in
-                fileService.contentsOfFolder(at: url, sortKey: sortKey, ascending: ascending)
-            }.value
+            let result = await self.enumerateFolderContents(at: url)
             guard self.currentFolderURL == url, self.contentMode == .browser,
                   case .success(let contents) = result else { return }
 
             // 기존 선택을 URL로 보존 후 복원 (인덱스가 바뀌어도 올바른 항목 유지)
             let selectedURLs = Set(self.browserVC.selectedURLs())
-            self.browserVC.display(folders: contents.folders, images: contents.images)
+            self.browserVC.display(
+                folders: contents.folders,
+                images: contents.images,
+                recursiveRoot: AppSettings.shared.recursiveBrowsing ? url : nil
+            )
             if !selectedURLs.isEmpty {
                 self.browserVC.restoreSelection(urls: selectedURLs)
             }
@@ -347,12 +367,37 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func imageFilesInCurrentFolder() -> [ImageFile] {
         guard let url = currentFolderURL,
-              case .success(let contents) = fileService.contentsOfFolder(
-                at: url,
-                sortKey: AppSettings.shared.sortKey,
-                ascending: AppSettings.shared.sortAscending
-              ) else { return [] }
+              case .success(let contents) = folderContents(at: url) else { return [] }
         return contents.images.compactMap { ImageFile(url: $0) }
+    }
+
+    // MARK: - Folder Enumeration (일반 / 하위 폴더 포함)
+
+    /// 현재 보기 모드에 맞춰 폴더 내용을 읽는다.
+    /// - 일반: 직속 하위 폴더 + 직속 이미지
+    /// - 하위 폴더 포함(`AppSettings.recursiveBrowsing`): 폴더 타일 없이, 모든 하위 폴더의 이미지를 평면으로
+    func folderContents(at url: URL) -> Result<(folders: [URL], images: [URL]), FileServiceError> {
+        let sortKey = AppSettings.shared.sortKey
+        let ascending = AppSettings.shared.sortAscending
+        if AppSettings.shared.recursiveBrowsing {
+            return fileService.recursiveImages(at: url, sortKey: sortKey, ascending: ascending)
+                .map { (folders: [], images: $0) }
+        }
+        return fileService.contentsOfFolder(at: url, sortKey: sortKey, ascending: ascending)
+    }
+
+    /// `folderContents(at:)`를 백그라운드 스레드에서 수행한다 (재귀 열거는 특히 오래 걸릴 수 있음).
+    private func enumerateFolderContents(at url: URL) async -> Result<(folders: [URL], images: [URL]), FileServiceError> {
+        let sortKey = AppSettings.shared.sortKey
+        let ascending = AppSettings.shared.sortAscending
+        let recursive = AppSettings.shared.recursiveBrowsing
+        return await Task.detached(priority: .userInitiated) { [fileService] in
+            if recursive {
+                return fileService.recursiveImages(at: url, sortKey: sortKey, ascending: ascending)
+                    .map { (folders: [], images: $0) }
+            }
+            return fileService.contentsOfFolder(at: url, sortKey: sortKey, ascending: ascending)
+        }.value
     }
 
     func showError(_ error: Error) {
