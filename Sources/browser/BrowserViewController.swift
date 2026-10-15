@@ -20,6 +20,22 @@ private final class DoubleClickCollectionView: NSCollectionView {
         }
     }
 
+    /// 우클릭한 항목이 선택에 없으면 그 항목만 선택한 뒤 메뉴를 띄운다 (Finder 동작).
+    /// 이미 선택된 항목 위에서 우클릭하면 다중 선택을 유지한다.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        if let indexPath = indexPathForItem(at: point) {
+            if !selectionIndexPaths.contains(indexPath) {
+                deselectAll(nil)
+                selectItems(at: [indexPath], scrollPosition: [])
+            }
+        } else {
+            // 빈 곳 우클릭: 선택 해제 → 빈 영역용 메뉴(새 폴더 등)
+            deselectAll(nil)
+        }
+        return super.menu(for: event)
+    }
+
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
         let isDoubleClick = event.clickCount == 2
@@ -409,6 +425,11 @@ final class BrowserViewController: NSViewController {
         return menu
     }
 
+    /// 우클릭 메뉴 "미리보기" — 선택 항목을 QuickLook 패널(원본 해상도)로 띄운다. 스페이스바와 같은 패널.
+    @objc private func contextQuickLook(_ sender: NSMenuItem) {
+        showQuickLook()
+    }
+
     @objc private func contextOpen(_ sender: NSMenuItem) {
         guard let urls = sender.representedObject as? [URL], let url = urls.first else { return }
         guard ImageFile(url: url) != nil,
@@ -513,6 +534,7 @@ final class BrowserViewController: NSViewController {
     }
 
     private func setupCollectionView() {
+        collectionView.wantsLayer = true  // 호버 확대 셀의 zPosition이 이웃 셀 위로 적용되도록
         let layout = NSCollectionViewFlowLayout()
         layout.itemSize = BrowserItem.itemSize
         layout.minimumInteritemSpacing = 8
@@ -714,6 +736,11 @@ extension BrowserViewController: NSMenuDelegate {
             openItem.representedObject = urls
             menu.addItem(openItem)
 
+            let previewItem = NSMenuItem(title: "미리보기", action: hasBroken ? nil : #selector(contextQuickLook(_:)), keyEquivalent: "")
+            previewItem.target = self
+            previewItem.representedObject = urls
+            menu.addItem(previewItem)
+
             let removeItem = NSMenuItem(title: "빼기", action: #selector(contextRemoveBookmark(_:)), keyEquivalent: "")
             removeItem.target = self
             removeItem.representedObject = urls
@@ -742,6 +769,12 @@ extension BrowserViewController: NSMenuDelegate {
 
             if urls.count == 1, hasImages {
                 menu.addItem(withTitle: "열기", action: #selector(contextOpen(_:)), keyEquivalent: "")
+            }
+            if hasImages {
+                // 여러 장 선택 시에도 QuickLook 패널에서 ←/→로 순회할 수 있다
+                menu.addItem(withTitle: "미리보기", action: #selector(contextQuickLook(_:)), keyEquivalent: "")
+            }
+            if urls.count == 1, hasImages {
                 menu.addItem(NSMenuItem.separator())
                 menu.addItem(withTitle: "이름 변경", action: #selector(contextRename(_:)), keyEquivalent: "")
             }
@@ -834,6 +867,26 @@ extension BrowserViewController {
             panel.orderOut(nil)
         } else {
             panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// 메뉴에서 호출 — 이미 떠 있으면 현재 선택으로 이동만 하고, 아니면 연다.
+    func showQuickLook() {
+        guard !contents.isEmpty, let panel = QLPreviewPanel.shared() else { return }
+
+        // QuickLook은 첫 응답자에서 시작해 응답자 체인을 올라가며 acceptsPreviewPanelControl을 찾는다.
+        // 포커스가 사이드바에 있으면 브라우저까지 오지 못해 "선택된 항목 없음" 빈 패널이 뜨므로,
+        // 먼저 그리드로 포커스를 옮기고 패널에 컨트롤러를 다시 찾게 한다.
+        view.window?.makeFirstResponder(collectionView)
+        if QLPreviewPanel.sharedPreviewPanelExists(), panel.isVisible {
+            panel.updateController()
+            if let first = collectionView.selectionIndexPaths.min() {
+                panel.currentPreviewItemIndex = first.item
+            }
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.makeKeyAndOrderFront(nil)
+            panel.updateController()
         }
     }
 

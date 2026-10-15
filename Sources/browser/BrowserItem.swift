@@ -18,8 +18,14 @@ final class BrowserItem: NSCollectionViewItem {
     private var isEditingName = false
     private var renameDelegate: RenameFieldDelegate?
 
+    /// 마우스 오버 시 썸네일 확대 배율 (Dock 느낌). 1.2배면 이웃 셀을 살짝 덮는 정도.
+    private static let hoverScale: CGFloat = 1.2
+    private static let hoverDuration: CFTimeInterval = 0.15
+    private var isHovered = false
+
     override func loadView() {
         view = NSView(frame: NSRect(origin: .zero, size: Self.itemSize))
+        view.wantsLayer = true  // 호버 zPosition·선택 배경에 레이어가 처음부터 필요
         setupThumbnailView()
         setupPlayBadge()
         setupBookmarkBadge()
@@ -30,6 +36,51 @@ final class BrowserItem: NSCollectionViewItem {
     override func viewDidLayout() {
         super.viewDidLayout()
         updatePathLabelText()
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        // 스크롤로 재사용될 때 mouseExited가 오지 않을 수 있으므로 즉시 원래 크기로
+        setHovered(false, animated: false)
+    }
+
+    // MARK: - Hover Zoom
+
+    override func mouseEntered(with event: NSEvent) {
+        guard !isEditingName else { return }
+        setHovered(true, animated: true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHovered(false, animated: true)
+    }
+
+    /// 썸네일 레이어를 중심 기준으로 확대/복원한다.
+    /// AppKit 뷰 레이어의 anchorPoint는 (0,0)이라, 중심이 고정되도록 (1-s)·w/2 만큼 평행이동을 합성한다.
+    private func setHovered(_ hovered: Bool, animated: Bool) {
+        guard isHovered != hovered, let layer = thumbnailView.layer else { return }
+        isHovered = hovered
+
+        let s: CGFloat = hovered ? Self.hoverScale : 1.0
+        let size = thumbnailView.bounds.size
+        let tx = (1 - s) * size.width / 2
+        let ty = (1 - s) * size.height / 2
+        let target = CATransform3DScale(CATransform3DMakeTranslation(tx, ty, 0), s, s, 1)
+
+        // 확대된 썸네일이 이웃 셀 위로 올라오게
+        view.layer?.zPosition = hovered ? 1 : 0
+
+        if animated {
+            let anim = CABasicAnimation(keyPath: "transform")
+            anim.fromValue = layer.presentation()?.transform ?? layer.transform
+            anim.toValue = target
+            anim.duration = Self.hoverDuration
+            anim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(anim, forKey: "hoverZoom")
+        } else {
+            layer.removeAnimation(forKey: "hoverZoom")
+        }
+        layer.transform = target
     }
 
     override var isSelected: Bool {
@@ -130,6 +181,7 @@ final class BrowserItem: NSCollectionViewItem {
     // MARK: - Inline Rename
 
     func beginRename(completion: @escaping (String?) -> Void) {
+        setHovered(false, animated: false)
         guard !isEditingName else { return }
         isEditingName = true
 
@@ -190,6 +242,15 @@ final class BrowserItem: NSCollectionViewItem {
         thumbnailView.layer?.borderColor = NSColor.separatorColor.cgColor
         thumbnailView.layer?.borderWidth = 0.5
         view.addSubview(thumbnailView)
+
+        // 썸네일 영역 마우스 오버 추적. inVisibleRect라 크기가 바뀌어도 자동으로 따라간다.
+        let tracking = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        thumbnailView.addTrackingArea(tracking)
 
         NSLayoutConstraint.activate([
             thumbnailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
