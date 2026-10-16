@@ -48,6 +48,7 @@ dmg: build
 TEST_SOURCES = Sources/services/ThumbnailScheduler.swift \
                Sources/services/ThumbnailCache.swift \
                Sources/services/ThumbnailProvider.swift \
+               Sources/services/ThumbnailDiskStore.swift \
                $(shell find Tests -name '*.swift')
 
 test:

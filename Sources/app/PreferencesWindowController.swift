@@ -21,6 +21,9 @@ final class PreferencesWindowController: NSWindowController {
         super.init(window: win)
 
         setupUI()
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: win, queue: .main
+        ) { [weak self] _ in self?.stopDiskUsageRefresh() }
     }
 
     @available(*, unavailable)
@@ -31,6 +34,26 @@ final class PreferencesWindowController: NSWindowController {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        startDiskUsageRefresh()
+    }
+
+    // MARK: - 디스크 사용량 주기 갱신
+
+    /// 탭 뷰는 한 번 만들어 재사용하므로 "사용 중" 라벨은 창을 열 때와 열려 있는 동안 주기적으로 맞춘다.
+    /// (뒤에서 그리드가 스크롤되면 캐시가 계속 쌓인다.)
+    private var diskUsageTimer: Timer?
+
+    private func startDiskUsageRefresh() {
+        updateDiskLabels()
+        diskUsageTimer?.invalidate()
+        diskUsageTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            self?.updateDiskLabels()
+        }
+    }
+
+    private func stopDiskUsageRefresh() {
+        diskUsageTimer?.invalidate()
+        diskUsageTimer = nil
     }
 
     // MARK: - UI
@@ -169,6 +192,10 @@ final class PreferencesWindowController: NSWindowController {
     private let cacheValueLabel = NSTextField(labelWithString: "")
     private let cacheHintLabel = NSTextField(wrappingLabelWithString: "")
     private let applyButton = NSButton(title: "적용", target: nil, action: nil)
+    private let diskSlider = NSSlider()
+    private let diskValueLabel = NSTextField(labelWithString: "")
+    private let diskUsageLabel = NSTextField(labelWithString: "")
+    private let diskClearButton = NSButton(title: "비우기", target: nil, action: nil)
 
     /// 썸네일 크기·캐시 한도. 컨트롤을 움직여도 안내만 바뀌고, "적용"을 눌러야 저장·반영된다
     /// (캐시 비움 + 재생성이 무거운 작업이라 실시간 적용은 피한다).
@@ -213,6 +240,32 @@ final class PreferencesWindowController: NSWindowController {
         container.addSubview(cacheSlider)
         container.addSubview(cacheValueLabel)
         container.addSubview(cacheHintLabel)
+
+        let diskLabel = makeLabel("디스크 한도")
+        diskSlider.translatesAutoresizingMaskIntoConstraints = false
+        diskSlider.minValue = Double(AppSettings.thumbnailDiskCacheMBRange.lowerBound)
+        diskSlider.maxValue = Double(AppSettings.thumbnailDiskCacheMBRange.upperBound)
+        diskSlider.integerValue = settings.thumbnailDiskCacheMB
+        diskSlider.target = self
+        diskSlider.action = #selector(diskLimitChanged(_:))
+
+        diskValueLabel.translatesAutoresizingMaskIntoConstraints = false
+        diskValueLabel.font = .monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+
+        diskUsageLabel.translatesAutoresizingMaskIntoConstraints = false
+        diskUsageLabel.font = .systemFont(ofSize: 11)
+        diskUsageLabel.textColor = .secondaryLabelColor
+
+        diskClearButton.translatesAutoresizingMaskIntoConstraints = false
+        diskClearButton.bezelStyle = .rounded
+        diskClearButton.target = self
+        diskClearButton.action = #selector(clearDiskCache(_:))
+
+        container.addSubview(diskLabel)
+        container.addSubview(diskSlider)
+        container.addSubview(diskValueLabel)
+        container.addSubview(diskUsageLabel)
+        container.addSubview(diskClearButton)
         container.addSubview(applyButton)
 
         NSLayoutConstraint.activate([
@@ -237,11 +290,28 @@ final class PreferencesWindowController: NSWindowController {
             cacheHintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
             cacheHintLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
 
-            applyButton.topAnchor.constraint(equalTo: cacheHintLabel.bottomAnchor, constant: 20),
+            diskLabel.topAnchor.constraint(equalTo: cacheHintLabel.bottomAnchor, constant: 20),
+            diskLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 24),
+
+            diskSlider.centerYAnchor.constraint(equalTo: diskLabel.centerYAnchor),
+            diskSlider.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
+            diskSlider.widthAnchor.constraint(equalToConstant: 190),
+
+            diskValueLabel.centerYAnchor.constraint(equalTo: diskLabel.centerYAnchor),
+            diskValueLabel.leadingAnchor.constraint(equalTo: diskSlider.trailingAnchor, constant: 8),
+
+            diskUsageLabel.topAnchor.constraint(equalTo: diskLabel.bottomAnchor, constant: 12),
+            diskUsageLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
+
+            diskClearButton.centerYAnchor.constraint(equalTo: diskUsageLabel.centerYAnchor),
+            diskClearButton.leadingAnchor.constraint(equalTo: diskUsageLabel.trailingAnchor, constant: 12),
+
+            applyButton.topAnchor.constraint(equalTo: diskUsageLabel.bottomAnchor, constant: 20),
             applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
         ])
 
         updateThumbnailHint()
+        updateDiskLabels()
         return container
     }
 
@@ -282,6 +352,45 @@ final class PreferencesWindowController: NSWindowController {
         cacheSlider.integerValue = pendingCacheMB
         updateThumbnailHint()
         NotificationCenter.default.post(name: .thumbnailSettingsApplied, object: nil)
+    }
+
+    /// 디스크 한도는 500MB 단위, 즉시 반영(비용이 없으므로 "적용" 불필요).
+    private var pendingDiskMB: Int {
+        let stepped = Int((Double(diskSlider.integerValue) / 500).rounded()) * 500
+        return min(max(stepped, AppSettings.thumbnailDiskCacheMBRange.lowerBound), AppSettings.thumbnailDiskCacheMBRange.upperBound)
+    }
+
+    private func updateDiskValueLabel() {
+        let mb = pendingDiskMB
+        diskValueLabel.stringValue = mb >= 1024 ? String(format: "%.1f GB", Double(mb) / 1024) : "\(mb) MB"
+    }
+
+    private func updateDiskLabels() {
+        updateDiskValueLabel()
+        let used = ThumbnailProvider.shared.diskUsedBytes
+        let usedText = ByteCountFormatter.string(fromByteCount: Int64(used), countStyle: .file)
+        diskUsageLabel.stringValue = "사용 중 \(usedText)"
+        diskClearButton.isEnabled = used > 0
+    }
+
+    @objc private func diskLimitChanged(_ sender: Any?) {
+        // 드래그 중에는 라벨만 갱신한다. 중간 값마다 한도를 적용하면 GC가 파일을 지워 버리므로 손을 뗄 때 반영.
+        if NSApp.currentEvent?.type == .leftMouseDragged {
+            updateDiskValueLabel()
+            return
+        }
+        let mb = pendingDiskMB
+        settings.thumbnailDiskCacheMB = mb
+        diskSlider.integerValue = mb
+        ThumbnailProvider.shared.setDiskLimit(bytes: mb * 1024 * 1024)
+        updateDiskLabels()
+        // GC는 utility 큐에서 비동기로 돌아 사용량이 뒤늦게 줄어든다. 잠시 뒤 라벨을 한 번 더 맞춘다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.updateDiskLabels() }
+    }
+
+    @objc private func clearDiskCache(_ sender: Any?) {
+        ThumbnailProvider.shared.clearDisk()
+        updateDiskLabels()
     }
 
     // MARK: - Export Tab

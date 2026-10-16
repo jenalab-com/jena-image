@@ -1,6 +1,7 @@
 import Foundation
 
 runSchedulerTests()
+runDiskStoreTests()
 MainActor.assumeIsolated { runProviderTests() }
 
 if failureCount > 0 {

@@ -118,5 +118,38 @@ func runProviderTests() {
         checkEqual(ThumbnailProvider.level(forMinPixel: 441), 440, "441")
     }
 
+    runTest("디스크에 있으면 생성을 부르지 않고 메모리에도 채운다") {
+        let diskDir = tmp.appendingPathComponent("disk")
+        let disk = ThumbnailDiskStore(directory: diskDir, limitBytes: 100_000_000)
+        let cg = makeImage(px: 440).cgImage(forProposedRect: nil, context: nil, hints: nil)!
+        disk.store(cg, url: fileA, px: 440)
+
+        let lock = NSLock()
+        var calls = 0
+        let cache = ThumbnailCache(memoryLimit: 50_000_000)
+        let provider = ThumbnailProvider(workerCount: 1, memoryCache: cache, diskStore: disk) { _, _ in
+            lock.lock(); calls += 1; lock.unlock(); return makeImage(px: 440)
+        }
+        var got = false
+        provider.request(fileA, minPixel: 440, priority: .visible) { if case .image = $0 { got = true } }
+        check(waitUntil { got }, "디스크 적중 완료")
+        lock.lock(); let c = calls; lock.unlock()
+        checkEqual(c, 0, "생성 호출 없음")
+        check(cache.thumbnail(for: fileA, minPixelSize: 440) != nil, "메모리에 채워짐")
+    }
+
+    runTest("생성 결과는 디스크에 저장된다") {
+        let diskDir = tmp.appendingPathComponent("disk2")
+        let disk = ThumbnailDiskStore(directory: diskDir, limitBytes: 100_000_000)
+        let provider = ThumbnailProvider(workerCount: 1, memoryCache: ThumbnailCache(memoryLimit: 50_000_000), diskStore: disk) { _, _ in
+            makeImage(px: 440)
+        }
+        var got = false
+        provider.request(fileB, minPixel: 440, priority: .visible) { if case .image = $0 { got = true } }
+        check(waitUntil { got }, "완료")
+        check(waitUntil { disk.usedBytes > 0 }, "디스크 저장")
+        check(disk.lookup(url: fileB, minPx: 440, levels: ThumbnailProvider.levels) != nil, "디스크 적중")
+    }
+
     try? FileManager.default.removeItem(at: tmp)
 }
