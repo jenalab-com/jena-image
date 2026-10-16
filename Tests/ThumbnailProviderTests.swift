@@ -57,6 +57,31 @@ func runProviderTests() {
         checkEqual(calls, 1, "승격이 재디코딩을 일으키지 않음")
     }
 
+    runTest("원본이 바뀌면(mtime) 메모리 캐시는 미적중이고 다시 생성한다") {
+        let fileC = tmp.appendingPathComponent("c.jpg")
+        FileManager.default.createFile(atPath: fileC.path, contents: Data([7, 7, 7]))
+        try! FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000_000)], ofItemAtPath: fileC.path)
+        let cache = ThumbnailCache(memoryLimit: 50_000_000)
+        let lock = NSLock()
+        var calls = 0
+        let provider = ThumbnailProvider(workerCount: 1, memoryCache: cache) { _, _ in
+            lock.lock(); calls += 1; lock.unlock(); return makeImage(px: 440)
+        }
+        var done = 0
+        provider.request(fileC, minPixel: 440, priority: .visible) { if case .image = $0 { done += 1 } }
+        check(waitUntil { done == 1 }, "첫 생성 완료")
+        check(cache.thumbnail(for: fileC, minPixelSize: 440) != nil, "메모리 적중")
+
+        // Finder·외부 편집기로 파일이 바뀐 상황
+        try! FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000_000)], ofItemAtPath: fileC.path)
+        check(cache.thumbnail(for: fileC, minPixelSize: 440) == nil, "mtime 변경 후 메모리 미적중")
+        let token = provider.request(fileC, minPixel: 440, priority: .visible) { if case .image = $0 { done += 1 } }
+        check(token != nil, "재생성 요청(비동기 토큰)")
+        check(waitUntil { done == 2 }, "두 번째 완료")
+        lock.lock(); let c = calls; lock.unlock()
+        checkEqual(c, 2, "생성 2회")
+    }
+
     runTest("메모리 적중은 동기 완료 + nil 토큰") {
         let cache = ThumbnailCache(memoryLimit: 50_000_000)
         cache.store(makeImage(px: 440), for: fileA)

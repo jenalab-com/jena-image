@@ -154,7 +154,8 @@ final class ThumbnailProvider {
     }
 
     private enum Outcome {
-        case image(NSImage)
+        /// `sourceStamp`: 이미지를 만든(또는 디스크에서 읽은) 시점의 원본 mtime·size. 메모리 캐시가 변경 감지에 쓴다.
+        case image(NSImage, sourceStamp: String)
         case failed(fileStamp: String)
         case notDownloaded
     }
@@ -164,12 +165,13 @@ final class ThumbnailProvider {
                                             failedKeys: Set<String>, diskStore: ThumbnailDiskStore?,
                                             generate: (URL, CGSize) -> NSImage?) -> Outcome {
         let url = key.url
-        let stamp = fileStamp(url)
+        let source = ThumbnailCache.stamp(for: url)  // 작업 시작 시점의 원본 스탬프. 생성 중에 파일이 바뀌면 다음 조회에서 미적중
+        let stamp = url.path + "|" + source
         if failedKeys.contains(stamp) { return .failed(fileStamp: stamp) }
 
         // 디스크 캐시는 iCloud 비워진 파일에도 유효하다(원본 메타데이터만 읽는다).
         if let cg = diskStore?.lookup(url: url, minPx: key.level, levels: levels) {
-            return .image(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)))
+            return .image(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)), sourceStamp: source)
         }
 
         if isEvictedICloudItem(url) {
@@ -179,7 +181,7 @@ final class ThumbnailProvider {
                 if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
                     diskStore?.store(cg, url: url, px: key.level)
                 }
-                return .image(img)
+                return .image(img, sourceStamp: source)
             }
             return .notDownloaded
         }
@@ -189,7 +191,7 @@ final class ThumbnailProvider {
             if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
                 diskStore?.store(cg, url: url, px: key.level)
             }
-            return .image(img)
+            return .image(img, sourceStamp: source)
         }
         return .failed(fileStamp: stamp)
     }
@@ -199,8 +201,8 @@ final class ThumbnailProvider {
         // 결과도 이미 디코딩을 마친 것이라, 버리면 폴더를 다시 열 때 같은 비용을 두 번 낸다.
         let result: ThumbnailResult
         switch outcome {
-        case .image(let img):
-            memoryCache.store(img, for: key.url)
+        case .image(let img, let source):
+            memoryCache.store(img, for: key.url, stamp: source)
             result = .image(img)
         case .failed(let stamp):
             failedKeys.insert(stamp)
@@ -218,12 +220,6 @@ final class ThumbnailProvider {
     /// 없어 영원히 옛 값이 돌아온다(Task 0 스파이크에서 확인). 그래서 읽을 때마다 새 인스턴스를 만든다.
     nonisolated private static func freshURL(_ url: URL) -> URL {
         URL(fileURLWithPath: url.path)
-    }
-
-    nonisolated private static func fileStamp(_ url: URL) -> String {
-        let rv = try? freshURL(url).resourceValues(forKeys: [.contentModificationDateKey])
-        let mtime = Int(rv?.contentModificationDate?.timeIntervalSince1970 ?? 0)
-        return url.path + "|" + String(mtime)
     }
 
     /// iCloud Drive가 관리하고 아직 로컬에 없는 파일인지. 메타데이터 조회만 하며 다운로드를 유발하지 않는다.
