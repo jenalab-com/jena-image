@@ -2146,7 +2146,7 @@ git commit -m "feat: disk thumbnail cache controls in Preferences > Thumbnails"
 - Modify: `README.md` (기능 목록에 디스크 캐시 한 줄, 있으면)
 - Modify: `~/Documents/project/source/skills/global/projects.md` jena-image 줄, `projects/jena-image.md`
 
-- [ ] **Step 1: 스펙 §5.2 수동 검증 8항목 실행**
+- [x] **Step 1: 스펙 §5.2 수동 검증 8항목 실행** (2026-10-16 전부 통과. 검증 중 버그 3건 발견·수정: didEndDisplaying 재사용 역순, 설정 창 사용량 미갱신, 메모리 캐시 mtime 미감지 — devlog 참고)
 
 `make run` 후:
 1. 2만 장 폴더: 첫 화면 2초 안에 채워짐.
@@ -2159,7 +2159,7 @@ git commit -m "feat: disk thumbnail cache controls in Preferences > Thumbnails"
 8. 메모리 한도 "적용"이 이전처럼 동작.
 결과를 항목별로 기록. 실패 항목은 고치고 재확인.
 
-- [ ] **Step 2: devlog 2단계 섹션**
+- [x] **Step 2: devlog 2단계 섹션**
 
 ```markdown
 # <날짜> (추가) — 썸네일 캐시 재설계 2단계: 디스크 캐시 · 설정 탭
@@ -2179,7 +2179,7 @@ git commit -m "feat: disk thumbnail cache controls in Preferences > Thumbnails"
 - HEIC 인코딩 비용이 생성에 더해진다(장당 수 ms). 디코딩 대비 작아 체감 없음.
 ```
 
-- [ ] **Step 3: 현황판 갱신**
+- [x] **Step 3: 현황판 갱신**
 
 `projects.md` jena-image 줄의 '현 단계'를 "썸네일 캐시 재설계 완료(1·2단계) · 다음: 릴리스 v1.7.0 또는 plan.md v1.3"으로, 갱신일을 작업일로. `projects/jena-image.md`에 날짜 섹션 추가(커밋 해시, 남은 후속: NAS 워커 조정·유휴 완주).
 
