@@ -10,6 +10,8 @@
 
 **Spec:** `docs/thumbnail-cache-design.md`
 
+**검토 반영(2026-10-16):** ① DiskStore 락은 카운터만 보호, 디코드·인코드·GC는 락 밖(GC는 utility 직렬 큐, `limitBytes` setter·`clear()`는 호출자를 막지 않음) ② 같은 우선순위 LIFO → FIFO ③ 스켈레톤 `beginTime = 1`로 위상 동기화 ④ Scheduler `cancel()`이 완료 토큰을 `cancelled`에 남기지 않음 ⑤ `finish`는 대기자 유무와 무관하게 캐시에 먼저 저장 ⑥ 실패·미다운로드 자리표시는 `hasThumbnail = true`(재요청·깜빡임 없음) ⑦ 스파이크에 소요 시간 측정 ⑧ 워커 수 테스트는 상한 검증. 테스트 수: 스케줄러 6 · Provider 7(+2) · DiskStore 10. ⑨(구현 중 발견) 선로드→visible 승격은 `Scheduler.reprioritize`로, 실행 중이면 재디코딩하지 않음.
+
 ## Global Constraints
 
 - 최소 macOS 14.0 (`Info.plist` `LSMinimumSystemVersion`). async/await·`AVAssetImageGenerator.image(at:)` 사용 가능.
@@ -37,12 +39,12 @@
 
 **Files:**
 - Create (throwaway, 커밋 안 함): `/tmp/spike-icloud/spike.swift`
-- Modify: `docs/devlog/2026-10-15.md` (결과 기록)
+- Modify: `docs/devlog/2026-10-16-spike-icloud.md` (결과 기록 — 2026-10-16 완료, 결정 **true**)
 
 **Interfaces:**
 - Produces: 결정 하나 — `useQuickLookForEvicted: Bool`. Task 2 Step 9에서 이 값에 따라 분기 코드를 넣는다.
 
-- [ ] **Step 1: 비워진 iCloud 파일 하나 준비**
+- [x] **Step 1: 비워진 iCloud 파일 하나 준비**
 
 iCloud Drive 안의 이미지 파일을 골라 비운다. 경로는 실제 파일로 바꾼다.
 
@@ -53,7 +55,7 @@ xattr -l "$HOME/Library/Mobile Documents/com~apple~CloudDocs/사진/sample.jpg" 
 ```
 Expected: 비워진 파일은 크기가 0에 가깝고 `.icloud` 자리표시로 보이거나 `brctl` 출력에 evicted 표시.
 
-- [ ] **Step 2: 스파이크 스크립트 작성**
+- [x] **Step 2: 스파이크 스크립트 작성**
 
 ```swift
 // /tmp/spike-icloud/spike.swift
@@ -72,9 +74,11 @@ let req = QLThumbnailGenerator.Request(
     fileAt: url, size: CGSize(width: 220, height: 220), scale: 2, representationTypes: .thumbnail
 )
 let sem = DispatchSemaphore(value: 0)
+let started = Date()
 QLThumbnailGenerator.shared.generateBestRepresentation(for: req) { rep, err in
-    if let rep { print("rep: \(rep.cgImage.width)x\(rep.cgImage.height) type=\(rep.type.rawValue)") }
-    else { print("rep: nil err=\(err?.localizedDescription ?? "nil")") }
+    let elapsed = Date().timeIntervalSince(started)
+    if let rep { print("rep: \(rep.cgImage.width)x\(rep.cgImage.height) type=\(rep.type.rawValue) elapsed=\(String(format: "%.2f", elapsed))s") }
+    else { print("rep: nil err=\(err?.localizedDescription ?? "nil") elapsed=\(String(format: "%.2f", elapsed))s") }
     sem.signal()
 }
 sem.wait()
@@ -82,7 +86,9 @@ sleep(1)
 print("after:", status())
 ```
 
-- [ ] **Step 3: 빌드·실행**
+소요 시간도 같이 잰다. Provider의 QuickLook 경로는 세마포어로 워커 하나를 묶는 구조라, iCloud 썸네일 fetch가 네트워크를 타서 수 초 걸리면 그 시간만큼 워커가 빠진다. 2초를 넘기면 `true`라도 Task 2 Step 9에서 QuickLook 전용 워커 1개를 따로 두는 쪽으로 조정한다.
+
+- [x] **Step 3: 빌드·실행**
 
 ```bash
 mkdir -p /tmp/spike-icloud
@@ -93,7 +99,7 @@ Expected 둘 중 하나:
 - `rep: 440x…` 이고 `after: … status=NSURLUbiquitousItemDownloadingStatusNotDownloaded` → **useQuickLookForEvicted = true**
 - `rep: nil` 이거나 `after` 상태가 `Current`로 바뀜(다운로드 유발) → **useQuickLookForEvicted = false**
 
-- [ ] **Step 4: devlog에 결과 기록**
+- [x] **Step 4: devlog에 결과 기록**
 
 `docs/devlog/2026-10-15.md` 끝에 섹션 추가:
 
@@ -101,7 +107,7 @@ Expected 둘 중 하나:
 # 2026-10-15 (추가) — 스파이크: iCloud 비워진 파일 + QLThumbnailGenerator
 
 - 대상: <파일 경로>, 사전 상태 NotDownloaded.
-- 결과: rep=<값>, 사후 상태=<값>.
+- 결과: rep=<값>, 사후 상태=<값>, 소요=<초>.
 - 결정: useQuickLookForEvicted = <true/false>. 썸네일 캐시 재설계 Task 2에 반영.
 ```
 
@@ -135,11 +141,15 @@ git commit -m "docs: iCloud evicted-file QuickLook thumbnail spike result"
       func enqueue(priority: ThumbnailPriority, work: @escaping (_ isCancelled: () -> Bool) -> Void) -> Token
       func cancel(_ token: Token)
       func cancelAll()
+      /// 대기 중이면 우선순위만 바꾸고 true, 실행 중·완료면 false(호출자는 취소·재등록하지 않는다). 2026-10-16 추가
+      @discardableResult func reprioritize(_ token: Token, to priority: ThumbnailPriority) -> Bool
       var pendingCount: Int { get }
+      var cancelledCount: Int { get }   // 테스트용. 실행 중 취소 표시가 남아 있는 수
   }
   ```
+- 꺼내는 순서: 우선순위 높은 것 → 같은 우선순위는 **들어온 순서(FIFO)**. 스펙 초안의 "최신 먼저(LIFO)"는 쓰지 않는다. `didEndDisplaying`이 화면을 벗어난 셀을 즉시 취소하므로 `visible` 큐에는 지금 보이는 셀만 남고, 선로드도 새 선로드 때 이전 토큰을 전부 취소한다. 그래서 LIFO가 주는 이득이 없고, 첫 화면이 아래에서 위로 채워지는 부작용만 남는다.
 
-- [ ] **Step 1: 테스트 지원 파일과 main 작성**
+- [x] **Step 1: 테스트 지원 파일과 main 작성**
 
 ```swift
 // Tests/TestSupport.swift
@@ -191,7 +201,7 @@ if failureCount > 0 {
 print("all tests passed")
 ```
 
-- [ ] **Step 2: Makefile에 test 타깃 추가**
+- [x] **Step 2: Makefile에 test 타깃 추가**
 
 `.PHONY` 줄과 `clean` 아래에 추가:
 
@@ -208,14 +218,14 @@ test:
 	@$(BUILD_DIR)/tests
 ```
 
-- [ ] **Step 3: 실패하는 테스트 작성**
+- [x] **Step 3: 실패하는 테스트 작성**
 
 ```swift
 // Tests/ThumbnailSchedulerTests.swift
 import Foundation
 
 func runSchedulerTests() {
-    runTest("우선순위 높은 것 먼저, 같은 우선순위는 최신 먼저") {
+    runTest("우선순위 높은 것 먼저, 같은 우선순위는 들어온 순서(FIFO)") {
         let scheduler = ThumbnailScheduler(workerCount: 1)
         let gate = DispatchSemaphore(value: 0)
         let lock = NSLock()
@@ -233,7 +243,17 @@ func runSchedulerTests() {
 
         check(waitUntil { lock.lock(); defer { lock.unlock() }; return order.count == 5 }, "5개 모두 실행")
         lock.lock(); let got = order; lock.unlock()
-        checkEqual(got, ["first", "v2", "v1", "p2", "p1"], "실행 순서")
+        checkEqual(got, ["first", "v1", "v2", "p1", "p2"], "실행 순서")
+    }
+
+    runTest("이미 끝난 토큰을 취소해도 내부 집합에 남지 않는다") {
+        let scheduler = ThumbnailScheduler(workerCount: 1)
+        let lock = NSLock()
+        var done = false
+        let token = scheduler.enqueue(priority: .visible) { _ in lock.lock(); done = true; lock.unlock() }
+        check(waitUntil { lock.lock(); defer { lock.unlock() }; return done }, "실행 완료")
+        scheduler.cancel(token)
+        checkEqual(scheduler.cancelledCount, 0, "완료된 토큰은 취소 표시를 남기지 않음")
     }
 
     runTest("testCancelledEntryIsSkipped: 취소된 항목은 실행되지 않는다") {
@@ -281,17 +301,17 @@ func runSchedulerTests() {
         }
         check(waitUntil { lock.lock(); defer { lock.unlock() }; return done == 6 }, "6개 완료")
         lock.lock(); let p = peak; lock.unlock()
-        checkEqual(p, 2, "최대 동시 실행 수")
+        check(p >= 1 && p <= 2, "최대 동시 실행 수가 워커 수를 넘지 않음 (peak=\(p))")
     }
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 실패 확인**
+- [x] **Step 4: 테스트 실행 → 실패 확인**
 
 Run: `make test`
-Expected: 컴파일 에러 `cannot find 'ThumbnailScheduler' in scope`
+Expected: 컴파일 에러. (실제로는 `TEST_SOURCES`에 아직 없는 파일이 올라 있어 `error opening input file`로 먼저 멈춘다. `Tests/*.swift`만 `swiftc`로 컴파일하면 `cannot find 'ThumbnailScheduler' in scope`가 난다. 2026-10-16 확인)
 
-- [ ] **Step 5: Scheduler 구현**
+- [x] **Step 5: Scheduler 구현**
 
 ```swift
 // Sources/services/ThumbnailScheduler.swift
@@ -307,8 +327,10 @@ enum ThumbnailPriority: Int, Comparable {
 }
 
 /// 우선순위 큐 + 고정 수 워커 스레드.
-/// 꺼내는 규칙: 우선순위 높은 것 → 같은 우선순위면 늦게 들어온 것(스크롤이 멈춘 자리가 가장 최근 요청이므로).
-/// 취소된 항목은 꺼낼 때 버린다.
+/// 꺼내는 규칙: 우선순위 높은 것 → 같은 우선순위면 먼저 들어온 것(FIFO).
+/// 화면을 벗어난 셀은 호출자가 즉시 취소하므로 큐에는 지금 필요한 것만 남는다. 그래서 FIFO로 충분하고,
+/// 첫 화면이 위에서 아래로 자연스럽게 채워진다.
+/// 대기 중 취소는 큐에서 바로 빼고, 실행 중 취소는 표시만 남겨 work가 isCancelled()로 확인한다.
 final class ThumbnailScheduler {
     struct Token: Hashable { let id: UInt64 }
 
@@ -319,8 +341,9 @@ final class ThumbnailScheduler {
     }
 
     private let condition = NSCondition()
-    private var pending: [Entry] = []        // 삽입 순서 유지(뒤가 최신)
-    private var cancelled: Set<Token> = []   // 아직 꺼내지 않은 취소 항목 + 실행 중 취소 표시
+    private var pending: [Entry] = []        // 삽입 순서 유지(앞이 오래된 것)
+    private var running: Set<Token> = []     // 워커가 실행 중인 토큰
+    private var cancelled: Set<Token> = []   // 실행 중 취소 표시. 완료 시 제거되므로 running의 부분집합
     private var nextID: UInt64 = 0
     private var workers: [Thread] = []
 
@@ -339,6 +362,11 @@ final class ThumbnailScheduler {
         return pending.count
     }
 
+    var cancelledCount: Int {
+        condition.lock(); defer { condition.unlock() }
+        return cancelled.count
+    }
+
     @discardableResult
     func enqueue(priority: ThumbnailPriority, work: @escaping (_ isCancelled: () -> Bool) -> Void) -> Token {
         condition.lock()
@@ -354,9 +382,10 @@ final class ThumbnailScheduler {
         condition.lock()
         if let idx = pending.firstIndex(where: { $0.token == token }) {
             pending.remove(at: idx)
-        } else {
-            cancelled.insert(token)  // 실행 중이면 work가 isCancelled()로 확인
+        } else if running.contains(token) {
+            cancelled.insert(token)  // work가 isCancelled()로 확인. 완료 시 workerLoop가 지운다
         }
+        // 이미 끝난 토큰은 아무것도 남기지 않는다 — 안 그러면 cancelled가 세션 내내 자란다.
         condition.unlock()
     }
 
@@ -371,18 +400,20 @@ final class ThumbnailScheduler {
         defer { condition.unlock() }
         while true {
             if let idx = bestIndex() {
-                return pending.remove(at: idx)
+                let entry = pending.remove(at: idx)
+                running.insert(entry.token)
+                return entry
             }
             condition.wait()
         }
     }
 
-    /// 우선순위 최대, 그중 가장 뒤(최신) 인덱스.
+    /// 우선순위 최대, 그중 가장 앞(먼저 들어온) 인덱스.
     private func bestIndex() -> Int? {
         var best: Int?
         for (i, e) in pending.enumerated() {
             if let b = best {
-                if e.priority >= pending[b].priority { best = i }
+                if e.priority > pending[b].priority { best = i }
             } else {
                 best = i
             }
@@ -400,6 +431,7 @@ final class ThumbnailScheduler {
                 return self.cancelled.contains(token)
             }
             condition.lock()
+            running.remove(token)
             cancelled.remove(token)
             condition.unlock()
         }
@@ -407,12 +439,12 @@ final class ThumbnailScheduler {
 }
 ```
 
-- [ ] **Step 6: 테스트 실행 → 통과 확인**
+- [x] **Step 6: 테스트 실행 → 통과 확인**
 
 Run: `make test`
-Expected: `✅` 4줄, `all tests passed`
+Expected: `✅` 5줄, `all tests passed`
 
-- [ ] **Step 7: 앱 빌드도 깨지지 않는지 확인**
+- [x] **Step 7: 앱 빌드도 깨지지 않는지 확인**
 
 Run: `make build`
 Expected: 에러 없음
@@ -460,7 +492,7 @@ git commit -m "feat: ThumbnailScheduler priority worker queue + test harness"
   ```
   `ImageService.generateThumbnailSync(at:size:) -> Result<NSImage, ImageServiceError>` (동기, 워커 스레드용).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```swift
 // Tests/ThumbnailProviderTests.swift
@@ -585,12 +617,12 @@ print("all tests passed")
 
 `Makefile`의 `TEST_SOURCES`에 `Sources/services/ThumbnailProvider.swift` 추가(`+App.swift`는 넣지 않는다 — `ImageService`에 의존).
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `make test`
-Expected: `cannot find 'ThumbnailProvider' in scope`
+Expected: 컴파일 에러(`TEST_SOURCES`에 먼저 올리면 `error opening input file`로 멈춘다 — Task 1과 같음. 2026-10-16 확인)
 
-- [ ] **Step 3: Provider 구현**
+- [x] **Step 3: Provider 구현**
 
 ```swift
 // Sources/services/ThumbnailProvider.swift
@@ -673,11 +705,11 @@ final class ThumbnailProvider {
 
         if let existing = inFlight[key] {
             existing.waiters.append(waiter)
-            // 선로드로 들어가 있던 항목이 보이게 되면 우선순위를 올려 다시 줄 세운다.
-            if priority > existing.priority, let old = existing.schedulerToken {
-                scheduler.cancel(old)
+            // 선로드로 들어가 있던 항목이 보이게 되면 우선순위만 올린다. 이미 워커가 디코딩 중이면(reprioritize가 false)
+            // 그대로 기다린다 — 취소·재등록은 한 디코딩을 버리고 두 번 하는 셈이다. (2026-10-16 검토에서 수정)
+            if priority > existing.priority {
                 existing.priority = priority
-                existing.schedulerToken = schedule(key: key, priority: priority)
+                if let t = existing.schedulerToken { scheduler.reprioritize(t, to: priority) }
             }
             return token
         }
@@ -762,7 +794,8 @@ final class ThumbnailProvider {
     }
 
     private func finish(key: Key, outcome: Outcome) {
-        guard let entry = inFlight.removeValue(forKey: key) else { return }
+        // 캐시·실패 기억은 대기자가 남아 있든 없든 반영한다. cancelAllPending()으로 entry가 사라진 뒤 도착한
+        // 결과도 이미 디코딩을 마친 것이라, 버리면 폴더를 다시 열 때 같은 비용을 두 번 낸다.
         let result: ThumbnailResult
         switch outcome {
         case .image(let img, let store):
@@ -774,20 +807,28 @@ final class ThumbnailProvider {
         case .notDownloaded:
             result = .notDownloaded
         }
+        guard let entry = inFlight.removeValue(forKey: key) else { return }
         for w in entry.waiters { w.completion(result) }
     }
 
     // MARK: - File helpers (워커 스레드)
 
+    /// `URL.resourceValues`는 같은 인스턴스에 캐시되고, 그 캐시는 런루프 끝에서만 비워진다. 워커 스레드엔 런루프가
+    /// 없어 영원히 옛 값이 돌아온다(Task 0 스파이크에서 확인). 그래서 읽을 때마다 새 인스턴스를 만든다.
+    nonisolated private static func freshURL(_ url: URL) -> URL {
+        URL(fileURLWithPath: url.path)
+    }
+
     nonisolated private static func fileStamp(_ url: URL) -> String {
-        let rv = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+        let rv = try? freshURL(url).resourceValues(forKeys: [.contentModificationDateKey])
         let mtime = Int(rv?.contentModificationDate?.timeIntervalSince1970 ?? 0)
         return url.path + "|" + String(mtime)
     }
 
     /// iCloud Drive가 관리하고 아직 로컬에 없는 파일인지. 메타데이터 조회만 하며 다운로드를 유발하지 않는다.
+    /// macOS 26에선 비워진 파일도 원래 이름의 dataless 파일로 보이므로(`.icloud` 자리표시 없음) 파일명으로 판별하면 안 된다.
     nonisolated static func isEvictedICloudItem(_ url: URL) -> Bool {
-        guard let rv = try? url.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
+        guard let rv = try? freshURL(url).resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]),
               rv.isUbiquitousItem == true else { return false }
         return rv.ubiquitousItemDownloadingStatus == .notDownloaded
     }
@@ -799,12 +840,12 @@ final class ThumbnailProvider {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `make test`
-Expected: Scheduler 4개 + Provider 6개 `✅`, `all tests passed`
+Expected: Scheduler 6개 + Provider 7개 `✅`, `all tests passed` (승격 테스트 1개가 2026-10-16 검토에서 추가됨)
 
-- [ ] **Step 5: ImageService에 동기 생성 추가**
+- [x] **Step 5: ImageService에 동기 생성 추가**
 
 `Sources/services/ImageService.swift`의 `generateThumbnail(at:size:)` 바로 아래에 추가:
 
@@ -829,7 +870,7 @@ Expected: Scheduler 4개 + Provider 6개 `✅`, `all tests passed`
     }
 ```
 
-- [ ] **Step 6: 앱용 shared 인스턴스**
+- [x] **Step 6: 앱용 shared 인스턴스**
 
 ```swift
 // Sources/services/ThumbnailProvider+App.swift
@@ -850,13 +891,13 @@ extension ThumbnailProvider {
             if case .success(let img) = service.generateThumbnailSync(at: url, size: size) { return img }
             return nil
         }
-        provider.useQuickLookForEvicted = false  // Task 0 결과로 바꾼다
+        provider.useQuickLookForEvicted = true  // Task 0 스파이크 결과(docs/devlog/2026-10-16-spike-icloud.md)
         return provider
     }()
 }
 ```
 
-- [ ] **Step 7: 빌드 확인**
+- [x] **Step 7: 빌드 확인**
 
 Run: `make build`
 Expected: 에러 없음. (`ThumbnailProvider`는 `@MainActor`라 `static let shared` 접근도 메인에서만 — 호출처는 전부 메인.)
@@ -868,7 +909,7 @@ git add Sources/services/ThumbnailProvider.swift Sources/services/ThumbnailProvi
 git commit -m "feat: ThumbnailProvider with memory layer, coalescing, cancel, iCloud eviction check"
 ```
 
-- [ ] **Step 9 (Task 0 결과가 true일 때만): QuickLook 경로 채우기**
+- [x] **Step 9 (Task 0 결과 = true → 실행한다): QuickLook 경로 채우기**
 
 `Makefile` `FRAMEWORKS`에 `-framework QuickLookThumbnailing` 추가. `ThumbnailProvider.swift` 상단에 `import QuickLookThumbnailing`, `quickLookThumbnail` 본문 교체:
 
@@ -910,14 +951,14 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
   extension BrowserItem {
       var representedURL: URL? { get }          // configure에서 설정
       var thumbnailToken: ThumbnailRequestToken? // BrowserViewController가 보관·취소
-      var hasThumbnail: Bool { get }
+      var hasThumbnail: Bool { get }             // 이미지·실패·미다운로드·폴더 모두 true(= 더 요청할 것 없음). 스켈레톤만 false
       func showSkeleton()
       func showThumbnail(_ image: NSImage, animated: Bool)
       func showThumbnailResult(_ result: ThumbnailResult)   // .image → showThumbnail(animated: true)
   }
   ```
 
-- [ ] **Step 1: 프로퍼티와 스켈레톤 레이어 추가**
+- [x] **Step 1: 프로퍼티와 스켈레톤 레이어 추가**
 
 `BrowserItem` 클래스 상단 프로퍼티 블록(`private var isHovered = false` 아래)에 추가:
 
@@ -939,7 +980,9 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
         a.autoreverses = true
         a.repeatCount = .infinity
         a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        a.beginTime = 0  // 절대 시각 0 기준이라 모든 레이어가 동기화된다
+        // beginTime이 0이면 CA가 add 시점의 현재 시각으로 바꿔 넣어 셀마다 위상이 어긋난다.
+        // 0이 아닌 고정 상수를 주면 모든 레이어가 같은 절대 기준(부팅 후 1초)으로 위상을 계산해 동기화된다.
+        a.beginTime = 1
         return a
     }()
 ```
@@ -959,7 +1002,7 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
         skeletonLayer.frame = thumbnailView.bounds
 ```
 
-- [ ] **Step 2: 상태 메서드 추가**
+- [x] **Step 2: 상태 메서드 추가**
 
 `updateThumbnail(_:)`을 다음으로 교체:
 
@@ -998,7 +1041,9 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
     }
 
     private func showPlaceholder(symbol: String) {
-        hasThumbnail = false
+        // 실패·미다운로드도 "완성 상태"로 둔다. 세션 내 재시도는 없다는 스펙(§3.3)이므로 셀이 다시 보일 때마다
+        // 요청을 보내 스켈레톤 → 심볼로 깜빡일 이유가 없다. 편집 저장 등 invalidate 뒤에는 configure가 다시 돌아 초기화된다.
+        hasThumbnail = true
         let config = NSImage.SymbolConfiguration(pointSize: 28, weight: .regular)
         thumbnailView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
             .withSymbolConfiguration(config)
@@ -1024,7 +1069,7 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
     }
 ```
 
-- [ ] **Step 3: configure에서 상태 초기화**
+- [x] **Step 3: configure에서 상태 초기화**
 
 `configure(with:thumbnail:isBookmarked:folderPath:)` 첫 줄에 추가:
 
@@ -1049,7 +1094,7 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
             }
   ```
 
-- [ ] **Step 4: prepareForReuse에서 토큰 참조 끊기**
+- [x] **Step 4: prepareForReuse에서 토큰 참조 끊기**
 
 `prepareForReuse()`에 추가:
 
@@ -1058,7 +1103,7 @@ git commit -am "feat: QuickLook thumbnails for evicted iCloud files (visible cel
         thumbnailToken = nil  // 취소 자체는 didEndDisplaying에서 BrowserViewController가 한다
 ```
 
-- [ ] **Step 5: 빌드 확인**
+- [x] **Step 5: 빌드 확인** (Task 4와 묶어 진행. 검토에서 추가: `hideSkeleton` 페이드 완료 블록에 세대 번호 가드 — 0.15초 안에 셀이 재사용되면 새 스켈레톤을 숨겨버리는 경쟁 방지. `showSkeleton`에서 배경색 재설정으로 다크·라이트 전환 반영.)
 
 Run: `make build`
 Expected: 에러 없음(아직 호출처는 `updateThumbnail`을 쓰므로 `BrowserViewController`에서 컴파일 에러가 나면 Task 4까지 같이 진행 — 그 경우 Step 6 커밋을 Task 4 Step 8과 합친다).
@@ -1081,7 +1126,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
 - Consumes: `ThumbnailProvider.shared`, `request/cancel/cancelAllPending/cachedThumbnail`, `BrowserItem.showSkeleton/showThumbnailResult/thumbnailToken/representedURL/hasThumbnail`.
 - Produces: `init(imageService:thumbnailProvider:)` 시그니처(기존 `thumbnailCache:` 파라미터 제거).
 
-- [ ] **Step 1: 프로퍼티·init 교체**
+- [x] **Step 1: 프로퍼티·init 교체**
 
 ```swift
     private var thumbnailMinPixelSize: Int { AppSettings.shared.thumbnailMaxPixel.rawValue }
@@ -1094,21 +1139,22 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
     private let imageService: ImageServiceProtocol
     private let thumbnailProvider: ThumbnailProvider
 
-    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider = .shared) {
+    /// 기본값을 `.shared`로 두면 기본 인자가 비격리 문맥에서 평가돼 MainActor 경고가 난다. nil을 받아 init 안에서 푼다. (2026-10-16 구현 중 수정)
+    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil) {
         self.imageService = imageService
-        self.thumbnailProvider = thumbnailProvider
+        self.thumbnailProvider = thumbnailProvider ?? .shared
         super.init(nibName: nil, bundle: nil)
     }
 ```
 
 `thumbnailRequestSize`, `thumbnailTask` 프로퍼티 삭제.
 
-- [ ] **Step 2: display / displayBookmarks에서 루프 제거**
+- [x] **Step 2: display / displayBookmarks에서 루프 제거**
 
 `display(...)`: `thumbnailTask?.cancel()` → `cancelAllThumbnailRequests()`. 끝의 `loadThumbnails(for: imageItems)` 삭제, 대신 `schedulePrefetch()`.
 `displayBookmarks(...)`: 같은 교체(`loadThumbnails(for: files)` 삭제 → `schedulePrefetch()`).
 
-- [ ] **Step 3: 로딩 블록 교체**
+- [x] **Step 3: 로딩 블록 교체**
 
 `// MARK: - Thumbnail Loading`부터 `updateCellThumbnail` 끝까지 다음으로 교체:
 
@@ -1159,7 +1205,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
         let extended = visible.insetBy(dx: 0, dy: -visible.height * 2)
         let visibleIndexes = Set(collectionView.indexPathsForVisibleItems())
         let targets = layout.layoutAttributesForElements(in: extended)
-            .map(\.indexPath)
+            .compactMap(\.indexPath)  // indexPath는 옵셔널
             .filter { !visibleIndexes.contains($0) }
 
         let minPixel = thumbnailMinPixelSize
@@ -1173,7 +1219,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
     }
 ```
 
-- [ ] **Step 4: 데이터소스에서 메모리 적중만 넘기기**
+- [x] **Step 4: 데이터소스에서 메모리 적중만 넘기기**
 
 `collectionView(_:itemForRepresentedObjectAt:)`의 `thumbnail` 클로저를 교체:
 
@@ -1186,7 +1232,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
         }()
 ```
 
-- [ ] **Step 5: delegate에 willDisplay / didEndDisplaying 추가**
+- [x] **Step 5: delegate에 willDisplay / didEndDisplaying 추가**
 
 `extension BrowserViewController: NSCollectionViewDelegate` 안, `pasteboardWriterForItemAt` 위에 추가:
 
@@ -1207,7 +1253,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
     }
 ```
 
-- [ ] **Step 6: 스크롤 멈춤 감지**
+- [x] **Step 6: 스크롤 멈춤 감지**
 
 `setupScrollView()` 끝에 추가:
 
@@ -1230,7 +1276,7 @@ git commit -m "feat: BrowserItem skeleton/failed/not-downloaded thumbnail states
 
 `updateThumbnailScale(_:)` 끝에도 `schedulePrefetch()` (셀 크기가 바뀌면 화면 분량이 바뀐다).
 
-- [ ] **Step 7: 빌드·수동 검증**
+- [x] **Step 7: 빌드·수동 검증** (2026-10-16 사용자 확인, 6항목 전부 정상)
 
 Run: `make build && make run`
 확인:
@@ -1265,7 +1311,7 @@ git commit -m "feat: pull-based thumbnail loading with visible-first priority an
 **Interfaces:**
 - Consumes: `ThumbnailProvider.shared.request/cachedThumbnail/invalidate/clearMemory/setMemoryLimit`.
 
-- [ ] **Step 1: ThumbnailStripView**
+- [x] **Step 1: ThumbnailStripView** (구현: init은 `thumbnailProvider: ThumbnailProvider? = nil`(MainActor 기본 인자 경고 회피). 검토 추가: `cell.objectValue = file.url`을 두고 완료 콜백에서 비교 — 재사용 셀에 다른 파일 썸네일이 그려지는 것 방지.)
 
 프로퍼티·init:
 
@@ -1301,7 +1347,7 @@ git commit -m "feat: pull-based thumbnail loading with visible-first priority an
     }
 ```
 
-- [ ] **Step 2: CompareCandidateStrip**
+- [x] **Step 2: CompareCandidateStrip** (`imageService` 프로퍼티·파라미터 제거, 호출처 `CompareWindowController.swift:71` 갱신)
 
 ```swift
     private static let thumbMinPixel = 144  // 72pt × 2
@@ -1318,7 +1364,7 @@ git commit -m "feat: pull-based thumbnail loading with visible-first priority an
 
 `imageService` 프로퍼티·init 파라미터는 다른 용도가 없으면 그대로 둬도 되고, 안 쓰면 제거한다(호출처 `CompareWindowController` 확인).
 
-- [ ] **Step 3: invalidate / clearAll / setMemoryLimit 호출처**
+- [x] **Step 3: invalidate / clearAll / setMemoryLimit 호출처**
 
 전부 치환:
 
@@ -1331,7 +1377,7 @@ grep -rn "ThumbnailCache.shared" Sources
 ```
 Expected: 마지막 grep에 `ThumbnailProvider+App.swift`의 `memoryCache: .shared`만 남거나 아무것도 없음.
 
-- [ ] **Step 4: 빌드·수동 검증**
+- [x] **Step 4: 빌드·수동 검증** (2026-10-16 사용자 확인, 5항목 정상)
 
 Run: `make build && make run`
 확인:
@@ -1341,7 +1387,7 @@ Run: `make build && make run`
 4. 이름 변경·이동·삭제 후 그리드 정상.
 5. 설정 > 썸네일 "적용" → 그리드가 비워졌다 다시 채워진다.
 
-- [ ] **Step 5: devlog 1단계 섹션**
+- [x] **Step 5: devlog 1단계 섹션** (`docs/devlog/2026-10-16.md`에 Task별로 기록)
 
 `docs/devlog/2026-10-15.md`에 추가(작업일이 바뀌었으면 그 날짜 파일):
 
@@ -1363,7 +1409,7 @@ Run: `make build && make run`
 - `Makefile` `test` 타깃, `Tests/` 신설.
 
 ## 검증
-- `make test` 통과(스케줄러 4, Provider 6).
+- `make test` 통과(스케줄러 6, Provider 7).
 - 수동: <Task 4 Step 7, Task 5 Step 4 항목 결과>
 
 ## 트레이드오프
@@ -1393,17 +1439,18 @@ git commit -m "refactor: route strip thumbnails and cache invalidation through T
   final class ThumbnailDiskStore {
       init(directory: URL, limitBytes: Int)   // 디렉터리 없으면 생성. 실패 시 isAvailable = false
       var isAvailable: Bool { get }
-      var limitBytes: Int { get set }         // 줄이면 즉시 GC
+      var limitBytes: Int { get set }         // 줄이면 GC를 utility 직렬 큐에 바로 건다(호출자는 기다리지 않음)
       var usedBytes: Int { get }
       static func key(path: String, mtimeSec: Int, fileSize: Int, px: Int) -> String   // "<hash16>_<mtime>_<size>_<px>"
       static func sourceStamp(of url: URL) -> (mtimeSec: Int, fileSize: Int)?
       /// 요청 px 이상인 단계 중 가장 작은 것을 돌려준다. 적중 시 파일 mtime을 지금으로 갱신(LRU).
       func lookup(url: URL, minPx: Int, levels: [Int]) -> CGImage?
       func store(_ image: CGImage, url: URL, px: Int)
-      func clear()
+      func clear()                            // 디렉터리를 옆으로 옮겨 즉시 0으로, 실제 삭제는 GC 큐에서
       func recount()
   }
   ```
+- **락 범위 원칙(2026-10-16 검토 반영):** `NSLock`은 `_usedBytes`·`_limitBytes`·플래그만 보호한다. HEIC 디코드(`lookup`)·인코드(`store`)·디렉터리 열거(GC)는 락 밖에서 한다. 안 그러면 워커 8개가 디스크 계층에서 전부 직렬화되고, `limitBytes`를 메인 스레드에서 내릴 때 GC(3만 파일 열거)가 UI를 1~2초 멈춘다. GC는 전용 `utility` 직렬 큐 하나에서만 돌아 서로 겹치지 않는다(스펙 §2.3).
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1483,8 +1530,9 @@ func runDiskStoreTests() {
             Thread.sleep(forTimeInterval: 0.02)  // 저장 시각 차이
         }
         let perItem = store.usedBytes / 6
-        store.limitBytes = perItem * 3
-        check(store.usedBytes <= Int(Double(perItem * 3) * 0.9) + perItem, "90% 근처까지 감소")
+        store.limitBytes = perItem * 3  // GC는 비동기(utility 큐)라 기다려야 한다
+        let target = Int(Double(perItem * 3) * 0.9) + perItem
+        check(waitUntil { store.usedBytes <= target }, "90% 근처까지 감소")
         check(store.lookup(url: files[0], minPx: 440, levels: levels) == nil, "가장 오래된 것 삭제")
         check(store.lookup(url: files[5], minPx: 440, levels: levels) != nil, "가장 최근 것 유지")
     }
@@ -1502,8 +1550,20 @@ func runDiskStoreTests() {
         _ = store.lookup(url: files[0], minPx: 440, levels: levels)  // 가장 오래된 것을 방금 씀
         let perItem = store.usedBytes / 3
         store.limitBytes = perItem * 2
+        check(waitUntil { store.usedBytes <= Int(Double(perItem * 2) * 0.9) + perItem }, "GC 완료")
         check(store.lookup(url: files[0], minPx: 440, levels: levels) != nil, "최근 사용한 것 유지")
         check(store.lookup(url: files[1], minPx: 440, levels: levels) == nil, "안 쓴 오래된 것 삭제")
+    }
+
+    runTest("limitBytes 변경은 호출자를 막지 않는다") {
+        let store = ThumbnailDiskStore(directory: root.appendingPathComponent("c8"), limitBytes: 100_000_000)
+        for i in 0..<4 {
+            store.store(makeCGImage(px: 440), url: makeSource(src, "n\(i).jpg", bytes: 10), px: 440)
+        }
+        let started = Date()
+        store.limitBytes = 1  // 전부 지워야 하는 상황
+        check(Date().timeIntervalSince(started) < 0.05, "setter가 GC를 기다리지 않음")
+        check(waitUntil { store.usedBytes == 0 }, "비동기 GC로 0까지")
     }
 
     runTest("clear는 전부 지우고 usedBytes 0") {
@@ -1549,12 +1609,17 @@ import ImageIO
 import UniformTypeIdentifiers
 
 /// 썸네일 디스크 캐시. 키에 경로 해시·mtime·크기·px가 들어 있어 원본이 바뀌면 키가 달라지고,
-/// 옛 항목은 GC(접근시각 LRU)가 치운다. 모든 메서드는 락으로 직렬화되어 어느 스레드에서 불러도 된다.
+/// 옛 항목은 GC(접근시각 LRU)가 치운다. 어느 스레드에서 불러도 된다.
+///
+/// 락은 바이트 카운터와 플래그만 지킨다. 디코드·인코드·디렉터리 열거는 락 밖에서 하므로
+/// 워커 여러 개가 디스크 계층에서 서로를 기다리지 않는다. GC는 `gcQueue`(utility, 직렬)에서만 돈다.
 final class ThumbnailDiskStore {
     private let directory: URL
-    private let lock = NSLock()
+    private let lock = NSLock()  // _limitBytes·_usedBytes·gcScheduled·loggedWriteFailure 전용
+    private let gcQueue = DispatchQueue(label: "com.jenalab.jenaimage.thumbnail-disk-gc", qos: .utility)
     private var _limitBytes: Int
     private var _usedBytes = 0
+    private var gcScheduled = false
     private(set) var isAvailable = false
     private var loggedWriteFailure = false
 
@@ -1572,9 +1637,8 @@ final class ThumbnailDiskStore {
     var limitBytes: Int {
         get { lock.lock(); defer { lock.unlock() }; return _limitBytes }
         set {
-            lock.lock(); defer { lock.unlock() }
-            _limitBytes = newValue
-            collectIfNeeded()
+            lock.lock(); _limitBytes = newValue; lock.unlock()
+            scheduleCollectIfNeeded()  // 메인 스레드(설정 슬라이더)에서 불러도 기다리지 않는다
         }
     }
 
@@ -1591,8 +1655,10 @@ final class ThumbnailDiskStore {
         return "\(hash16)_\(mtimeSec)_\(fileSize)_\(px)"
     }
 
+    /// 새 URL 인스턴스로 읽는다 — 리소스 값 캐시가 워커 스레드에서 비워지지 않아 mtime 변경을 놓치기 때문(Task 0 참고).
+    /// 비워진 iCloud 파일도 `fileSize`는 원본 크기를 돌려주므로 디스크 캐시 조회가 정상 동작한다.
     static func sourceStamp(of url: URL) -> (mtimeSec: Int, fileSize: Int)? {
-        guard let rv = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+        guard let rv = try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
               let mtime = rv.contentModificationDate, let size = rv.fileSize else { return nil }
         return (Int(mtime.timeIntervalSince1970), size)
     }
@@ -1603,9 +1669,10 @@ final class ThumbnailDiskStore {
 
     // MARK: - Lookup / Store
 
+    /// 락 없이 실행된다. 같은 키를 두 워커가 동시에 조회해도 읽기만 하므로 안전하고,
+    /// GC가 그 사이 파일을 지우면 디코드가 실패해 생성 경로로 넘어갈 뿐이다.
     func lookup(url: URL, minPx: Int, levels: [Int]) -> CGImage? {
         guard isAvailable, let stamp = Self.sourceStamp(of: url) else { return nil }
-        lock.lock(); defer { lock.unlock() }
         for px in levels.sorted() where px >= minPx {
             let key = Self.key(path: url.path, mtimeSec: stamp.mtimeSec, fileSize: stamp.fileSize, px: px)
             let file = fileURL(forKey: key)
@@ -1615,17 +1682,18 @@ final class ThumbnailDiskStore {
                 removeFile(file)  // 깨진 항목은 지우고 생성 경로로
                 continue
             }
+            // 접근시각 = 파일 mtime. 별도 메타 없이 LRU를 만든다(스펙 §2.3).
             try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: file.path)
             return img
         }
         return nil
     }
 
+    /// 인코드는 락 밖. 같은 키의 동시 저장은 Provider가 요청을 합치므로 일어나지 않는다.
     func store(_ image: CGImage, url: URL, px: Int) {
         guard isAvailable, let stamp = Self.sourceStamp(of: url) else { return }
         let key = Self.key(path: url.path, mtimeSec: stamp.mtimeSec, fileSize: stamp.fileSize, px: px)
         let file = fileURL(forKey: key)
-        lock.lock(); defer { lock.unlock() }
         guard !FileManager.default.fileExists(atPath: file.path) else { return }
         do {
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -1635,31 +1703,42 @@ final class ThumbnailDiskStore {
             CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
             guard CGImageDestinationFinalize(dest) else { throw CocoaError(.fileWriteUnknown) }
             let size = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            _usedBytes += size
-            collectIfNeeded()
+            lock.lock(); _usedBytes += size; lock.unlock()
+            scheduleCollectIfNeeded()
         } catch {
-            if !loggedWriteFailure {
-                loggedWriteFailure = true
-                NSLog("ThumbnailDiskStore: 쓰기 실패 — 메모리 캐시만으로 계속: \(error)")
-            }
+            lock.lock()
+            let firstTime = !loggedWriteFailure
+            loggedWriteFailure = true
+            lock.unlock()
+            if firstTime { NSLog("ThumbnailDiskStore: 쓰기 실패 — 메모리 캐시만으로 계속: \(error)") }
             try? FileManager.default.removeItem(at: file)
         }
     }
 
+    /// 디렉터리를 옆 이름으로 옮기고(즉시) 빈 디렉터리를 새로 만든다. 수만 개 파일의 실제 삭제는 GC 큐에서.
+    /// 호출자(설정 창)는 바로 usedBytes == 0을 본다.
     func clear() {
-        lock.lock(); defer { lock.unlock() }
-        try? FileManager.default.removeItem(at: directory)
+        guard isAvailable else { return }
+        let trash = directory.deletingLastPathComponent()
+            .appendingPathComponent("thumbs-trash-\(UUID().uuidString)", isDirectory: true)
+        lock.lock()
+        let moved = (try? FileManager.default.moveItem(at: directory, to: trash)) != nil
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         _usedBytes = 0
+        lock.unlock()
+        if moved {
+            gcQueue.async { try? FileManager.default.removeItem(at: trash) }
+        }
     }
 
-    /// 디렉터리를 훑어 usedBytes를 실제 값으로 맞춘다(비정상 종료 보정). 느리므로 백그라운드에서.
+    /// 디렉터리를 훑어 usedBytes를 실제 값으로 맞춘다(비정상 종료 보정). 느리므로 백그라운드에서 부른다.
     func recount() {
         let total = allEntries().reduce(0) { $0 + $1.size }
-        lock.lock(); _usedBytes = total; collectIfNeeded(); lock.unlock()
+        lock.lock(); _usedBytes = total; lock.unlock()
+        scheduleCollectIfNeeded()
     }
 
-    // MARK: - GC (락 안에서 호출)
+    // MARK: - GC (gcQueue에서만 실행)
 
     private struct Entry { let url: URL; let size: Int; let date: Date }
 
@@ -1674,11 +1753,26 @@ final class ThumbnailDiskStore {
         return out
     }
 
-    private func collectIfNeeded() {
-        guard _usedBytes > _limitBytes else { return }
-        let target = Int(Double(_limitBytes) * 0.9)
+    /// 한도를 넘었고 GC가 걸려 있지 않으면 한 번만 건다. 저장마다 호출돼도 디렉터리 열거는 GC 1회당 한 번이다.
+    private func scheduleCollectIfNeeded() {
+        lock.lock()
+        let needed = _usedBytes > _limitBytes && !gcScheduled
+        if needed { gcScheduled = true }
+        lock.unlock()
+        guard needed else { return }
+        gcQueue.async { [weak self] in self?.collect() }
+    }
+
+    private func collect() {
+        defer { lock.lock(); gcScheduled = false; lock.unlock() }
+        lock.lock()
+        let limit = _limitBytes
+        let over = _usedBytes > limit
+        lock.unlock()
+        guard over else { return }
+        let target = Int(Double(limit) * 0.9)
         for entry in allEntries().sorted(by: { $0.date < $1.date }) {
-            if _usedBytes <= target { break }
+            if usedBytes <= target { break }
             removeFile(entry.url, size: entry.size)
         }
     }
@@ -1686,7 +1780,7 @@ final class ThumbnailDiskStore {
     private func removeFile(_ url: URL, size: Int? = nil) {
         let s = size ?? ((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
         if (try? FileManager.default.removeItem(at: url)) != nil {
-            _usedBytes = max(0, _usedBytes - s)
+            lock.lock(); _usedBytes = max(0, _usedBytes - s); lock.unlock()
         }
     }
 }
@@ -1695,7 +1789,7 @@ final class ThumbnailDiskStore {
 - [ ] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `make test`
-Expected: DiskStore 9개 포함 전부 `✅`. HEIC 인코딩이 이 Mac에서 안 되면 `store 후 lookup` 테스트가 실패한다 — 그 경우 `UTType.heic`를 `UTType.jpeg`로, 확장자를 `.jpg`로 바꾸고 스펙 §핵심 결정 표의 "저장 포맷"을 갱신한다.
+Expected: DiskStore 10개 포함 전부 `✅`. GC 테스트 두 개는 `waitUntil`로 비동기 GC를 기다린다. HEIC 인코딩이 이 Mac에서 안 되면 `store 후 lookup` 테스트가 실패한다 — 그 경우 `UTType.heic`를 `UTType.jpeg`로, 확장자를 `.jpg`로 바꾸고 스펙 §핵심 결정 표의 "저장 포맷"을 갱신한다.
 
 - [ ] **Step 5: 커밋**
 
@@ -1845,7 +1939,7 @@ init 교체:
     }
 ```
 
-위 `produce` 본문의 `.image(…, store: false)` / `.image(img, store: true)` 세 곳을 모두 `.image(…)`로 바꾸고, `finish`는 어떤 경로든 메모리에 채운다(디스크 적중도 메모리에 올려야 다음 스크롤이 즉시):
+위 `produce` 본문의 `.image(…, store: false)` / `.image(img, store: true)` 세 곳을 모두 `.image(…)`로 바꾸고, `finish`는 어떤 경로든 메모리에 채운다(디스크 적중도 메모리에 올려야 다음 스크롤이 즉시). 대기자 유무와 무관하게 캐시에 먼저 넣는 순서는 Task 2와 같다:
 
 ```swift
         case .image(let img):
@@ -1889,7 +1983,7 @@ init 교체:
             if case .success(let img) = service.generateThumbnailSync(at: url, size: size) { return img }
             return nil
         }
-        provider.useQuickLookForEvicted = false  // Task 0 결과
+        provider.useQuickLookForEvicted = true  // Task 0 결과
         provider.scheduleDiskRecount()
         return provider
     }()
@@ -2014,6 +2108,8 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
         diskSlider.integerValue = mb
         ThumbnailProvider.shared.setDiskLimit(bytes: mb * 1024 * 1024)
         updateDiskLabels()
+        // GC는 utility 큐에서 비동기로 돌아 사용량이 뒤늦게 줄어든다. 잠시 뒤 라벨을 한 번 더 맞춘다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.updateDiskLabels() }
     }
 
     @objc private func clearDiskCache(_ sender: Any?) {
@@ -2027,7 +2123,7 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
 Run: `make build && make run`
 확인:
 1. 설정 > 썸네일: "디스크 한도" 슬라이더 기본 2.0 GB, 사용 중 표시, 비우기 버튼.
-2. 슬라이더를 사용량보다 아래로 내리면 사용 중 수치가 줄어든다.
+2. 슬라이더를 사용량보다 아래로 내리면 UI가 멈추지 않고, 1초 안에 사용 중 수치가 줄어든다.
 3. 비우기 → 사용 중 0, 버튼 비활성. 그리드로 돌아가면 다시 채워진다.
 4. 메모리 "적용"은 이전과 동일.
 
@@ -2066,13 +2162,13 @@ git commit -m "feat: disk thumbnail cache controls in Preferences > Thumbnails"
 # <날짜> (추가) — 썸네일 캐시 재설계 2단계: 디스크 캐시 · 설정 탭
 
 ## 변경 사항
-- `Sources/services/ThumbnailDiskStore.swift` 신설: 키 `<hash16>_<mtime>_<size>_<px>.heic`, LRU GC(90%), recount.
+- `Sources/services/ThumbnailDiskStore.swift` 신설: 키 `<hash16>_<mtime>_<size>_<px>.heic`, LRU GC(90%, utility 직렬 큐·비동기), recount, 비우기는 디렉터리 이동 후 백그라운드 삭제.
 - `ThumbnailProvider`: 메모리 → 디스크 → 생성. 시작 30초 뒤 recount.
 - `AppSettings.thumbnailDiskCacheMB`(기본 2048, 500~8192).
 - 설정 > 썸네일: 디스크 한도 슬라이더(즉시 반영)·사용 중·비우기.
 
 ## 검증
-- `make test`: 스케줄러 4 · Provider 8 · DiskStore 9 통과.
+- `make test`: 스케줄러 6 · Provider 9 · DiskStore 10 통과.
 - 수동 8항목: <결과>
 
 ## 트레이드오프
