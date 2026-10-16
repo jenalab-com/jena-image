@@ -22,6 +22,7 @@ final class AppSettings {
         case recursiveBrowsing = "browserRecursive"
         case thumbnailMaxPixel = "thumbnailMaxPixel"
         case thumbnailCacheMB = "thumbnailCacheMB"
+        case thumbnailDiskCacheMB = "thumbnailDiskCacheMB"
     }
 
     // MARK: - Language
@@ -173,6 +174,19 @@ final class AppSettings {
             return min(max(v, Self.thumbnailCacheMBRange.lowerBound), Self.thumbnailCacheMBRange.upperBound)
         }
         set { defaults.set(newValue, forKey: Key.thumbnailCacheMB.rawValue) }
+    }
+
+    static let thumbnailDiskCacheMBDefault = 2048
+    static let thumbnailDiskCacheMBRange = 500...8192
+
+    /// 썸네일 디스크 캐시 한도(MB). 기본 2048, 500~8192. "적용" 없이 즉시 반영.
+    var thumbnailDiskCacheMB: Int {
+        get {
+            if defaults.object(forKey: Key.thumbnailDiskCacheMB.rawValue) == nil { return Self.thumbnailDiskCacheMBDefault }
+            let v = defaults.integer(forKey: Key.thumbnailDiskCacheMB.rawValue)
+            return min(max(v, Self.thumbnailDiskCacheMBRange.lowerBound), Self.thumbnailDiskCacheMBRange.upperBound)
+        }
+        set { defaults.set(newValue, forKey: Key.thumbnailDiskCacheMB.rawValue) }
     }
 
     // MARK: - Slideshow

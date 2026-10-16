@@ -47,8 +47,12 @@ final class ThumbnailProvider {
     /// Task 0 스파이크 결과. true면 iCloud 비워진 파일의 visible 요청에 QuickLook 썸네일을 시도한다.
     var useQuickLookForEvicted = false
 
-    init(workerCount: Int, memoryCache: ThumbnailCache, generate: @escaping (URL, CGSize) -> NSImage?) {
+    private let diskStore: ThumbnailDiskStore?
+
+    init(workerCount: Int, memoryCache: ThumbnailCache, diskStore: ThumbnailDiskStore? = nil,
+         generate: @escaping (URL, CGSize) -> NSImage?) {
         self.memoryCache = memoryCache
+        self.diskStore = diskStore
         self.scheduler = ThumbnailScheduler(workerCount: workerCount)
         self.generate = generate
     }
@@ -122,15 +126,26 @@ final class ThumbnailProvider {
         memoryCache.setMemoryLimit(bytes: bytes)
     }
 
+    func setDiskLimit(bytes: Int) { diskStore?.limitBytes = bytes }
+    var diskUsedBytes: Int { diskStore?.usedBytes ?? 0 }
+    func clearDisk() { diskStore?.clear() }
+
+    /// 앱 시작 30초 뒤 디렉터리를 훑어 누적 바이트를 보정한다.
+    func scheduleDiskRecount() {
+        guard let diskStore else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 30) { diskStore.recount() }
+    }
+
     // MARK: - Pipeline
 
     private func schedule(key: Key, priority: ThumbnailPriority) -> ThumbnailScheduler.Token {
         let generate = self.generate
         let useQL = useQuickLookForEvicted
         let failedSnapshot = failedKeys
+        let diskStore = self.diskStore
         return scheduler.enqueue(priority: priority) { [weak self] isCancelled in
             let outcome = Self.produce(key: key, priority: priority, useQuickLook: useQL,
-                                       failedKeys: failedSnapshot, generate: generate)
+                                       failedKeys: failedSnapshot, diskStore: diskStore, generate: generate)
             if isCancelled() { return }
             Task { @MainActor [weak self] in
                 self?.finish(key: key, outcome: outcome)
@@ -139,29 +154,42 @@ final class ThumbnailProvider {
     }
 
     private enum Outcome {
-        case image(NSImage, store: Bool)
+        case image(NSImage)
         case failed(fileStamp: String)
         case notDownloaded
     }
 
-    /// 워커 스레드에서 실행. 디스크 조회는 Task 7에서 이 안에 끼운다.
+    /// 워커 스레드에서 실행.
     nonisolated private static func produce(key: Key, priority: ThumbnailPriority, useQuickLook: Bool,
-                                            failedKeys: Set<String>,
+                                            failedKeys: Set<String>, diskStore: ThumbnailDiskStore?,
                                             generate: (URL, CGSize) -> NSImage?) -> Outcome {
         let url = key.url
         let stamp = fileStamp(url)
         if failedKeys.contains(stamp) { return .failed(fileStamp: stamp) }
 
+        // 디스크 캐시는 iCloud 비워진 파일에도 유효하다(원본 메타데이터만 읽는다).
+        if let cg = diskStore?.lookup(url: url, minPx: key.level, levels: levels) {
+            return .image(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)))
+        }
+
         if isEvictedICloudItem(url) {
             if priority == .visible, useQuickLook, let img = quickLookThumbnail(url: url, level: key.level) {
-                return .image(img, store: false)
+                // iCloud 썸네일은 네트워크 왕복(스파이크 0.7초)이라 디스크에도 남긴다. 비워진 파일도 mtime·size는
+                // 읽히므로 키가 만들어지고, 뒤에 원본이 내려와도 같은 그림이라 그대로 유효하다.
+                if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                    diskStore?.store(cg, url: url, px: key.level)
+                }
+                return .image(img)
             }
             return .notDownloaded
         }
 
         let pt = CGFloat(key.level) / 2  // 생성 시 레티나 2배
         if let img = generate(url, CGSize(width: pt, height: pt)) {
-            return .image(img, store: true)
+            if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                diskStore?.store(cg, url: url, px: key.level)
+            }
+            return .image(img)
         }
         return .failed(fileStamp: stamp)
     }
@@ -171,8 +199,8 @@ final class ThumbnailProvider {
         // 결과도 이미 디코딩을 마친 것이라, 버리면 폴더를 다시 열 때 같은 비용을 두 번 낸다.
         let result: ThumbnailResult
         switch outcome {
-        case .image(let img, let store):
-            if store { memoryCache.store(img, for: key.url) }
+        case .image(let img):
+            memoryCache.store(img, for: key.url)
             result = .image(img)
         case .failed(let stamp):
             failedKeys.insert(stamp)
