@@ -69,8 +69,7 @@ final class CompareWindowController: NSWindowController {
         container.addSubview(gridView)
 
         let strip = CompareCandidateStrip(
-            files: buildCandidates(from: panes.map { $0.file }),
-            imageService: imageService
+            files: buildCandidates(from: panes.map { $0.file })
         )
         strip.onSelect = { [weak self] file in self?.handleCandidateSelected(file) }
         strip.translatesAutoresizingMaskIntoConstraints = false

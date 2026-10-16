@@ -6,13 +6,12 @@ final class CompareCandidateStrip: NSView {
 
     private let scrollView = NSScrollView()
     private let stack = NSStackView()
-    private let imageService: ImageServiceProtocol
     private let files: [ImageFile]
     private static let thumbSize = CGSize(width: 72, height: 54)
+    private static let thumbMinPixel = 144  // 72pt × 2
 
-    init(files: [ImageFile], imageService: ImageServiceProtocol) {
+    init(files: [ImageFile]) {
         self.files = files
-        self.imageService = imageService
         super.init(frame: .zero)
         setupViews()
     }
@@ -40,7 +39,7 @@ final class CompareCandidateStrip: NSView {
             button.translatesAutoresizingMaskIntoConstraints = false
             button.widthAnchor.constraint(equalToConstant: Self.thumbSize.width).isActive = true
             button.heightAnchor.constraint(equalToConstant: Self.thumbSize.height).isActive = true
-            if let cached = ThumbnailCache.shared.thumbnail(for: file.url) {
+            if let cached = ThumbnailProvider.shared.cachedThumbnail(for: file.url, minPixel: Self.thumbMinPixel) {
                 button.image = cached
             } else {
                 loadThumb(for: file, into: button)
@@ -60,12 +59,9 @@ final class CompareCandidateStrip: NSView {
     }
 
     private func loadThumb(for file: ImageFile, into button: NSButton) {
-        Task { [weak button] in
-            let result = await imageService.generateThumbnail(at: file.url, size: Self.thumbSize)
-            if case .success(let image) = result {
-                ThumbnailCache.shared.store(image, for: file.url)
-                await MainActor.run { button?.image = image }
-            }
+        ThumbnailProvider.shared.request(file.url, minPixel: Self.thumbMinPixel, priority: .visible) { [weak button] result in
+            guard case .image(let image) = result else { return }
+            button?.image = image
         }
     }
 
