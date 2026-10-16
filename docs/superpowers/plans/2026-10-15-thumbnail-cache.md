@@ -27,7 +27,7 @@
 
 ## Review Focus
 
-1. **스크롤 중 셀 재사용으로 다른 파일 썸네일이 잠깐 보임** — 셀이 재사용되면 이전 요청 결과가 새 파일 자리에 그려지면 안 된다. → Task 3 `BrowserItem` 테스트는 UI라 자동화 불가, Task 4 Step 7 수동 검증 항목으로 고정하고, 코드상 `representedURL` 비교를 완료 콜백에 둔다.
+1. **스크롤 중 셀 재사용으로 다른 파일 썸네일이 잠깐 보임** — (2026-10-16 추가) 반대 방향도 있다: `didEndDisplaying`이 재사용 뒤에 와서 새 요청을 끊으면 셀이 스켈레톤으로 남는다. 취소는 `representedURL == contents[indexPath].url`일 때만, 선로드 패스에서 비어 있는 보이는 셀을 재요청(자가 치유). — 셀이 재사용되면 이전 요청 결과가 새 파일 자리에 그려지면 안 된다. → Task 3 `BrowserItem` 테스트는 UI라 자동화 불가, Task 4 Step 7 수동 검증 항목으로 고정하고, 코드상 `representedURL` 비교를 완료 콜백에 둔다.
 2. **같은 파일을 그리드와 스트립이 동시에 요청** — 생성은 한 번, 두 완료가 모두 와야 한다. → Task 2 `testProviderCoalescesSameKey`.
 3. **mtime은 같고 크기만 다른 파일(일부 복사 도구가 mtime 보존)** — 키에 size가 들어 있어 다른 항목으로 취급해야 한다. → Task 6 `testKeyChangesWithSize`.
 4. **디스크 한도를 사용량보다 낮게 내렸을 때** — 즉시 GC가 돌아 90%까지 내려가야 한다. → Task 6 `testLoweringLimitTriggersGC`.
@@ -1452,7 +1452,7 @@ git commit -m "refactor: route strip thumbnails and cache invalidation through T
   ```
 - **락 범위 원칙(2026-10-16 검토 반영):** `NSLock`은 `_usedBytes`·`_limitBytes`·플래그만 보호한다. HEIC 디코드(`lookup`)·인코드(`store`)·디렉터리 열거(GC)는 락 밖에서 한다. 안 그러면 워커 8개가 디스크 계층에서 전부 직렬화되고, `limitBytes`를 메인 스레드에서 내릴 때 GC(3만 파일 열거)가 UI를 1~2초 멈춘다. GC는 전용 `utility` 직렬 큐 하나에서만 돌아 서로 겹치지 않는다(스펙 §2.3).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```swift
 // Tests/ThumbnailDiskStoreTests.swift
@@ -1594,12 +1594,12 @@ func runDiskStoreTests() {
 
 `Tests/main.swift`에 `runDiskStoreTests()` 줄을 `runSchedulerTests()` 아래에 추가. `Makefile` `TEST_SOURCES`에 `Sources/services/ThumbnailDiskStore.swift` 추가.
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `make test`
 Expected: `cannot find 'ThumbnailDiskStore' in scope`
 
-- [ ] **Step 3: DiskStore 구현**
+- [x] **Step 3: DiskStore 구현**
 
 ```swift
 // Sources/services/ThumbnailDiskStore.swift
@@ -1764,17 +1764,20 @@ final class ThumbnailDiskStore {
     }
 
     private func collect() {
-        defer { lock.lock(); gcScheduled = false; lock.unlock() }
         lock.lock()
         let limit = _limitBytes
         let over = _usedBytes > limit
         lock.unlock()
-        guard over else { return }
-        let target = Int(Double(limit) * 0.9)
-        for entry in allEntries().sorted(by: { $0.date < $1.date }) {
-            if usedBytes <= target { break }
-            removeFile(entry.url, size: entry.size)
+        if over {
+            let target = Int(Double(limit) * 0.9)
+            for entry in allEntries().sorted(by: { $0.date < $1.date }) {
+                if usedBytes <= target { break }
+                removeFile(entry.url, size: entry.size)
+            }
         }
+        lock.lock(); gcScheduled = false; lock.unlock()
+        // 도는 동안 한도가 더 내려갔거나 저장이 이어졌으면 한 번 더 건다(그 사이 요청은 gcScheduled 때문에 무시됐다).
+        scheduleCollectIfNeeded()
     }
 
     private func removeFile(_ url: URL, size: Int? = nil) {
@@ -1786,7 +1789,7 @@ final class ThumbnailDiskStore {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인** (2026-10-16: 23/23, HEIC 인코딩 정상. 검토 추가: `collect()` 끝에서 `gcScheduled`를 내린 뒤 `scheduleCollectIfNeeded()`를 한 번 더 — GC 도는 동안 내려간 한도가 다음 저장까지 미적용되던 구멍)
 
 Run: `make test`
 Expected: DiskStore 10개 포함 전부 `✅`. GC 테스트 두 개는 `waitUntil`로 비동기 GC를 기다린다. HEIC 인코딩이 이 Mac에서 안 되면 `store 후 lookup` 테스트가 실패한다 — 그 경우 `UTType.heic`를 `UTType.jpeg`로, 확장자를 `.jpg`로 바꾸고 스펙 §핵심 결정 표의 "저장 포맷"을 갱신한다.
@@ -1820,7 +1823,7 @@ git commit -m "feat: ThumbnailDiskStore with content-stamped keys and LRU GC"
   AppSettings.thumbnailDiskCacheMBDefault / thumbnailDiskCacheMBRange
   ```
 
-- [ ] **Step 1: 실패하는 테스트 추가**
+- [x] **Step 1: 실패하는 테스트 추가**
 
 `Tests/ThumbnailProviderTests.swift`의 `runProviderTests()` 안, 마지막 `runTest` 뒤에 추가:
 
@@ -1861,12 +1864,12 @@ git commit -m "feat: ThumbnailDiskStore with content-stamped keys and LRU GC"
 
 기존 테스트의 `ThumbnailProvider(workerCount:memoryCache:)` 호출은 그대로 둔다(아래에서 `diskStore` 기본값 nil).
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `make test`
 Expected: `extra argument 'diskStore' in call`
 
-- [ ] **Step 3: Provider 수정**
+- [x] **Step 3: Provider 수정**
 
 init 교체:
 
@@ -1947,7 +1950,7 @@ init 교체:
             result = .image(img)
 ```
 
-- [ ] **Step 4: AppSettings 키 추가**
+- [x] **Step 4: AppSettings 키 추가**
 
 `Key` enum에 `case thumbnailDiskCacheMB = "thumbnailDiskCacheMB"`. `thumbnailCacheMB` 아래에:
 
@@ -1966,7 +1969,7 @@ init 교체:
     }
 ```
 
-- [ ] **Step 5: +App.swift에 디스크 연결**
+- [x] **Step 5: +App.swift에 디스크 연결**
 
 ```swift
     static let shared: ThumbnailProvider = {
@@ -1989,12 +1992,12 @@ init 교체:
     }()
 ```
 
-- [ ] **Step 6: 테스트·빌드**
+- [x] **Step 6: 테스트·빌드** (2026-10-16: 25/25, 빌드 0. 검토 반영: `ThumbnailDiskStore`를 `@unchecked Sendable`로 선언(워커 @Sendable 클로저 캡처 경고), QuickLook으로 받은 iCloud 썸네일도 디스크에 저장 — 안 하면 비워진 파일은 세션마다 네트워크 왕복)
 
 Run: `make test && make build`
-Expected: 전부 통과, 빌드 성공.
+Expected: 전부 통과, 빌드 성공. (`produce`의 QuickLook 분기에서도 `diskStore?.store`를 호출한다.)
 
-- [ ] **Step 7: 수동 검증**
+- [x] **Step 7: 수동 검증** (2026-10-16 사용자 확인)
 
 `make run` 후 큰 폴더를 끝까지 한 번 훑고 앱 종료 → 재실행 → 같은 폴더. 스켈레톤 거의 없이 즉시 채워진다. `du -sh ~/Library/Caches/com.jenalab.jenaimage/thumbs` 로 크기 확인.
 
@@ -2015,7 +2018,7 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
 **Interfaces:**
 - Consumes: `AppSettings.thumbnailDiskCacheMB/Default/Range`, `ThumbnailProvider.shared.setDiskLimit/diskUsedBytes/clearDisk`.
 
-- [ ] **Step 1: 컨트롤 프로퍼티 추가**
+- [x] **Step 1: 컨트롤 프로퍼티 추가**
 
 `applyButton` 아래:
 
@@ -2026,7 +2029,7 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
     private let diskClearButton = NSButton(title: "비우기", target: nil, action: nil)
 ```
 
-- [ ] **Step 2: 뷰 구성**
+- [x] **Step 2: 뷰 구성**
 
 `createThumbnailView()`에서 `container.addSubview(applyButton)` 앞에 추가:
 
@@ -2082,7 +2085,7 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
 
 `updateThumbnailHint()` 호출 뒤에 `updateDiskLabels()`.
 
-- [ ] **Step 3: 동작 메서드**
+- [x] **Step 3: 동작 메서드** (구현 차이: 드래그 중(`leftMouseDragged`)엔 값 라벨만 바꾸고 한도 저장·`setDiskLimit`은 손을 뗄 때 — 중간 값마다 적용하면 GC가 파일을 지워 되돌릴 수 없다. 사용량 문구는 "사용 중 X"로 줄임(창 폭 480 안에 비우기 버튼과 함께 두기 위해).)
 
 `applyThumbnailSettings(_:)` 아래에 추가:
 
@@ -2118,7 +2121,7 @@ git commit -m "feat: disk thumbnail cache wired into ThumbnailProvider; disk lim
     }
 ```
 
-- [ ] **Step 4: 빌드·수동 검증**
+- [x] **Step 4: 빌드·수동 검증** (2026-10-16 사용자 확인; "사용 중" 라벨 미갱신 버그 → 창 열 때·2초 주기 갱신으로 수정)
 
 Run: `make build && make run`
 확인:
