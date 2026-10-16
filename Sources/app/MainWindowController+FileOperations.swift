@@ -26,7 +26,7 @@ extension MainWindowController {
             if case .failure = fileService.trashFile(at: url) {
                 failedURLs.append(url)
             } else {
-                ThumbnailCache.shared.invalidate(for: url)
+                ThumbnailProvider.shared.invalidate(for: url)
                 bookmarkStore.remove(url)
             }
         }
@@ -67,7 +67,7 @@ extension MainWindowController {
             let result = fileService.moveFile(from: url, to: target)
             switch result {
             case .success:
-                ThumbnailCache.shared.invalidate(for: url)
+                ThumbnailProvider.shared.invalidate(for: url)
             case .failure(let error):
                 if case .nameConflict = error {
                     handleFileConflict(source: url, target: target, isMove: true)
@@ -120,7 +120,7 @@ extension MainWindowController {
         let result = fileService.renameFile(at: url, newName: newName)
         switch result {
         case .success(let newURL):
-            ThumbnailCache.shared.invalidate(for: url)
+            ThumbnailProvider.shared.invalidate(for: url)
             bookmarkStore.rename(from: url, to: newURL)
             if contentMode == .viewer {
                 viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)

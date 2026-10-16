@@ -126,7 +126,7 @@ extension MainWindowController {
                 // 잘라넣기 → 이동
                 let result = fileService.moveFile(from: url, to: folderURL)
                 if case .success = result {
-                    ThumbnailCache.shared.invalidate(for: url)
+                    ThumbnailProvider.shared.invalidate(for: url)
                     pastedAny = true
                     // 원본 폴더 갱신
                     sidebarVC.reloadFolder(at: url.deletingLastPathComponent())

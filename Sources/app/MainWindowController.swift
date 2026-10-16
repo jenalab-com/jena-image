@@ -234,7 +234,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     /// 앱 시작 시 저장된 캐시 한도를 반영하고, 설정 창의 "적용"을 받는다.
     func setupThumbnailSettings() {
-        ThumbnailCache.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
+        ThumbnailProvider.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
         NotificationCenter.default.addObserver(
             forName: .thumbnailSettingsApplied, object: nil, queue: .main
         ) { [weak self] _ in
@@ -244,8 +244,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     /// 한도 갱신 + 캐시 비움 + 현재 폴더 재로드. 비용이 드는 작업이라 실시간이 아니라 "적용" 때만 수행.
     private func applyThumbnailSettings() {
-        ThumbnailCache.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
-        ThumbnailCache.shared.clearAll()
+        ThumbnailProvider.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
+        ThumbnailProvider.shared.clearMemory()
         guard contentMode == .browser, !browserVC.isBookmarkMode else { return }
         refreshAfterExternalChange()
     }

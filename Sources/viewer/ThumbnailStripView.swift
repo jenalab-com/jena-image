@@ -9,10 +9,12 @@ final class ThumbnailStripView: NSView {
     private var images: [ImageFile] = []
     private var selectedIndex: Int = 0
 
-    private let thumbnailCache: ThumbnailCache
+    private let thumbnailProvider: ThumbnailProvider
     private let imageService: ImageServiceProtocol
 
     private static let thumbnailSize = CGSize(width: 80, height: 60)
+    /// 80pt 셀 × 레티나 2배. Provider가 220 단계로 올려 생성하므로 그리드와 공유된다.
+    private static let thumbnailMinPixel = 160
     private static let nameFont = NSFont.systemFont(ofSize: 10)
     private static let maxNameLines = 3
     /// 셀 좌우 여백(leading 4 + trailing 4)
@@ -25,10 +27,11 @@ final class ThumbnailStripView: NSView {
 
     init(
         imageService: ImageServiceProtocol = ImageService(),
-        thumbnailCache: ThumbnailCache = .shared
+        thumbnailProvider: ThumbnailProvider? = nil
     ) {
         self.imageService = imageService
-        self.thumbnailCache = thumbnailCache
+        // MainActor 격리 기본 인자 경고를 피하려 nil로 받아 init 안에서 .shared로 결정한다.
+        self.thumbnailProvider = thumbnailProvider ?? .shared
         super.init(frame: .zero)
         setupViews()
     }
@@ -128,8 +131,9 @@ extension ThumbnailStripView: NSTableViewDelegate {
             ?? createCell(identifier: identifier)
 
         cell.textField?.stringValue = file.nameWithoutExtension
+        cell.objectValue = file.url  // 재사용된 셀에 늦게 도착한 썸네일이 그려지지 않도록 완료 콜백이 비교하는 기준
 
-        if let cached = thumbnailCache.thumbnail(for: file.url) {
+        if let cached = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: Self.thumbnailMinPixel) {
             cell.imageView?.image = cached
         } else {
             cell.imageView?.image = nil
@@ -212,13 +216,11 @@ extension ThumbnailStripView: NSTableViewDelegate {
     }
 
     private func loadThumbnail(for file: ImageFile, cell: NSTableCellView) {
-        Task { [weak self] in
-            guard let self else { return }
-            let result = await self.imageService.generateThumbnail(at: file.url, size: Self.thumbnailSize)
-            if case .success(let image) = result {
-                self.thumbnailCache.store(image, for: file.url)
-                await MainActor.run { cell.imageView?.image = image }
-            }
+        let url = file.url
+        thumbnailProvider.request(url, minPixel: Self.thumbnailMinPixel, priority: .visible) { [weak cell] result in
+            // 셀이 그 사이 다른 행에 재사용됐으면 버린다(그리드의 representedURL 비교와 같은 역할).
+            guard let cell, cell.objectValue as? URL == url, case .image(let image) = result else { return }
+            cell.imageView?.image = image
         }
     }
 }

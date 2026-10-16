@@ -172,22 +172,21 @@ final class BrowserViewController: NSViewController {
     private var recursiveRootURL: URL?
     private var thumbnailScale: CGFloat = 1.0
 
-    /// 그리드 썸네일 요청 크기(pt). 생성 시 2배(레티나)로 만들어지므로 설정 픽셀의 절반을 요청한다.
-    private var thumbnailRequestSize: CGSize {
-        let pt = CGFloat(AppSettings.shared.thumbnailMaxPixel.rawValue) / 2
-        return CGSize(width: pt, height: pt)
-    }
     private var thumbnailMinPixelSize: Int { AppSettings.shared.thumbnailMaxPixel.rawValue }
-    private var thumbnailTask: Task<Void, Never>?
     private var renameWorkItem: DispatchWorkItem?
     private var dropHighlightIndex: Int?
+    /// 선로드(앞뒤 2화면) 요청 토큰. 다음 선로드 때 전부 취소하고 다시 건다.
+    private var prefetchTokens: [ThumbnailRequestToken] = []
+    private var prefetchWorkItem: DispatchWorkItem?
 
     private let imageService: ImageServiceProtocol
-    private let thumbnailCache: ThumbnailCache
+    private let thumbnailProvider: ThumbnailProvider
 
-    init(imageService: ImageServiceProtocol = ImageService(), thumbnailCache: ThumbnailCache = .shared) {
+    /// `thumbnailProvider`의 기본값을 `.shared`로 두면 기본 인자가 비격리 문맥에서 평가돼 MainActor 경고가 난다.
+    /// 그래서 nil을 받아 MainActor인 init 안에서 `.shared`로 푼다.
+    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil) {
         self.imageService = imageService
-        self.thumbnailCache = thumbnailCache
+        self.thumbnailProvider = thumbnailProvider ?? .shared
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -208,7 +207,7 @@ final class BrowserViewController: NSViewController {
     /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
     func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
         isBookmarkMode = false
-        thumbnailTask?.cancel()
+        cancelAllThumbnailRequests()
         if recursiveRootURL != recursiveRoot {
             recursiveRootURL = recursiveRoot
             applyItemSize()
@@ -224,13 +223,13 @@ final class BrowserViewController: NSViewController {
         collectionView.reloadData()
         collectionView.deselectAll(nil)
 
-        loadThumbnails(for: imageItems)
+        schedulePrefetch()
     }
 
     /// 북마크(임의 위치 이미지) 평면 목록을 표시한다.
     func displayBookmarks(_ files: [ImageFile]) {
         isBookmarkMode = true
-        thumbnailTask?.cancel()
+        cancelAllThumbnailRequests()
         if recursiveRootURL != nil {
             recursiveRootURL = nil
             applyItemSize()
@@ -239,7 +238,7 @@ final class BrowserViewController: NSViewController {
         contents = files.map { BrowserContent.image($0) }
         collectionView.reloadData()
         collectionView.deselectAll(nil)
-        loadThumbnails(for: files)
+        schedulePrefetch()
         updateEmptyState()
     }
 
@@ -262,6 +261,7 @@ final class BrowserViewController: NSViewController {
     func updateThumbnailScale(_ scale: CGFloat) {
         thumbnailScale = scale
         applyItemSize()
+        schedulePrefetch()  // 셀 크기가 바뀌면 화면 분량이 바뀐다
     }
 
     /// 셀 크기 = 기본 크기 × 배율. 하위 폴더 포함 보기에선 경로 줄 높이만큼 더한다(글자 크기는 고정이므로 배율 미적용).
@@ -292,40 +292,67 @@ final class BrowserViewController: NSViewController {
         scheduleRename(at: indexPath)
     }
 
-    // MARK: - Thumbnail Loading
+    // MARK: - Thumbnail Loading (당겨 가기)
 
-    private func loadThumbnails(for images: [ImageFile]) {
-        let thumbnailSize = thumbnailRequestSize
+    private func cancelAllThumbnailRequests() {
+        prefetchWorkItem?.cancel()
+        prefetchTokens.removeAll()
+        thumbnailProvider.cancelAllPending()
+        for case let item as BrowserItem in collectionView.visibleItems() {
+            item.thumbnailToken = nil
+        }
+    }
+
+    /// 셀이 화면에 들어올 때. 메모리 적중이면 동기 완료라 토큰이 nil로 돌아온다.
+    private func requestThumbnail(for item: BrowserItem, url: URL) {
+        guard !item.hasThumbnail, item.thumbnailToken == nil else { return }
+        let token = thumbnailProvider.request(url, minPixel: thumbnailMinPixelSize, priority: .visible) { [weak item] result in
+            guard let item, item.representedURL == url else { return }
+            item.thumbnailToken = nil
+            item.showThumbnailResult(result)
+        }
+        item.thumbnailToken = token
+    }
+
+    private func cancelThumbnail(for item: BrowserItem) {
+        if let token = item.thumbnailToken {
+            thumbnailProvider.cancel(token)
+            item.thumbnailToken = nil
+        }
+    }
+
+    /// 스크롤이 멈추고 0.1초 뒤, 보이는 범위 앞뒤 2화면 분량을 선로드한다.
+    private func schedulePrefetch() {
+        prefetchWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.prefetchAroundVisibleRect() }
+        prefetchWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+    }
+
+    private func prefetchAroundVisibleRect() {
+        for t in prefetchTokens { thumbnailProvider.cancel(t) }
+        prefetchTokens.removeAll()
+
+        let visible = collectionView.visibleRect
+        guard visible.height > 0, let layout = collectionView.collectionViewLayout else { return }
+        let extended = visible.insetBy(dx: 0, dy: -visible.height * 2)
+        let visibleIndexes = Set(collectionView.indexPathsForVisibleItems())
+        let targets = layout.layoutAttributesForElements(in: extended)
+            .compactMap(\.indexPath)
+            .filter { !visibleIndexes.contains($0) }
+
         let minPixel = thumbnailMinPixelSize
-
-        thumbnailTask = Task { [weak self] in
-            guard let self else { return }
-
-            for file in images {
-                guard !Task.isCancelled else { return }
-
-                // 스트립용 작은 썸네일이 캐시돼 있으면 건너뛰고 큰 크기로 다시 만든다.
-                if let cached = self.thumbnailCache.thumbnail(for: file.url, minPixelSize: minPixel) {
-                    await MainActor.run { self.updateCellThumbnail(for: file.url, image: cached) }
-                    continue
-                }
-
-                let result = await self.imageService.generateThumbnail(at: file.url, size: thumbnailSize)
-                guard !Task.isCancelled else { return }
-
-                if case .success(let thumbnail) = result {
-                    self.thumbnailCache.store(thumbnail, for: file.url)
-                    await MainActor.run { self.updateCellThumbnail(for: file.url, image: thumbnail) }
-                }
+        for indexPath in targets {
+            guard let content = contents[safe: indexPath.item], case .image(let file) = content else { continue }
+            // 선로드는 메모리 캐시에 채우기만 한다. 셀이 보이게 되면 willDisplay가 적중으로 받아 간다.
+            if let token = thumbnailProvider.request(file.url, minPixel: minPixel, priority: .prefetch, completion: { _ in }) {
+                prefetchTokens.append(token)
             }
         }
     }
 
-    private func updateCellThumbnail(for url: URL, image: NSImage) {
-        guard let index = contents.firstIndex(where: { $0.url == url }) else { return }
-        let indexPath = IndexPath(item: index, section: 0)
-        guard let item = collectionView.item(at: indexPath) as? BrowserItem else { return }
-        item.updateThumbnail(image)
+    @objc private func scrollBoundsChanged(_ note: Notification) {
+        schedulePrefetch()
     }
 
     // MARK: - Rename
@@ -531,6 +558,13 @@ final class BrowserViewController: NSViewController {
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
+
+        // 스크롤이 멈추면 앞뒤 2화면 선로드. 프로그램 스크롤(선택 복원 등)도 bounds 변경으로 잡는다.
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(scrollBoundsChanged), name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
     }
 
     private func setupCollectionView() {
@@ -631,7 +665,7 @@ extension BrowserViewController: NSCollectionViewDataSource {
         let content = contents[indexPath.item]
         let thumbnail: NSImage? = {
             if case .image(let file) = content {
-                return thumbnailCache.thumbnail(for: file.url)
+                return thumbnailProvider.cachedThumbnail(for: file.url, minPixel: thumbnailMinPixelSize)
             }
             return nil
         }()
@@ -667,6 +701,21 @@ extension BrowserViewController: NSCollectionViewDataSource {
 // MARK: - NSCollectionViewDelegate
 
 extension BrowserViewController: NSCollectionViewDelegate {
+    func collectionView(_ collectionView: NSCollectionView, willDisplay item: NSCollectionViewItem,
+                        forRepresentedObjectAt indexPath: IndexPath) {
+        guard let cell = item as? BrowserItem,
+              let content = contents[safe: indexPath.item],
+              case .image(let file) = content
+        else { return }
+        requestThumbnail(for: cell, url: file.url)
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, didEndDisplaying item: NSCollectionViewItem,
+                        forRepresentedObjectAt indexPath: IndexPath) {
+        guard let cell = item as? BrowserItem else { return }
+        cancelThumbnail(for: cell)
+    }
+
     func collectionView(
         _ collectionView: NSCollectionView,
         pasteboardWriterForItemAt indexPath: IndexPath
