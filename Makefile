@@ -3,12 +3,12 @@ BUNDLE_ID    = com.jenalab.jenaimage
 VERSION      = 1.6.1
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
-FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz
+FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing
 
 APP_BUNDLE   = $(BUILD_DIR)/$(APP_NAME).app
 BINARY       = $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 
-.PHONY: build run clean install pkg dmg
+.PHONY: build run clean install pkg dmg test
 
 build: $(BINARY)
 
@@ -44,3 +44,13 @@ dmg: build
 	hdiutil create -volname $(APP_NAME) -srcfolder /tmp/$(APP_NAME)_dmg_staging -ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
 	@rm -rf /tmp/$(APP_NAME)_dmg_staging
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
+
+TEST_SOURCES = Sources/services/ThumbnailScheduler.swift \
+               Sources/services/ThumbnailCache.swift \
+               Sources/services/ThumbnailProvider.swift \
+               $(shell find Tests -name '*.swift')
+
+test:
+	@mkdir -p $(BUILD_DIR)
+	swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers $(TEST_SOURCES) -o $(BUILD_DIR)/tests
+	@$(BUILD_DIR)/tests

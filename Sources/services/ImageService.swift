@@ -111,6 +111,25 @@ final class ImageService: ImageServiceProtocol, @unchecked Sendable {
         }.value
     }
 
+    /// 워커 스레드용 동기 생성. 이미지는 바로 디코딩하고, 영상은 AVAssetImageGenerator(비동기)를 세마포어로 기다린다.
+    /// 메인 스레드에서 부르면 안 된다.
+    func generateThumbnailSync(at url: URL, size: CGSize) -> Result<NSImage, ImageServiceError> {
+        let ext = url.pathExtension.lowercased()
+        if ImageFile.videoExtensions.contains(ext) {
+            // 동시 실행 컨텍스트에서 캡처한 var를 바꿀 수 없어 상자로 감싼다.
+            final class Box: @unchecked Sendable { var value: Result<NSImage, ImageServiceError>; init(_ v: Result<NSImage, ImageServiceError>) { value = v } }
+            let box = Box(.failure(.thumbnailFailed(url)))
+            let sem = DispatchSemaphore(value: 0)
+            Task.detached { [self] in
+                box.value = await generateVideoThumbnail(at: url, size: size)
+                sem.signal()
+            }
+            sem.wait()
+            return box.value
+        }
+        return generateImageThumbnailSync(at: url, size: size)
+    }
+
     private func generateImageThumbnailSync(at url: URL, size: CGSize) -> Result<NSImage, ImageServiceError> {
         let ext = url.pathExtension.lowercased()
 
