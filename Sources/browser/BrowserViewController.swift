@@ -333,6 +333,16 @@ final class BrowserViewController: NSViewController {
         for t in prefetchTokens { thumbnailProvider.cancel(t) }
         prefetchTokens.removeAll()
 
+        // 자가 치유: 보이는 셀 중 썸네일도 진행 중인 요청도 없는 것은 다시 건다.
+        // (willDisplay/didEndDisplaying 순서 역전, reloadData 경로 등 어떤 이유로 요청이 끊겨도 스크롤 멈춤 뒤 0.1초 안에 회복)
+        for case let cell as BrowserItem in collectionView.visibleItems() {
+            guard !cell.hasThumbnail, cell.thumbnailToken == nil, let url = cell.representedURL,
+                  let indexPath = collectionView.indexPath(for: cell),
+                  let content = contents[safe: indexPath.item], case .image = content, content.url == url
+            else { continue }
+            requestThumbnail(for: cell, url: url)
+        }
+
         let visible = collectionView.visibleRect
         guard visible.height > 0, let layout = collectionView.collectionViewLayout else { return }
         let extended = visible.insetBy(dx: 0, dy: -visible.height * 2)
@@ -713,6 +723,9 @@ extension BrowserViewController: NSCollectionViewDelegate {
     func collectionView(_ collectionView: NSCollectionView, didEndDisplaying item: NSCollectionViewItem,
                         forRepresentedObjectAt indexPath: IndexPath) {
         guard let cell = item as? BrowserItem else { return }
+        // 이 콜백은 셀이 이미 다른 자리에 재사용된 뒤 도착하기도 한다. 그때 취소하면 새 자리의 요청이 끊겨
+        // 셀이 다시 스크롤될 때까지 스켈레톤으로 남는다. 셀이 아직 옛 자리의 파일을 보고 있을 때만 취소한다.
+        if let content = contents[safe: indexPath.item], cell.representedURL != content.url { return }
         cancelThumbnail(for: cell)
     }
 
