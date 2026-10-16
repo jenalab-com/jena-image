@@ -18,6 +18,9 @@ $(BINARY): $(SOURCES)
 	swiftc $(FRAMEWORKS) -O $(SOURCES) -o $(BINARY)
 	@cp Info.plist $(APP_BUNDLE)/Contents/
 	@[ -f Resources/$(APP_NAME).icns ] && cp Resources/$(APP_NAME).icns $(APP_BUNDLE)/Contents/Resources/$(APP_NAME).icns || true
+	@# 번들 전체 ad-hoc 서명. 링커가 붙인 실행 파일 서명만으로는 Info.plist·리소스가 봉인되지 않아
+	@# 다른 Mac에서 Gatekeeper가 "손상됨"으로 거부한다(공증과 별개). 서명이 일관되면 "확인되지 않은 개발자" 흐름으로 열린다.
+	@codesign --force --deep --sign - $(APP_BUNDLE)
 
 run: build
 	@open $(APP_BUNDLE)
