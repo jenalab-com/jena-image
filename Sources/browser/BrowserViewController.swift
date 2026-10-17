@@ -36,23 +36,57 @@ private final class DoubleClickCollectionView: NSCollectionView {
         return super.menu(for: event)
     }
 
+    // MARK: 선택 앵커 (Finder 방식 Shift 범위 선택)
+
+    /// 마지막으로 수정키 없이 또는 Cmd로 클릭한 항목. Shift 클릭은 여기서부터 클릭한 항목까지를 선택한다.
+    private var selectionAnchor: IndexPath?
+    /// 앵커를 찍은 직후의 선택 집합. Shift 범위는 여기에 합쳐져, Cmd로 골라둔 다른 항목이 유지된다(Finder 동작).
+    private var anchorSelection: Set<IndexPath> = []
+
+    /// 목록이 바뀌면(폴더 이동·북마크 보기 등) 앵커는 의미가 없다.
+    func resetSelectionAnchor() {
+        selectionAnchor = nil
+        anchorSelection = []
+    }
+
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
         let isDoubleClick = event.clickCount == 2
         let isSingleClick = event.clickCount == 1
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let isShift = flags.contains(.shift)
+        let isCommand = flags.contains(.command)
 
-        // 싱글 클릭 시 이미 선택된 아이템인지 확인
         let clickedIndexPath = indexPathForItem(at: clickPoint)
         let wasSelected = clickedIndexPath.flatMap { selectionIndexPaths.contains($0) } ?? false
 
+        // Shift 클릭: 앵커 ~ 클릭 항목 범위를 앵커 시점 선택에 합친다. 기본 구현(토글)은 타지 않는다.
+        if isSingleClick, isShift, !isCommand, allowsMultipleSelection, let clicked = clickedIndexPath {
+            window?.makeFirstResponder(self)
+            let count = numberOfItems(inSection: 0)
+            let anchor = (selectionAnchor.map { $0.item < count } ?? false) ? selectionAnchor! : clicked
+            if selectionAnchor == nil { anchorSelection = selectionIndexPaths; selectionAnchor = clicked }
+            let lo = min(anchor.item, clicked.item), hi = max(anchor.item, clicked.item)
+            let range = Set((lo...hi).map { IndexPath(item: $0, section: 0) })
+            selectionIndexPaths = anchorSelection.union(range)
+            return
+        }
+
         didDrag = false
-        super.mouseDown(with: event)
+        super.mouseDown(with: event)  // 일반 클릭(단일 선택)·Cmd 클릭(토글)·드래그는 기본 구현
 
         guard !didDrag else { return }
 
+        // 수정키 없는 클릭과 Cmd 클릭이 다음 Shift 범위의 앵커가 된다.
+        if isSingleClick, let clicked = clickedIndexPath {
+            selectionAnchor = clicked
+            anchorSelection = selectionIndexPaths
+        }
+
         if isDoubleClick, let indexPath = clickedIndexPath {
             onDoubleClick?(indexPath)
-        } else if isSingleClick && wasSelected, let indexPath = clickedIndexPath {
+        } else if isSingleClick && wasSelected && !isCommand && !isShift, let indexPath = clickedIndexPath {
+            // 수정키가 있으면 선택 조정이지 "이름 변경" 의도가 아니다
             onClickSelectedItem?(indexPath)
         }
     }
@@ -222,6 +256,7 @@ final class BrowserViewController: NSViewController {
         bookmarkEmptyLabel.isHidden = true
         collectionView.reloadData()
         collectionView.deselectAll(nil)
+        collectionView.resetSelectionAnchor()
 
         schedulePrefetch()
     }
@@ -238,6 +273,7 @@ final class BrowserViewController: NSViewController {
         contents = files.map { BrowserContent.image($0) }
         collectionView.reloadData()
         collectionView.deselectAll(nil)
+        collectionView.resetSelectionAnchor()
         schedulePrefetch()
         updateEmptyState()
     }
