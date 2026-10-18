@@ -58,6 +58,8 @@ enum L10nKey: String {
     case zoomOut
     case actualSize
     case fitToWindow
+    case fitHeight
+    case fitWidth
 
     // Window
     case window
@@ -162,6 +164,8 @@ enum L10n {
             .zoomOut: "축소",
             .actualSize: "원본 크기",
             .fitToWindow: "화면에 맞춤",
+            .fitHeight: "세로 맞춤",
+            .fitWidth: "가로 맞춤",
             .window: "윈도우",
             .minimize: "최소화",
             .zoom: "확대/축소",
@@ -233,6 +237,8 @@ enum L10n {
             .zoomOut: "Zoom Out",
             .actualSize: "Actual Size",
             .fitToWindow: "Fit to Window",
+            .fitHeight: "Fit Height",
+            .fitWidth: "Fit Width",
             .window: "Window",
             .minimize: "Minimize",
             .zoom: "Zoom",
@@ -304,6 +310,8 @@ enum L10n {
             .zoomOut: "縮小",
             .actualSize: "原寸大",
             .fitToWindow: "ウインドウに合わせる",
+            .fitHeight: "高さに合わせる",
+            .fitWidth: "幅に合わせる",
             .window: "ウインドウ",
             .minimize: "最小化",
             .zoom: "拡大/縮小",
@@ -375,6 +383,8 @@ enum L10n {
             .zoomOut: "缩小",
             .actualSize: "实际大小",
             .fitToWindow: "适合窗口",
+            .fitHeight: "适合高度",
+            .fitWidth: "适合宽度",
             .window: "窗口",
             .minimize: "最小化",
             .zoom: "缩放",

@@ -9,7 +9,13 @@ final class ImageDisplayView: NSView {
     private let clipView = CenteringClipView()
     private let imageView = NSImageView()
 
-    private var isFitMode = true
+    /// 창 크기가 바뀔 때 다시 맞출 기준. none이면 사용자가 정한 배율을 그대로 둔다.
+    private enum FitMode { case none, window, height, width }
+    private var fitMode: FitMode = .window
+    private var isFitMode: Bool {
+        get { fitMode != .none }
+        set { fitMode = newValue ? .window : .none }
+    }
     private var frameObserver: NSObjectProtocol?
     private var clipBoundsObserver: NSObjectProtocol?
 
@@ -153,7 +159,7 @@ final class ImageDisplayView: NSView {
     }
 
     func fitToView() {
-        isFitMode = true
+        fitMode = .window
         guard let image = imageView.image else { return }
         let viewSize = scrollView.contentSize
         let imageSize = image.size
@@ -165,6 +171,40 @@ final class ImageDisplayView: NSView {
         let scale = min(scaleX, scaleY, 1.0)
 
         scrollView.magnification = scale
+    }
+
+    /// 세로를 창 높이에 꽉 채운다. 가로가 넘치면 왼쪽 끝부터 보인다.
+    /// "화면에 맞춤"과 달리 작은 이미지도 채우도록 확대한다(배율 상한 안에서).
+    func fitHeight() {
+        fitMode = .height
+        guard let image = imageView.image, image.size.height > 0 else { return }
+        let scale = scrollView.contentSize.height / image.size.height
+        scrollView.magnification = min(max(scale, Self.minMagnification), Self.maxMagnification)
+        clipView.scroll(to: NSPoint(x: 0, y: clipView.bounds.origin.y))
+        scrollView.reflectScrolledClipView(clipView)
+        notifyTransformChanged()
+    }
+
+    /// 가로를 창 너비에 꽉 채운다. 세로가 넘치면 위쪽부터 보인다(읽는 순서).
+    func fitWidth() {
+        fitMode = .width
+        guard let image = imageView.image, image.size.width > 0 else { return }
+        let scale = scrollView.contentSize.width / image.size.width
+        scrollView.magnification = min(max(scale, Self.minMagnification), Self.maxMagnification)
+        let top = imageView.frame.height - clipView.bounds.height
+        clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: max(0, top)))
+        scrollView.reflectScrolledClipView(clipView)
+        notifyTransformChanged()
+    }
+
+    /// 창 크기·회전 등으로 다시 맞춰야 할 때 현재 모드대로.
+    private func reapplyFit() {
+        switch fitMode {
+        case .none: break
+        case .window: fitToView()
+        case .height: fitHeight()
+        case .width: fitWidth()
+        }
     }
 
     // MARK: - Flip & Rotate
@@ -204,7 +244,7 @@ final class ImageDisplayView: NSView {
         if !isFlippedHorizontally && !isFlippedVertically && rotationAngle == 0 {
             imageView.image = original
             imageView.frame = NSRect(origin: .zero, size: original.size)
-            if isFitMode { fitToView() }
+            if isFitMode { reapplyFit() }
             return
         }
 
@@ -231,7 +271,7 @@ final class ImageDisplayView: NSView {
 
         imageView.image = result
         imageView.frame = NSRect(origin: .zero, size: dstSize)
-        if isFitMode { fitToView() }
+        if isFitMode { reapplyFit() }
     }
 
     // MARK: - Frame Change Observer
@@ -245,7 +285,7 @@ final class ImageDisplayView: NSView {
             queue: .main
         ) { [weak self] _ in
             guard let self, self.isFitMode else { return }
-            self.fitToView()
+            self.reapplyFit()
         }
 
         clipView.postsBoundsChangedNotifications = true

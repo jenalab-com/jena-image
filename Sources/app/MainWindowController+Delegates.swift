@@ -11,6 +11,8 @@ extension MainWindowController: NSToolbarDelegate {
             ToolbarID.zoomIn,
             ToolbarID.zoomActualSize,
             ToolbarID.zoomFit,
+            ToolbarID.zoomFitHeight,
+            ToolbarID.zoomFitWidth,
             .flexibleSpace,
             ToolbarID.sort,
             ToolbarID.compare,
@@ -66,6 +68,22 @@ extension MainWindowController: NSToolbarDelegate {
             item.toolTip = "화면에 맞춤"
             item.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "맞춤")
             item.action = #selector(zoomFit(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomFitHeight:
+            item.label = "세로 맞춤"
+            item.toolTip = "세로로 꽉 차게"
+            item.image = NSImage(systemSymbolName: "arrow.up.and.down", accessibilityDescription: "세로 맞춤")
+            item.action = #selector(zoomFitHeight(_:))
+            item.target = self
+            item.isEnabled = false
+
+        case ToolbarID.zoomFitWidth:
+            item.label = "가로 맞춤"
+            item.toolTip = "가로로 꽉 차게"
+            item.image = NSImage(systemSymbolName: "arrow.left.and.right", accessibilityDescription: "가로 맞춤")
+            item.action = #selector(zoomFitWidth(_:))
             item.target = self
             item.isEnabled = false
 
