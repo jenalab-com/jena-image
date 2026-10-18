@@ -413,8 +413,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             switch item.itemIdentifier {
             case ToolbarID.back:
                 item.isEnabled = contentMode == .viewer
-            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize, ToolbarID.zoomFit,
-                 ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
+            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize,
+                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
                 item.isEnabled = contentMode == .viewer
             default: break
             }

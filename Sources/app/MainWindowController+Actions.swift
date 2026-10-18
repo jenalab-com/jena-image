@@ -37,15 +37,14 @@ extension MainWindowController {
         viewerVC.applyFitMode(mode)
     }
 
-    /// 툴바의 눌린 아이템을 현재 맞춤 모드와 맞춘다. 메뉴 체크는 validateMenuItem이 그린다.
+    /// 켜진 맞춤 모드의 툴바 심볼만 강조색으로 다시 그린다. 메뉴 체크는 validateMenuItem이 그린다.
     func syncFitModeSelection() {
-        let id: NSToolbarItem.Identifier
-        switch AppSettings.shared.viewerFitMode {
-        case .window: id = ToolbarID.zoomFit
-        case .height: id = ToolbarID.zoomFitHeight
-        case .width: id = ToolbarID.zoomFitWidth
+        guard let toolbar = window?.toolbar else { return }
+        let current = AppSettings.shared.viewerFitMode
+        for spec in Self.fitItems {
+            guard let item = toolbar.items.first(where: { $0.itemIdentifier == spec.id }) else { continue }
+            item.image = Self.fitSymbol(spec.symbol, label: spec.label, selected: current == spec.mode)
         }
-        window?.toolbar?.selectedItemIdentifier = id
     }
 }
 

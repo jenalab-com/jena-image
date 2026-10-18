@@ -181,28 +181,41 @@ final class ImageDisplayView: NSView {
         scrollView.magnification = scale
     }
 
-    /// 세로를 창 높이에 꽉 채운다. 가로가 넘치면 왼쪽 끝부터 보인다.
+    /// 세로를 창 높이에 꽉 채우고 가운데를 보인다.
     /// "화면에 맞춤"과 달리 작은 이미지도 채우도록 확대한다(배율 상한 안에서).
     func fitHeight() {
         fitMode = .height
         guard let image = imageView.image, image.size.height > 0 else { return }
         let scale = scrollView.contentSize.height / image.size.height
         scrollView.magnification = min(max(scale, Self.minMagnification), Self.maxMagnification)
-        clipView.scroll(to: NSPoint(x: 0, y: clipView.bounds.origin.y))
-        scrollView.reflectScrolledClipView(clipView)
+        centerVisibleRect()
         notifyTransformChanged()
     }
 
-    /// 가로를 창 너비에 꽉 채운다. 세로가 넘치면 위쪽부터 보인다(읽는 순서).
+    /// 가로를 창 너비에 꽉 채우고 가운데를 보인다.
     func fitWidth() {
         fitMode = .width
         guard let image = imageView.image, image.size.width > 0 else { return }
         let scale = scrollView.contentSize.width / image.size.width
         scrollView.magnification = min(max(scale, Self.minMagnification), Self.maxMagnification)
-        let top = imageView.frame.height - clipView.bounds.height
-        clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: max(0, top)))
-        scrollView.reflectScrolledClipView(clipView)
+        centerVisibleRect()
         notifyTransformChanged()
+    }
+
+    /// 넘치는 축의 가운데가 보이도록 스크롤 위치를 잡는다. 작은 축은 CenteringClipView가 가운데 정렬한다.
+    private func centerVisibleRect() {
+        // 배율을 바꾼 직후엔 clipView.bounds가 아직 옛 배율 기준일 수 있어, 보이는 크기를 배율로 직접 계산한다.
+        let mag = scrollView.magnification
+        guard mag > 0 else { return }
+        let doc = imageView.frame.size
+        let visible = NSSize(width: scrollView.contentSize.width / mag,
+                             height: scrollView.contentSize.height / mag)
+        // 이미지가 보이는 영역보다 작은 축은 음수 원점이 되어 CenteringClipView 규칙대로 가운데에 놓인다.
+        // 0으로 눌러 버리면 그 축이 아래/왼쪽에 붙으므로 클램프하지 않는다.
+        let origin = NSPoint(x: (doc.width - visible.width) / 2,
+                             y: (doc.height - visible.height) / 2)
+        clipView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(clipView)
     }
 
     /// 창 크기·회전 등으로 다시 맞춰야 할 때 현재 모드대로.
