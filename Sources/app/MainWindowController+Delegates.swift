@@ -3,6 +3,36 @@ import AppKit
 // MARK: - NSToolbarDelegate
 
 extension MainWindowController: NSToolbarDelegate {
+    /// 툴바는 SF Symbol 이미지에 자기 크기 설정을 다시 입혀서 SymbolConfiguration이 먹지 않는다.
+    /// 화살표 심볼은 글리프가 상자를 꽉 채워 돋보기보다 커 보이므로, 작은 포인트로 고정 비트맵에 그려 넣는다.
+    /// `selected`면 강조색으로 칠해 "켜진 모드"를 보인다(템플릿이 아니므로 툴바가 색을 덮지 않는다).
+    static func fitSymbol(_ name: String, label: String, selected: Bool = false) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
+        guard let glyph = NSImage(systemSymbolName: name, accessibilityDescription: label)?
+            .withSymbolConfiguration(config) else { return nil }
+        let box = NSSize(width: 16, height: 15)  // 돋보기 심볼과 같은 상자
+        let image = NSImage(size: box, flipped: false) { rect in
+            let g = glyph.size
+            let origin = NSPoint(x: (rect.width - g.width) / 2, y: (rect.height - g.height) / 2)
+            glyph.draw(in: NSRect(origin: origin, size: g))
+            if selected {
+                NSColor.controlAccentColor.set()
+                rect.fill(using: .sourceAtop)
+            }
+            return true
+        }
+        image.isTemplate = !selected
+        image.accessibilityDescription = label
+        return image
+    }
+
+    /// 맞춤 셋의 (식별자, 심볼, 라벨, 툴팁, 모드)
+    static let fitItems: [(id: NSToolbarItem.Identifier, symbol: String, label: String, tip: String, mode: AppSettings.ViewerFitMode)] = [
+        (ToolbarID.zoomFit, "arrow.up.left.and.arrow.down.right", "맞춤", "화면에 맞춤", .window),
+        (ToolbarID.zoomFitHeight, "arrow.up.and.down", "세로 맞춤", "세로로 꽉 차게", .height),
+        (ToolbarID.zoomFitWidth, "arrow.left.and.right", "가로 맞춤", "가로로 꽉 차게", .width),
+    ]
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [
             ToolbarID.back,
@@ -21,11 +51,6 @@ extension MainWindowController: NSToolbarDelegate {
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar)
-    }
-
-    /// 맞춤 모드 셋은 하나만 눌린 상태로 보이는 토글 그룹.
-    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth]
     }
 
     func toolbar(
@@ -68,27 +93,19 @@ extension MainWindowController: NSToolbarDelegate {
             item.target = self
             item.isEnabled = false
 
-        case ToolbarID.zoomFit:
-            item.label = "맞춤"
-            item.toolTip = "화면에 맞춤"
-            item.image = NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "맞춤")
-            item.action = #selector(zoomFit(_:))
-            item.target = self
-            item.isEnabled = false
-
-        case ToolbarID.zoomFitHeight:
-            item.label = "세로 맞춤"
-            item.toolTip = "세로로 꽉 차게"
-            item.image = NSImage(systemSymbolName: "arrow.up.and.down", accessibilityDescription: "세로 맞춤")
-            item.action = #selector(zoomFitHeight(_:))
-            item.target = self
-            item.isEnabled = false
-
-        case ToolbarID.zoomFitWidth:
-            item.label = "가로 맞춤"
-            item.toolTip = "가로로 꽉 차게"
-            item.image = NSImage(systemSymbolName: "arrow.left.and.right", accessibilityDescription: "가로 맞춤")
-            item.action = #selector(zoomFitWidth(_:))
+        case ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
+            // 돋보기 셋과 같은 모양의 나란한 버튼. 켜진 모드는 강조색 심볼로 표시(syncFitModeSelection이 갱신).
+            guard let spec = Self.fitItems.first(where: { $0.id == itemIdentifier }) else { return nil }
+            let selectors: [NSToolbarItem.Identifier: Selector] = [
+                ToolbarID.zoomFit: #selector(zoomFit(_:)),
+                ToolbarID.zoomFitHeight: #selector(zoomFitHeight(_:)),
+                ToolbarID.zoomFitWidth: #selector(zoomFitWidth(_:)),
+            ]
+            item.label = spec.label
+            item.toolTip = spec.tip
+            item.image = Self.fitSymbol(spec.symbol, label: spec.label,
+                                        selected: AppSettings.shared.viewerFitMode == spec.mode)
+            item.action = selectors[itemIdentifier]
             item.target = self
             item.isEnabled = false
 
