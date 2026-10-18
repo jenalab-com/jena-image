@@ -29,6 +29,16 @@ extension MainWindowController {
         guard contentMode == .viewer else { return }
         viewerVC.zoomFit()
     }
+
+    @objc func zoomFitHeight(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomFitHeight()
+    }
+
+    @objc func zoomFitWidth(_ sender: Any?) {
+        guard contentMode == .viewer else { return }
+        viewerVC.zoomFitWidth()
+    }
 }
 
 // MARK: - Active Selection Helper
@@ -328,6 +338,8 @@ extension MainWindowController: NSToolbarItemValidation {
              #selector(zoomOut(_:)),
              #selector(zoomActualSize(_:)),
              #selector(zoomFit(_:)),
+             #selector(zoomFitHeight(_:)),
+             #selector(zoomFitWidth(_:)),
              #selector(goBack(_:)),
              #selector(navigatePreviousImage(_:)),
              #selector(navigateNextImage(_:)),

@@ -147,6 +147,8 @@ enum MainMenu {
         viewMenu.addItem(NSMenuItem.separator())
         viewMenu.addItem(withTitle: L10n.string(.actualSize), action: #selector(MainWindowController.zoomActualSize(_:)), keyEquivalent: "0")
         viewMenu.addItem(withTitle: L10n.string(.fitToWindow), action: #selector(MainWindowController.zoomFit(_:)), keyEquivalent: "9")
+        viewMenu.addItem(withTitle: L10n.string(.fitHeight), action: #selector(MainWindowController.zoomFitHeight(_:)), keyEquivalent: "")
+        viewMenu.addItem(withTitle: L10n.string(.fitWidth), action: #selector(MainWindowController.zoomFitWidth(_:)), keyEquivalent: "")
 
         let item = NSMenuItem()
         item.submenu = viewMenu

@@ -28,6 +28,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomOut = NSToolbarItem.Identifier("zoomOut")
         static let zoomActualSize = NSToolbarItem.Identifier("zoomActualSize")
         static let zoomFit = NSToolbarItem.Identifier("zoomFit")
+        static let zoomFitHeight = NSToolbarItem.Identifier("zoomFitHeight")
+        static let zoomFitWidth = NSToolbarItem.Identifier("zoomFitWidth")
         static let sort = NSToolbarItem.Identifier("sort")
         static let compare = NSToolbarItem.Identifier("compare")
     }
@@ -411,7 +413,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             switch item.itemIdentifier {
             case ToolbarID.back:
                 item.isEnabled = contentMode == .viewer
-            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize, ToolbarID.zoomFit:
+            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize, ToolbarID.zoomFit,
+                 ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
                 item.isEnabled = contentMode == .viewer
             default: break
             }
