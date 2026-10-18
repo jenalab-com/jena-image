@@ -125,8 +125,16 @@ final class ImageDisplayView: NSView {
         imageView.frame = NSRect(origin: .zero, size: image.size)
         isFlippedHorizontally = false
         isFlippedVertically = false
-        isFitMode = true
-        fitToView()
+        applyFit(AppSettings.shared.viewerFitMode)
+    }
+
+    /// 설정의 맞춤 모드를 적용한다. 이미지를 열 때와 툴바 토글을 바꿀 때 쓴다.
+    func applyFit(_ mode: AppSettings.ViewerFitMode) {
+        switch mode {
+        case .window: fitToView()
+        case .height: fitHeight()
+        case .width: fitWidth()
+        }
     }
 
     func displayError() {

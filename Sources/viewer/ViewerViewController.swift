@@ -143,8 +143,7 @@ final class ViewerViewController: NSViewController {
     func zoomOut() { imageDisplayView.zoomOut() }
     func zoomActualSize() { imageDisplayView.zoomToActualSize() }
     func zoomFit() { imageDisplayView.fitToView() }
-    func zoomFitHeight() { imageDisplayView.fitHeight() }
-    func zoomFitWidth() { imageDisplayView.fitWidth() }
+    func applyFitMode(_ mode: AppSettings.ViewerFitMode) { imageDisplayView.applyFit(mode) }
 
     // MARK: - Flip
 

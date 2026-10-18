@@ -23,6 +23,7 @@ final class AppSettings {
         case thumbnailMaxPixel = "thumbnailMaxPixel"
         case thumbnailCacheMB = "thumbnailCacheMB"
         case thumbnailDiskCacheMB = "thumbnailDiskCacheMB"
+        case viewerFitMode = "viewerFitMode"
     }
 
     // MARK: - Language
@@ -89,6 +90,21 @@ final class AppSettings {
     }
 
     // MARK: - Viewer
+
+    /// 뷰어에서 이미지를 열 때 적용하는 맞춤 기준. 셋 중 하나만 켜지는 토글이며 기본은 전체 맞춤.
+    enum ViewerFitMode: String, CaseIterable {
+        case window = "window"
+        case height = "height"
+        case width = "width"
+    }
+
+    var viewerFitMode: ViewerFitMode {
+        get {
+            let raw = defaults.string(forKey: Key.viewerFitMode.rawValue) ?? ""
+            return ViewerFitMode(rawValue: raw) ?? .window
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.viewerFitMode.rawValue) }
+    }
 
     var showThumbnailStrip: Bool {
         get {

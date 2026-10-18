@@ -25,19 +25,27 @@ extension MainWindowController {
         viewerVC.zoomActualSize()
     }
 
-    @objc func zoomFit(_ sender: Any?) {
+    @objc func zoomFit(_ sender: Any?) { selectFitMode(.window) }
+    @objc func zoomFitHeight(_ sender: Any?) { selectFitMode(.height) }
+    @objc func zoomFitWidth(_ sender: Any?) { selectFitMode(.width) }
+
+    /// 전체·세로·가로 맞춤은 셋 중 하나만 켜지는 토글. 설정에 저장해 다음 이미지에도 같은 모드로 연다.
+    private func selectFitMode(_ mode: AppSettings.ViewerFitMode) {
+        AppSettings.shared.viewerFitMode = mode
+        syncFitModeSelection()
         guard contentMode == .viewer else { return }
-        viewerVC.zoomFit()
+        viewerVC.applyFitMode(mode)
     }
 
-    @objc func zoomFitHeight(_ sender: Any?) {
-        guard contentMode == .viewer else { return }
-        viewerVC.zoomFitHeight()
-    }
-
-    @objc func zoomFitWidth(_ sender: Any?) {
-        guard contentMode == .viewer else { return }
-        viewerVC.zoomFitWidth()
+    /// 툴바의 눌린 아이템을 현재 맞춤 모드와 맞춘다. 메뉴 체크는 validateMenuItem이 그린다.
+    func syncFitModeSelection() {
+        let id: NSToolbarItem.Identifier
+        switch AppSettings.shared.viewerFitMode {
+        case .window: id = ToolbarID.zoomFit
+        case .height: id = ToolbarID.zoomFitHeight
+        case .width: id = ToolbarID.zoomFitWidth
+        }
+        window?.toolbar?.selectedItemIdentifier = id
     }
 }
 
@@ -286,6 +294,15 @@ extension MainWindowController: NSToolbarItemValidation {
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let isViewer = contentMode == .viewer
+
+        // 맞춤 모드 셋은 라디오처럼 현재 모드에만 체크
+        let fitMode = AppSettings.shared.viewerFitMode
+        switch menuItem.action {
+        case #selector(zoomFit(_:)):       menuItem.state = fitMode == .window ? .on : .off
+        case #selector(zoomFitHeight(_:)): menuItem.state = fitMode == .height ? .on : .off
+        case #selector(zoomFitWidth(_:)):  menuItem.state = fitMode == .width ? .on : .off
+        default: break
+        }
 
         // 텍스트 편집 중이면 복사/붙여넣기 항상 활성화
         let isEditingText = (window?.firstResponder as? NSTextView)?.isFieldEditor == true

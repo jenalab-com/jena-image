@@ -23,6 +23,11 @@ extension MainWindowController: NSToolbarDelegate {
         toolbarDefaultItemIdentifiers(toolbar)
     }
 
+    /// 맞춤 모드 셋은 하나만 눌린 상태로 보이는 토글 그룹.
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth]
+    }
+
     func toolbar(
         _ toolbar: NSToolbar,
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
