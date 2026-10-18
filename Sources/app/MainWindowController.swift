@@ -429,6 +429,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
         window?.toolbar = toolbar
+        syncFitModeSelection()
     }
 
     /// 주어진 URL들을 북마크 토글. 모두 북마크돼 있으면 일괄 제거, 아니면 일괄 추가.
