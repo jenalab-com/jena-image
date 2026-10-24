@@ -74,6 +74,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
 
+    // 이미지 정보 패널 보관
+    private var infoWindowController: ImageInfoWindowController?
+
     // 정렬 툴바 메뉴 (열릴 때 menuNeedsUpdate로 현재 상태를 갱신)
     lazy var sortMenu: NSMenu = {
         let menu = NSMenu()
@@ -371,6 +374,21 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         guard let url = currentFolderURL,
               case .success(let contents) = folderContents(at: url) else { return [] }
         return contents.images.compactMap { ImageFile(url: $0) }
+    }
+
+    // MARK: - Image Info Panel
+
+    /// 이미지 정보 패널을 연다. 처음 호출할 때 창을 만든다.
+    func showInfo(for url: URL) {
+        if infoWindowController == nil {
+            infoWindowController = ImageInfoWindowController()
+        }
+        infoWindowController?.show(for: url)
+    }
+
+    /// 정보 패널이 열려 있으면 표시 중인 파일을 새 정보로 갱신한다.
+    func updateInfoPanelIfNeeded(for url: URL) {
+        infoWindowController?.updateIfVisible(for: url)
     }
 
     // MARK: - Folder Enumeration (일반 / 하위 폴더 포함)

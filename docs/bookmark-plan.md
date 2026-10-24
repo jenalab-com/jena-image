@@ -1,5 +1,8 @@
 # 이미지 북마크 기능 구현 계획
 
+> **상태: 구현 완료 (v1.5.0 이후).** 2026-10-24 문서 현행화에서 체크박스를 사후 갱신했다.
+> 구현 결과는 `Sources/services/BookmarkStore.swift`와 커밋 이력(`6fd33aa`…`24ce3fd`)을 기준으로 한다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 폴더 구조와 무관하게 이미지를 북마크(위치만 저장)해, 사이드바의 "★ 북마크" 항목에서 썸네일로 모아 보고 관리한다.
@@ -58,7 +61,7 @@
     - `func rename(from oldURL: URL, to newURL: URL)` — 경로 교체(없으면 무시), 순서 유지.
   - `extension Notification.Name { static let bookmarksChanged }` — 변경 시 발행.
 
-- [ ] **Step 1: `BookmarkStore` 작성**
+- [x] **Step 1: `BookmarkStore` 작성**
 
 `Sources/services/BookmarkStore.swift` 생성:
 
@@ -120,12 +123,12 @@ final class BookmarkStore {
 }
 ```
 
-- [ ] **Step 2: 빌드 검증**
+- [x] **Step 2: 빌드 검증**
 
 Run: `make build`
 Expected: 컴파일 성공, 경고·에러 0. (SourceKit의 cross-file "Cannot find type"은 통짜 빌드 특성상 무시 — `make build`가 기준.)
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add Sources/services/BookmarkStore.swift
@@ -152,7 +155,7 @@ git commit -m "feat: 북마크 영속 저장소(BookmarkStore) 추가"
   - `MainWindowController.showBookmarks()` — 메인을 북마크 그리드로 전환.
   - `MainWindowController.bookmarkStore: BookmarkStore` (프로퍼티)
 
-- [ ] **Step 1: 사이드바에 고정 "★ 북마크" 행 추가**
+- [x] **Step 1: 사이드바에 고정 "★ 북마크" 행 추가**
 
 `SidebarViewController`의 `loadView`/레이아웃에서, outline의 `scrollView` 위에 고정
 버튼 행을 둔다(outline 트리 데이터에 끼우지 않는다 — 트리 로직과 분리).
@@ -200,7 +203,7 @@ top을 이 버튼 아래로 잇는다(버튼은 view.top, scrollView.top = 버�
 > 어디에 잡는지 확인하고, 그 top 제약만 `bookmarksButton.bottomAnchor`로 바꾼다.
 > 나머지(leading/trailing/bottom)는 그대로.
 
-- [ ] **Step 2: `BrowserViewController` 북마크 모드**
+- [x] **Step 2: `BrowserViewController` 북마크 모드**
 
 `BrowserViewController`에 추가:
 
@@ -233,7 +236,7 @@ top을 이 버튼 아래로 잇는다(버튼은 view.top, scrollView.top = 버�
 
 > `emptyLabel`은 `loadView`에서 한 번 추가하고 가운데 정렬 제약을 건다. 폴더 모드에선 항상 숨김.
 
-- [ ] **Step 3: `MainWindowController` 북마크 보기 전환**
+- [x] **Step 3: `MainWindowController` 북마크 보기 전환**
 
 `MainWindowController`에 프로퍼티 추가(다른 서비스들 근처):
 
@@ -257,7 +260,7 @@ top을 이 버튼 아래로 잇는다(버튼은 view.top, scrollView.top = 버�
 > `ImageFile(url:)`은 failable이며 존재하지 않는 파일도 생성될 수 있다(깨진 북마크는
 > Task 4에서 플레이스홀더 처리). 여기서는 단순 변환만.
 
-- [ ] **Step 4: 사이드바 delegate 구현**
+- [x] **Step 4: 사이드바 delegate 구현**
 
 `Sources/app/MainWindowController+Delegates.swift`의 `SidebarDelegate` extension에 추가:
 
@@ -268,19 +271,19 @@ top을 이 버튼 아래로 잇는다(버튼은 view.top, scrollView.top = 버�
     }
 ```
 
-- [ ] **Step 5: 빌드 검증**
+- [x] **Step 5: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0.
 
-- [ ] **Step 6: 수동 GUI 검증**
+- [x] **Step 6: 수동 GUI 검증**
 
 `make run` 후:
 1. 사이드바 최상단에 "★ 북마크" 행이 보이는지.
 2. 클릭 → 메인이 "북마크가 비어 있어요" 빈 그리드로 전환되고 창 제목이 "북마크"인지.
 3. 폴더를 선택 → 일반 폴더 그리드로 정상 복귀하는지.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 git add Sources/sidebar/SidebarViewController.swift Sources/browser/BrowserViewController.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Delegates.swift
@@ -309,7 +312,7 @@ git commit -m "feat: 사이드바 북마크 항목 + 북마크 그리드 전환"
   - `MainWindowController.toggleBookmark(_ urls: [URL])` (internal), `@objc func toggleBookmarkSelected(_:)`
   - `ViewerViewController.onToggleBookmark: ((URL) -> Void)?`, `func updateBookmarkButton(isBookmarked: Bool)`
 
-- [ ] **Step 1: 브라우저 우클릭 토글 항목**
+- [x] **Step 1: 브라우저 우클릭 토글 항목**
 
 `BrowserViewController`의 `BrowserDelegate`에 추가:
 
@@ -345,7 +348,7 @@ delegate가 알 수 없으므로, 컨트롤러가 채워준 `bookmarkedURLs: Set
 
 북마크 모드일 때 우클릭 메뉴에 "빼기"도 추가(Task 4에서 동작 강화; 여기선 토글이 곧 빼기 역할).
 
-- [ ] **Step 2: 컨트롤러 토글 액션 + 상태 주입**
+- [x] **Step 2: 컨트롤러 토글 액션 + 상태 주입**
 
 `MainWindowController`에 추가:
 
@@ -384,7 +387,7 @@ delegate가 알 수 없으므로, 컨트롤러가 채워준 `bookmarkedURLs: Set
     }
 ```
 
-- [ ] **Step 3: 브라우저 토글 delegate**
+- [x] **Step 3: 브라우저 토글 delegate**
 
 `MainWindowController+Delegates.swift`의 `BrowserDelegate` extension:
 
@@ -394,7 +397,7 @@ delegate가 알 수 없으므로, 컨트롤러가 채워준 `bookmarkedURLs: Set
     }
 ```
 
-- [ ] **Step 4: 메뉴 + 단축키**
+- [x] **Step 4: 메뉴 + 단축키**
 
 `MainMenu.swift`의 `createViewMenu()`에서 비교 항목 근처에 추가:
 
@@ -413,7 +416,7 @@ delegate가 알 수 없으므로, 컨트롤러가 채워준 `bookmarkedURLs: Set
         }
 ```
 
-- [ ] **Step 5: 뷰어 ★ 토글 버튼**
+- [x] **Step 5: 뷰어 ★ 토글 버튼**
 
 `ViewerViewController`에 추가(하단 버튼들 옆 — 기존 `editButton`/`thumbnailToggleButton` 패턴):
 
@@ -467,12 +470,12 @@ delegate가 알 수 없으므로, 컨트롤러가 채워준 `bookmarkedURLs: Set
     }
 ```
 
-- [ ] **Step 6: 빌드 검증**
+- [x] **Step 6: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0.
 
-- [ ] **Step 7: 수동 GUI 검증**
+- [x] **Step 7: 수동 GUI 검증**
 
 `make run` 후:
 1. 브라우저에서 이미지 선택 → 우클릭 "북마크에 추가" → 사이드바 북마크 그리드에 나타나는지.
@@ -481,7 +484,7 @@ Expected: 성공, 경고·에러 0.
 4. 뷰어로 열어 ★ 버튼이 북마크 상태(채워짐/빈 별)를 정확히 표시하고, 눌러 토글되는지.
 5. 토글 직후 북마크 그리드/★ 버튼이 즉시 갱신되는지(`.bookmarksChanged`).
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add Sources/browser/BrowserViewController.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Delegates.swift Sources/app/MainWindowController+Actions.swift Sources/app/MainMenu.swift Sources/viewer/ViewerViewController.swift
@@ -505,7 +508,7 @@ git commit -m "feat: 북마크 추가/제거 토글(브라우저·뷰어)"
 - Produces:
   - `BrowserDelegate.browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL])`
 
-- [ ] **Step 1: 북마크 모드 우클릭 메뉴**
+- [x] **Step 1: 북마크 모드 우클릭 메뉴**
 
 `buildContextMenu(for urls:)`에서 `isBookmarkMode`일 때 메뉴를 구성한다(열기·빼기·삭제·이름변경):
 
@@ -544,7 +547,7 @@ git commit -m "feat: 북마크 추가/제거 토글(브라우저·뷰어)"
     }
 ```
 
-- [ ] **Step 2: 파일조작 후 Store 동기화**
+- [x] **Step 2: 파일조작 후 Store 동기화**
 
 `MainWindowController+FileOperations.swift`:
 - `performDelete(urls:)` 성공 경로에서 삭제된 각 url을 `bookmarkStore.remove($0)`.
@@ -553,7 +556,7 @@ git commit -m "feat: 북마크 추가/제거 토글(브라우저·뷰어)"
 > 정확한 삽입 위치: 각 함수에서 실제 파일 시스템 작업이 성공한 직후(기존 갱신 로직
 > 옆). 새 URL은 기존 rename이 계산하는 값(같은 디렉토리 + newName)을 재사용한다.
 
-- [ ] **Step 3: 북마크 뷰 더블클릭 → 뷰어(북마크 목록으로 네비)**
+- [x] **Step 3: 북마크 뷰 더블클릭 → 뷰어(북마크 목록으로 네비)**
 
 북마크 그리드에서 이미지 더블클릭(또는 Enter) 시, 뷰어의 imageList가 **북마크 전체**가
 되도록 한다. 기존 브라우저는 `didRequestViewImage(url:inList:)`로 폴더 목록을 넘긴다.
@@ -563,7 +566,7 @@ git commit -m "feat: 북마크 추가/제거 토글(브라우저·뷰어)"
 `contents`(현재 북마크 이미지들)를 inList로 전달하도록 분기. 기존 코드가 폴더 기준
 목록을 만들고 있으면, 북마크 모드에서는 `contents.compactMap { if case .image(let f) = $0 { return f } else { return nil } }`를 쓴다.
 
-- [ ] **Step 4: 깨진 북마크 플레이스홀더**
+- [x] **Step 4: 깨진 북마크 플레이스홀더**
 
 북마크 그리드 셀 구성 시 파일이 존재하지 않으면(또는 썸네일 생성 실패) 흐릿한
 플레이스홀더 + "원본을 찾을 수 없음" 느낌으로 표시한다. 자동 제거하지 않는다.
@@ -576,12 +579,12 @@ false인 항목은 시스템 심볼(예: `exclamationmark.triangle`)로 대체�
 > `ImageFile`로 들어온다. 셀에서 `fileExists`로 분기해 플레이스홀더 이미지를 세팅하고,
 > 컨텍스트 메뉴는 깨진 항목이 하나라도 포함되면 삭제/이름변경을 비활성화한다.
 
-- [ ] **Step 5: 빌드 검증**
+- [x] **Step 5: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0.
 
-- [ ] **Step 6: 수동 GUI 검증**
+- [x] **Step 6: 수동 GUI 검증**
 
 `make run` 후:
 1. 북마크 그리드에서 우클릭 → 열기/빼기/이름 변경/삭제/Finder에서 보기가 보이는지.
@@ -592,7 +595,7 @@ Expected: 성공, 경고·에러 0.
 6. 북마크된 파일을 Finder에서 다른 곳으로 옮긴 뒤 북마크 그리드 → 플레이스홀더로
    표시되고 "빼기"만 가능한지(자동 삭제 안 됨).
 
-- [ ] **Step 7: devlog 작성 + 커밋**
+- [x] **Step 7: devlog 작성 + 커밋**
 
 `docs/devlog/<오늘 날짜>.md`에 북마크 기능 요약을 추가(배경·변경 사항·검증). 그 후:
 

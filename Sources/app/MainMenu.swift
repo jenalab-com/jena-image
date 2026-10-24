@@ -70,6 +70,9 @@ enum MainMenu {
         fileMenu.addItem(NSMenuItem.separator())
         fileMenu.addItem(withTitle: "인쇄…", action: #selector(MainWindowController.printImage(_:)), keyEquivalent: "p")
 
+        fileMenu.addItem(NSMenuItem.separator())
+        fileMenu.addItem(withTitle: L10n.string(.imageInfo), action: #selector(MainWindowController.showImageInfo(_:)), keyEquivalent: "i")
+
         let item = NSMenuItem()
         item.submenu = fileMenu
         return item

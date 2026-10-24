@@ -183,6 +183,7 @@ protocol BrowserDelegate: AnyObject {
     func browserDidRequestCompare(_ browser: BrowserViewController, urls: [URL])
     func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL])
     func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL])
+    func browser(_ browser: BrowserViewController, didRequestShowInfo url: URL)
 }
 
 // MARK: - ViewController
@@ -501,6 +502,61 @@ final class BrowserViewController: NSViewController {
     /// 우클릭 메뉴 "미리보기" — 선택 항목을 QuickLook 패널(원본 해상도)로 띄운다. 스페이스바와 같은 패널.
     @objc private func contextQuickLook(_ sender: NSMenuItem) {
         showQuickLook()
+    }
+
+    /// "다른 앱으로 열기" 메뉴 항목이 들고 다니는 대상.
+    private struct OpenWithTarget {
+        let fileURL: URL
+        /// nil이면 시스템 기본 앱으로 연다.
+        let applicationURL: URL?
+    }
+
+    /// "다른 앱으로 열기" 하위 메뉴 — 기본 앱 + 시스템에 등록된 호환 앱 목록.
+    private func openWithMenuItem(for url: URL) -> NSMenuItem {
+        let item = NSMenuItem(title: L10n.string(.openWith), action: nil, keyEquivalent: "")
+        item.submenu = buildOpenWithMenu(for: url)
+        return item
+    }
+
+    private func buildOpenWithMenu(for url: URL) -> NSMenu {
+        let menu = NSMenu()
+
+        let defaultItem = NSMenuItem(title: L10n.string(.openWithDefault), action: #selector(contextOpenWith(_:)), keyEquivalent: "")
+        defaultItem.target = self
+        defaultItem.representedObject = OpenWithTarget(fileURL: url, applicationURL: nil)
+        menu.addItem(defaultItem)
+        menu.addItem(NSMenuItem.separator())
+
+        let apps = OpenWithService.applications(for: url)
+        if apps.isEmpty {
+            let emptyItem = NSMenuItem(title: L10n.string(.noCompatibleApps), action: nil, keyEquivalent: "")
+            emptyItem.isEnabled = false
+            menu.addItem(emptyItem)
+        } else {
+            for app in apps {
+                let item = NSMenuItem(title: app.name, action: #selector(contextOpenWith(_:)), keyEquivalent: "")
+                item.target = self
+                item.image = app.icon
+                item.representedObject = OpenWithTarget(fileURL: url, applicationURL: app.url)
+                menu.addItem(item)
+            }
+        }
+
+        return menu
+    }
+
+    @objc private func contextOpenWith(_ sender: NSMenuItem) {
+        guard let target = sender.representedObject as? OpenWithTarget else { return }
+        if let appURL = target.applicationURL {
+            OpenWithService.open(target.fileURL, withApplicationAt: appURL)
+        } else {
+            OpenWithService.openWithDefault(target.fileURL)
+        }
+    }
+
+    @objc private func contextShowInfo(_ sender: NSMenuItem) {
+        guard let urls = sender.representedObject as? [URL], let url = urls.first else { return }
+        delegate?.browser(self, didRequestShowInfo: url)
     }
 
     @objc private func contextOpen(_ sender: NSMenuItem) {
@@ -834,6 +890,10 @@ extension BrowserViewController: NSMenuDelegate {
             openItem.representedObject = urls
             menu.addItem(openItem)
 
+            if !hasBroken, urls.count == 1, ImageFile(url: urls[0]) != nil {
+                menu.addItem(openWithMenuItem(for: urls[0]))
+            }
+
             let previewItem = NSMenuItem(title: "미리보기", action: hasBroken ? nil : #selector(contextQuickLook(_:)), keyEquivalent: "")
             previewItem.target = self
             previewItem.representedObject = urls
@@ -858,6 +918,14 @@ extension BrowserViewController: NSMenuDelegate {
             deleteItem.representedObject = urls
             menu.addItem(deleteItem)
 
+            if !hasBroken, urls.count == 1, ImageFile(url: urls[0]) != nil {
+                menu.addItem(NSMenuItem.separator())
+                let infoItem = NSMenuItem(title: L10n.string(.imageInfo), action: #selector(contextShowInfo(_:)), keyEquivalent: "")
+                infoItem.target = self
+                infoItem.representedObject = urls
+                menu.addItem(infoItem)
+            }
+
             return
         }
         // ──────────────────────────────────────────────────────────────────────
@@ -867,6 +935,7 @@ extension BrowserViewController: NSMenuDelegate {
 
             if urls.count == 1, hasImages {
                 menu.addItem(withTitle: "열기", action: #selector(contextOpen(_:)), keyEquivalent: "")
+                menu.addItem(openWithMenuItem(for: urls[0]))
             }
             if hasImages {
                 // 여러 장 선택 시에도 QuickLook 패널에서 ←/→로 순회할 수 있다
@@ -891,6 +960,11 @@ extension BrowserViewController: NSMenuDelegate {
             if urls.count == 1, hasImages {
                 menu.addItem(NSMenuItem.separator())
                 menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
+            }
+
+            if urls.count == 1, hasImages {
+                menu.addItem(NSMenuItem.separator())
+                menu.addItem(withTitle: L10n.string(.imageInfo), action: #selector(contextShowInfo(_:)), keyEquivalent: "")
             }
 
             // 폴더 색상 서브메뉴 (폴더 1개 선택 시)

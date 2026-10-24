@@ -236,6 +236,7 @@ extension MainWindowController: BrowserDelegate {
         activePanel = .viewer
         switchToMode(.viewer)
         viewerVC.display(imageURL: url, imageList: inList)
+        updateInfoPanelIfNeeded(for: url)
     }
 
     func browser(_ browser: BrowserViewController, didRequestDelete urls: [URL]) {
@@ -285,6 +286,10 @@ extension MainWindowController: BrowserDelegate {
     func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL]) {
         urls.forEach { bookmarkStore.remove($0) }
     }
+
+    func browser(_ browser: BrowserViewController, didRequestShowInfo url: URL) {
+        showInfo(for: url)
+    }
 }
 
 // MARK: - ViewerDelegate
@@ -316,6 +321,7 @@ extension MainWindowController: ViewerDelegate {
 
     func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL) {
         sidebarVC.selectFile(at: url)
+        updateInfoPanelIfNeeded(for: url)
     }
 
     func viewerDidEndEditing(_ viewer: ViewerViewController) {

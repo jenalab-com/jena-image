@@ -1,5 +1,8 @@
 # 이미지 비교 기능 구현 계획
 
+> **상태: 구현 완료 (v1.4.0 이후).** 2026-10-24 문서 현행화에서 체크박스를 사후 갱신했다.
+> 구현 결과는 `Sources/viewer/Compare*.swift`와 커밋 이력(`08705a5`…`74fff44`)을 기준으로 한다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 브라우저에서 선택한 2~4장의 이미지를 별도 창에 나란히 띄우고, 줌·팬을 동기화해 베스트를 고를 수 있게 한다.
@@ -57,7 +60,7 @@
   - `MainWindowController.compareFiles(_ urls: [URL])` (internal helper), `@objc func compareSelected(_ sender: Any?)`.
   - `MainWindowController.ToolbarID.compare = NSToolbarItem.Identifier("compare")`.
 
-- [ ] **Step 1: `ComparePaneView` 작성**
+- [x] **Step 1: `ComparePaneView` 작성**
 
 `Sources/viewer/ComparePaneView.swift` 생성. 이미지 표시는 기존 `ImageDisplayView` 재사용, 그 위에 파일명 라벨을 얹는다. (닫기 버튼·활성 테두리는 Task 3/4에서 추가하므로 지금은 골격만.)
 
@@ -125,7 +128,7 @@ final class ComparePaneView: NSView {
 }
 ```
 
-- [ ] **Step 2: `CompareWindowController` 작성(그리드 배치)**
+- [x] **Step 2: `CompareWindowController` 작성(그리드 배치)**
 
 `Sources/viewer/CompareWindowController.swift` 생성. `NSGridView`로 칸 수에 맞춰 배치한다. 그리드 배치 규칙은 순수 함수 `compareGridShape(count:)`로 분리해 추론을 쉽게 한다.
 
@@ -218,7 +221,7 @@ final class CompareWindowController: NSWindowController {
 }
 ```
 
-- [ ] **Step 3: 진입 배선 — ToolbarID·프로퍼티·액션**
+- [x] **Step 3: 진입 배선 — ToolbarID·프로퍼티·액션**
 
 `Sources/app/MainWindowController.swift`의 `ToolbarID` enum(약 L31, `sort` 다음 줄)에 추가:
 
@@ -248,7 +251,7 @@ final class CompareWindowController: NSWindowController {
 
 > 참고: `compareFiles`는 `prefix(4)`로 4장 상한을 강제한다(설계: 2~4장).
 
-- [ ] **Step 4: 툴바 아이템 등록**
+- [x] **Step 4: 툴바 아이템 등록**
 
 `Sources/app/MainWindowController+Delegates.swift`의 `toolbarDefaultItemIdentifiers`에서 `ToolbarID.addFolder` 뒤에 추가:
 
@@ -268,7 +271,7 @@ final class CompareWindowController: NSWindowController {
             item.target = self
 ```
 
-- [ ] **Step 5: 메뉴 + 단축키**
+- [x] **Step 5: 메뉴 + 단축키**
 
 `Sources/app/MainMenu.swift`의 `createViewMenu()`에서 슬라이드쇼 항목 뒤(L130 근처)에 추가:
 
@@ -280,7 +283,7 @@ final class CompareWindowController: NSWindowController {
 
 > 단축키 `Cmd+\`. 기존 단축키와 충돌 없음(확인: o,r,d,S,p,c,v,a,s,[,9,0,+,-,f,m,?,e와 무충돌).
 
-- [ ] **Step 6: 우클릭 컨텍스트 메뉴 + BrowserDelegate**
+- [x] **Step 6: 우클릭 컨텍스트 메뉴 + BrowserDelegate**
 
 `Sources/browser/BrowserViewController.swift`의 `BrowserDelegate` 프로토콜 정의에 메서드 추가:
 
@@ -315,7 +318,7 @@ final class CompareWindowController: NSWindowController {
     }
 ```
 
-- [ ] **Step 7: 메뉴/툴바 활성화 조건**
+- [x] **Step 7: 메뉴/툴바 활성화 조건**
 
 `Sources/app/MainWindowController+Actions.swift`의 `validateMenuItem(_:)`(L268)에 비교 액션 분기 추가. 2장 이상 선택 + 비디오 제외 후에도 2장 이상일 때만 활성:
 
@@ -340,12 +343,12 @@ final class CompareWindowController: NSWindowController {
     }
 ```
 
-- [ ] **Step 8: 빌드 검증**
+- [x] **Step 8: 빌드 검증**
 
 Run: `make build`
 Expected: 컴파일 성공, 경고·에러 0. (SourceKit의 "Cannot find type" 류는 통짜 빌드 특성상 무시 — `make build` 결과가 기준.)
 
-- [ ] **Step 9: 수동 GUI 검증**
+- [x] **Step 9: 수동 GUI 검증**
 
 `make run`으로 실행 후:
 1. 브라우저에서 이미지 1장만 선택 → View 메뉴 "비교" 비활성, 툴바 비교 아이콘 비활성 확인.
@@ -354,7 +357,7 @@ Expected: 컴파일 성공, 경고·에러 0. (SourceKit의 "Cannot find type" �
 4. 각 칸에서 스크롤 휠/제스처로 줌이 (독립적으로) 되는지.
 5. 창 닫기(빨간 버튼)로 정상 종료.
 
-- [ ] **Step 10: 커밋**
+- [x] **Step 10: 커밋**
 
 ```bash
 git add Sources/viewer/ComparePaneView.swift Sources/viewer/CompareWindowController.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Delegates.swift Sources/app/MainWindowController+Actions.swift Sources/app/MainMenu.swift Sources/browser/BrowserViewController.swift
@@ -380,7 +383,7 @@ git commit -m "feat: 이미지 비교 창 골격 + 진입점(메뉴·단축키·
   - `ImageDisplayView.normalizedVisibleCenter: CGPoint` (읽기 전용 계산 프로퍼티).
   - `final class CompareSyncCoordinator` — `init(panes: [ComparePaneView])`, `var isEnabled: Bool`.
 
-- [ ] **Step 1: `ImageDisplayView`에 정규화 중심 계산 + 적용 메서드 추가**
+- [x] **Step 1: `ImageDisplayView`에 정규화 중심 계산 + 적용 메서드 추가**
 
 `Sources/viewer/ImageDisplayView.swift`에 추가. `imageView`/`scrollView`/`clipView`는 같은 클래스 내부라 접근 가능.
 
@@ -425,7 +428,7 @@ git commit -m "feat: 이미지 비교 창 골격 + 진입점(메뉴·단축키·
     }
 ```
 
-- [ ] **Step 2: 변경 지점에서 `notifyTransformChanged()` 호출**
+- [x] **Step 2: 변경 지점에서 `notifyTransformChanged()` 호출**
 
 `ImageDisplayView`의 줌·팬 변경 경로에 호출을 추가한다.
 - `zoomIn()`, `zoomOut()`, `zoomToActualSize()` 끝에 `notifyTransformChanged()` 추가.
@@ -457,7 +460,7 @@ git commit -m "feat: 이미지 비교 창 골격 + 진입점(메뉴·단축키·
 
 > bounds 변경 관찰이 휠 줌(magnification 변경 시 clip bounds도 바뀜)과 패닝을 모두 포괄하므로, 명시적 `notifyTransformChanged()` 호출과 중복될 수 있으나 `isApplyingExternalTransform` 가드와 동일 값 재방송은 무해하다.
 
-- [ ] **Step 3: `CompareSyncCoordinator` 작성**
+- [x] **Step 3: `CompareSyncCoordinator` 작성**
 
 `Sources/viewer/CompareSyncCoordinator.swift` 생성:
 
@@ -492,7 +495,7 @@ final class CompareSyncCoordinator {
 }
 ```
 
-- [ ] **Step 4: 비교 창에 코디네이터 + 토글 연결**
+- [x] **Step 4: 비교 창에 코디네이터 + 토글 연결**
 
 `CompareWindowController`에 코디네이터 프로퍼티와 상단 동기화 토글을 추가한다.
 
@@ -530,12 +533,12 @@ final class CompareSyncCoordinator {
 
 > 레이아웃 상세: `syncToggle.top = container.top + 8`, `syncToggle.leading = container.leading + 8`; `gridView.top = syncToggle.bottom + 8`, gridView의 bottom/leading/trailing은 기존대로 container에 고정.
 
-- [ ] **Step 5: 빌드 검증**
+- [x] **Step 5: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0.
 
-- [ ] **Step 6: 수동 GUI 검증**
+- [x] **Step 6: 수동 GUI 검증**
 
 `make run` 후 2장 비교 창을 띄우고:
 1. 한 칸에서 휠로 확대 → 다른 칸도 같은 배율로 확대되는지.
@@ -544,7 +547,7 @@ Expected: 성공, 경고·에러 0.
 4. 해상도가 크게 다른 두 이미지로 반복 → 중심이 대략 맞는지(완벽 일치는 아님, 설계상 허용).
 5. 3장·4장에서도 한 칸 조작이 나머지 전부에 반영되는지.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 git add Sources/viewer/ImageDisplayView.swift Sources/viewer/CompareSyncCoordinator.swift Sources/viewer/CompareWindowController.swift
@@ -567,7 +570,7 @@ git commit -m "feat: 비교 창 줌·팬 동기화 + on/off 토글"
   - `ComparePaneView.onRequestClose: ((ComparePaneView) -> Void)?`
   - `ComparePaneView.setCloseEnabled(_ enabled: Bool)`
 
-- [ ] **Step 1: `ComparePaneView`에 닫기 버튼 추가**
+- [x] **Step 1: `ComparePaneView`에 닫기 버튼 추가**
 
 `Sources/viewer/ComparePaneView.swift`에 추가:
 
@@ -603,7 +606,7 @@ git commit -m "feat: 비교 창 줌·팬 동기화 + on/off 토글"
     }
 ```
 
-- [ ] **Step 2: 비교 창에서 칸 제거 처리**
+- [x] **Step 2: 비교 창에서 칸 제거 처리**
 
 `CompareWindowController`의 panes 생성 직후(각 pane에 close 콜백 연결)와 제거 메서드를 추가한다. `init`에서 panes를 만든 뒤:
 
@@ -634,19 +637,19 @@ git commit -m "feat: 비교 창 줌·팬 동기화 + on/off 토글"
 
 > 코디네이터를 통째로 재생성하는 이유: 기존 코디네이터가 제거된 pane을 약참조로 들고 있어 재배선이 가장 단순·안전(YAGNI). pane 수가 최대 4라 비용 무시 가능.
 
-- [ ] **Step 3: 빌드 검증**
+- [x] **Step 3: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0.
 
-- [ ] **Step 4: 수동 GUI 검증**
+- [x] **Step 4: 수동 GUI 검증**
 
 `make run` 후:
 1. 4장 비교 → 각 칸 우상단 닫기 버튼 표시. 한 칸 닫기 → 3칸(가로 3)으로 재배치.
 2. 또 닫기 → 2칸(좌우)으로. 이 시점에서 닫기 버튼이 사라지는지(2칸 최소).
 3. 칸 제거 후에도 남은 칸들의 줌·팬 동기화가 계속 동작하는지(코디네이터 재배선 확인).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add Sources/viewer/ComparePaneView.swift Sources/viewer/CompareWindowController.swift
@@ -672,14 +675,14 @@ git commit -m "feat: 비교 창 칸 닫기 + 그리드 재배치"
   - `ComparePaneView.setFile(_ file: ImageFile)` — 표시 이미지 교체.
   - `final class CompareCandidateStrip: NSView` — `init(files: [ImageFile], imageService:)`, `var onSelect: ((ImageFile) -> Void)?`.
 
-- [ ] **Step 1: 폴더 후보 열거 경로 확인**
+- [x] **Step 1: 폴더 후보 열거 경로 확인**
 
 구현 전 `Sources/services/FileService.swift`에서 폴더 내 이미지 열거 메서드 시그니처를 확인한다(예: `contentsOfFolder(at:) -> [ImageFile]` 또는 유사). 후보 풀 = (처음 선택분 ∪ 첫 파일의 부모 폴더 이미지), 중복 URL 제거, 비디오 제외.
 
 Run: `grep -n "func contentsOfFolder\|func images\|func enumerate" Sources/services/FileService.swift`
 Expected: 폴더 이미지 목록을 반환하는 메서드 1개 이상 확인. 그 시그니처를 Step 4에서 사용.
 
-- [ ] **Step 2: `ComparePaneView` 활성 상태 + 클릭 + 교체**
+- [x] **Step 2: `ComparePaneView` 활성 상태 + 클릭 + 교체**
 
 `Sources/viewer/ComparePaneView.swift`에 추가:
 
@@ -717,7 +720,7 @@ Expected: 폴더 이미지 목록을 반환하는 메서드 1개 이상 확인. 
         onSingleClick?()
 ```
 
-- [ ] **Step 3: `CompareCandidateStrip` 작성**
+- [x] **Step 3: `CompareCandidateStrip` 작성**
 
 `Sources/viewer/CompareCandidateStrip.swift` 생성. 가로 `NSCollectionView` 또는 간단히 가로 `NSScrollView`+`NSStackView`에 썸네일 버튼을 채운다(YAGNI: 스택 + 버튼).
 
@@ -800,7 +803,7 @@ final class CompareCandidateStrip: NSView {
 }
 ```
 
-- [ ] **Step 4: 비교 창에 strip + 활성 칸 관리**
+- [x] **Step 4: 비교 창에 strip + 활성 칸 관리**
 
 `CompareWindowController`에 추가:
 
@@ -865,12 +868,12 @@ final class CompareCandidateStrip: NSView {
 
 > `gridView.bottom`을 기존 `container.bottom` 고정에서 `strip.top` 기준으로 바꾼다. 초기 활성 칸은 첫 칸으로 두기 위해 `init` 끝에 `panes.first.map { setActivePane($0) }` 추가.
 
-- [ ] **Step 5: 빌드 검증**
+- [x] **Step 5: 빌드 검증**
 
 Run: `make build`
 Expected: 성공, 경고·에러 0. (Step 1에서 확인한 `contentsOfFolder` 시그니처가 다르면 그 자리에서 맞춰 수정.)
 
-- [ ] **Step 6: 수동 GUI 검증**
+- [x] **Step 6: 수동 GUI 검증**
 
 `make run` 후:
 1. 같은 폴더 이미지가 여럿인 상태에서 2장 비교 → 하단 strip에 폴더의 이미지들이 깔리는지.
@@ -879,7 +882,7 @@ Expected: 성공, 경고·에러 0. (Step 1에서 확인한 `contentsOfFolder` �
 4. 교체 후 그 칸도 줌·팬 동기화에 정상 참여하는지.
 5. 칸을 닫아 2칸이 된 뒤에도 교체가 동작하는지.
 
-- [ ] **Step 7: devlog 작성 + 커밋**
+- [x] **Step 7: devlog 작성 + 커밋**
 
 `docs/devlog/<오늘 날짜>.md`에 비교 기능 구현 요약을 추가(기존 devlog 형식: 배경·변경 사항·검증). 그 후:
 

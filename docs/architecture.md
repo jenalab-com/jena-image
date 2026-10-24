@@ -68,32 +68,56 @@ Sources/
   app/
     main.swift                   # NSApplication 엔트리 포인트
     AppDelegate.swift            # 앱 생명주기, 윈도우 생성
-    MainWindowController.swift   # NSSplitViewController 구성
+    MainWindowController.swift   # 메인 윈도우 · Feature 간 중재자
+    MainWindowController+Actions.swift        # 메뉴/툴바 액션
+    MainWindowController+Delegates.swift      # 사이드바·브라우저·뷰어 delegate 구현
+    MainWindowController+FileOperations.swift # 삭제·이름변경·내보내기 등 파일 조작
     MainMenu.swift               # 메뉴바 구성 및 액션 바인딩
+    PreferencesWindowController.swift         # 설정 창
+    ExportAccessoryView.swift    # 다른 이름으로 저장 패널의 포맷·품질 accessory
+    StatusBarView.swift          # 하단 상태 바(파일 수·선택·썸네일 크기·회전)
+    HelpWindowController.swift   # 도움말 창
+    ImageInfoWindowController.swift # 이미지 정보(⌘I) 패널
 
   sidebar/
-    SidebarViewController.swift  # NSOutlineView 기반 폴더 트리
-    SidebarDelegate.swift        # 폴더 선택/드래그 타겟 처리
+    SidebarViewController.swift  # NSOutlineView 기반 폴더 트리(즐겨찾기·폴더·북마크)
 
   browser/
-    BrowserViewController.swift  # NSCollectionView 기반 그리드
-    BrowserItem.swift            # 컬렉션 뷰 아이템 (폴더/이미지)
-    BrowserDelegate.swift        # 선택, 더블클릭, 컨텍스트 메뉴, 드래그 소스
+    BrowserViewController.swift  # NSCollectionView 기반 그리드(일반/북마크 모드)
+    BrowserItem.swift            # 컬렉션 뷰 셀 아이템
 
   viewer/
     ViewerViewController.swift   # 뷰어 모드 컨테이너 (썸네일 스트립 + 이미지 뷰)
-    ImageDisplayView.swift       # 확대/축소/패닝 가능한 이미지 뷰
+    ImageDisplayView.swift       # 확대/축소/패닝/회전/플립 이미지 뷰
     ThumbnailStripView.swift     # 세로 썸네일 목록
+    VideoPlayerView.swift        # AVPlayer 기반 영상 재생 뷰
+    ImageEditorWindowController.swift  # 편집 창(자르기·리사이즈·색보정·저장)
+    CropOverlayView.swift        # 자르기 영역 오버레이
+    CompareWindowController.swift      # 비교 창(2~4칸 그리드·후보 strip)
+    ComparePaneView.swift        # 비교 창 개별 칸
+    CompareSyncCoordinator.swift # 비교 칸 줌·팬 동기화
+    CompareCandidateStrip.swift  # 비교 후보 썸네일 strip
 
   services/
     FileService.swift            # 폴더 열거, 이동, 복사, 삭제, 이름 변경
     ImageService.swift           # 이미지 로드, 썸네일 생성, 포맷 변환
+    ImageEditingService.swift    # 자르기·캔버스·리사이즈·색보정
+    ImageMetadataService.swift   # 파일 기본 정보 + ImageIO/EXIF/GPS 메타데이터
+    ThumbnailProvider.swift      # 뷰별 썸네일 요청 통합(메모리+디스크)
+    ThumbnailProvider+App.swift  # 앱 전역 ThumbnailProvider 설정
     ThumbnailCache.swift         # LRU 기반 썸네일 메모리 캐시
-    SecurityScopeService.swift   # 앱 샌드박스 보안 스코프 북마크 관리
+    ThumbnailDiskStore.swift     # HEIC 디스크 썸네일 캐시 + LRU GC
+    ThumbnailScheduler.swift     # 썸네일 요청 우선순위
+    BookmarkStore.swift          # 북마크 경로 목록 영속 + 변경 알림
+    FolderColorService.swift     # 폴더 색상 커스터마이징
+    FolderWatcher.swift          # 폴더 파일시스템 변경 감시(FSEvents)
+    AppSettings.swift            # UserDefaults 설정 래퍼
+    Localization.swift           # 다국어 문자열
+    SecurityScopeService.swift   # 등록 폴더 경로 저장/복원
 
   models/
     FolderNode.swift             # 폴더 트리 노드 (URL, children, isExpanded)
-    ImageFile.swift              # 이미지 파일 (URL, name, fileSize, imageFormat)
+    ImageFile.swift              # 미디어 파일 (URL, name, fileSize, imageFormat)
     ImageFormat.swift            # 지원 포맷 enum (jpeg, png, webp, heic, ...)
     BrowserContent.swift         # 브라우저 표시 항목 (folder | image) enum
 ```
@@ -490,7 +514,7 @@ pkg: build
 
 ### ADR-003: NSCache 기반 썸네일 캐시 (디스크 캐시 제외)
 
-**Status:** Accepted
+**Status:** Superseded by ADR-006 (2026-10). 메모리 캐시는 그대로 유지되고, 디스크 계층이 추가됐다.
 
 **Context:** 1,000개 이상 이미지 폴더에서 스크롤 끊김 없이 썸네일을 표시해야 한다.
 
@@ -542,3 +566,23 @@ pkg: build
 
 **Consequences:**
 - Actor isolation 관련 컴파일 경고에 주의 필요
+
+---
+
+### ADR-006: 썸네일 디스크 캐시(HEIC) 추가 — ADR-003 대체
+
+**Status:** Accepted (2026-10)
+
+**Context:** 1.8.0 기준으로 앱 재시작 후에도 썸네일이 즉시 보여야 한다는 요구가 커졌고, iCloud Drive에서 내려간 파일을 썸네일 때문에 다시 받아오는 문제도 정리해야 했다.
+
+**Decision:** 메모리 캐시(ADR-003) 위에 `ThumbnailDiskStore`를 얹는다. 썸네일을 HEIC로 디스크에 저장하고 LRU GC로 상한(500MB–8GB, 설정 가능)을 지킨다. iCloud에서 비워진 파일은 원본을 내려받지 않고 QuickLook 썸네일로 대체한다.
+
+**Rationale:**
+- 재실행 콜드 스타트 제거, 스크롤 체감 속도 개선
+- HEIC는 JPEG 대비 작은 용량으로 품질 확보
+- 파일 변경·삭제 시 소스 수정일 기반 무효화로 정합성 유지
+
+**Consequences:**
+- 캐시 무효화·GC 로직이 추가되어 `ThumbnailProvider`가 메모리/디스크 두 계층을 조율한다.
+- 상세 설계는 [thumbnail-cache-design.md](thumbnail-cache-design.md) 참조.
+
