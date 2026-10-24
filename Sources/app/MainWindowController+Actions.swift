@@ -81,6 +81,13 @@ extension MainWindowController {
         if contentMode == .viewer { return viewerVC.currentImageURL != nil }
         return !browserVC.selectedURLs().isEmpty
     }
+
+    /// 정보 패널 대상 — 미디어 파일 1개만 허용한다.
+    func infoTargetURL() -> URL? {
+        let urls = activeSelectedURLs()
+        guard urls.count == 1, let url = urls.first, ImageFile(url: url) != nil else { return nil }
+        return url
+    }
 }
 
 // MARK: - Menu Actions
@@ -276,6 +283,11 @@ extension MainWindowController {
         printOp.showsProgressPanel = true
         printOp.run()
     }
+
+    @objc func showImageInfo(_ sender: Any?) {
+        guard let url = infoTargetURL() else { return }
+        showInfo(for: url)
+    }
 }
 
 // MARK: - Menu Validation
@@ -314,6 +326,10 @@ extension MainWindowController: NSToolbarItemValidation {
 
         if menuItem.action == #selector(toggleBookmarkSelected(_:)) {
             return browserVC.selectedURLs().compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count >= 1
+        }
+
+        if menuItem.action == #selector(showImageInfo(_:)) {
+            return infoTargetURL() != nil
         }
 
         switch menuItem.action {

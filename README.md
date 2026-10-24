@@ -23,13 +23,14 @@
 - **Grid Browser** — View images and folders as a thumbnail grid with adjustable size; video files show a play badge
 - **Fast Thumbnails** — Visible cells load first in parallel with a skeleton placeholder; thumbnails persist in an on-disk HEIC cache (configurable 500 MB–8 GB) so they appear instantly on relaunch. Evicted iCloud Drive files are never downloaded just to make a thumbnail
 - **Image Viewer** — In-panel viewer with zoom, rotate, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
+- **Image Info** — `⌘I` shows file size, dimensions, DPI, color space, format, and EXIF camera/GPS data
 - **Image Compare** — Select 2–4 images and view them side by side in a separate window with synchronized zoom/pan; swap any pane from a bottom candidate strip
 - **Bookmarks** — Bookmark images from anywhere and collect them under a "Bookmarks" section in the sidebar; bookmarked images show a star badge in the grid. Remove, delete, or rename from the bookmark view; missing originals show a placeholder
 - **Image Editing** — Crop, resize, canvas size, and color adjustment (brightness/contrast/saturation/highlights/shadows) with undo/redo; EXIF orientation handling and print support
 - **Slideshow & QuickLook** — Auto-advancing slideshow and QuickLook preview
 - **Video Player** — Play MP4, MOV, M4V, AVI, MKV files inline with AVKit
 - **Format Conversion** — Export images to JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF
-- **File Management** — Rename, move, copy, duplicate, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete
+- **File Management** — Rename, move, copy, duplicate, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete; open any file with a compatible app (or the macOS default app) from the context menu
 - **Keyboard Shortcuts** — Full keyboard support for all major operations
 
 ## Screenshots
@@ -87,6 +88,7 @@ Sources/
 | Save As (Export) | `⇧⌘S` |
 | Duplicate | `⌘D` |
 | Print | `⌘P` |
+| Show Info | `⌘I` |
 | Delete | `⌫` |
 | Reveal in Finder | `⌘R` |
 | Copy to Clipboard | `⌘C` |

@@ -36,6 +36,10 @@ enum L10nKey: String {
     case moveTo
     case copyTo
     case saveAs
+    case openWith
+    case openWithDefault
+    case noCompatibleApps
+    case imageInfo
     case delete
 
     // Edit
@@ -148,6 +152,10 @@ enum L10n {
             .moveTo: "이동…",
             .copyTo: "복사…",
             .saveAs: "다른 이름으로 저장…",
+            .openWith: "다른 앱으로 열기",
+            .openWithDefault: "기본 앱으로 열기",
+            .noCompatibleApps: "사용 가능한 앱 없음",
+            .imageInfo: "정보 보기",
             .delete: "삭제",
             .edit: "편집",
             .copy: "복사",
@@ -221,6 +229,10 @@ enum L10n {
             .moveTo: "Move To…",
             .copyTo: "Copy To…",
             .saveAs: "Save As…",
+            .openWith: "Open With",
+            .openWithDefault: "Open with Default App",
+            .noCompatibleApps: "No Compatible Apps",
+            .imageInfo: "Show Info",
             .delete: "Delete",
             .edit: "Edit",
             .copy: "Copy",
@@ -294,6 +306,10 @@ enum L10n {
             .moveTo: "移動…",
             .copyTo: "コピー…",
             .saveAs: "別名で保存…",
+            .openWith: "別のアプリで開く",
+            .openWithDefault: "デフォルトのアプリで開く",
+            .noCompatibleApps: "利用可能なアプリなし",
+            .imageInfo: "情報を見る",
             .delete: "削除",
             .edit: "編集",
             .copy: "コピー",
@@ -367,6 +383,10 @@ enum L10n {
             .moveTo: "移动到…",
             .copyTo: "复制到…",
             .saveAs: "另存为…",
+            .openWith: "打开方式",
+            .openWithDefault: "用默认应用打开",
+            .noCompatibleApps: "没有可用的应用",
+            .imageInfo: "显示简介",
             .delete: "删除",
             .edit: "编辑",
             .copy: "复制",
