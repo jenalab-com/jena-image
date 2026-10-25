@@ -34,14 +34,21 @@ private final class SidebarGroup {
 /// 즐겨찾기 섹션의 북마크 항목
 private final class SidebarBookmarksRow {}
 
+private final class SidebarCategoryRow {
+    let category: ImageCategory
+    init(_ category: ImageCategory) { self.category = category }
+}
+
 // MARK: - Click-Aware Outline View
 
 private final class ClickAwareOutlineView: NSOutlineView {
     var onClickSelectedRow: ((Int) -> Void)?
+    var onDoubleClickRow: ((Int) -> Bool)?
 
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: clickPoint)
+        if event.clickCount == 2, clickedRow >= 0, onDoubleClickRow?(clickedRow) == true { return }
         let wasSelected = clickedRow >= 0 && selectedRowIndexes.contains(clickedRow)
         let isSingleClick = event.clickCount == 1
 
@@ -65,6 +72,16 @@ final class SidebarViewController: NSViewController {
     private let reloadButton = NSButton()
     private let addRootFolderButton = NSButton()
     private let recursiveToggle = NSButton()
+    private let folderModeButton = NSButton()
+    private let categoryModeButton = NSButton()
+    private let categoryEmptyLabel = NSTextField(labelWithString: "카테고리가 없습니다.\n+ 버튼으로 추가하세요.")
+    private(set) var isCategoryView = false
+    var onSelectCategory: ((UUID) -> Void)?
+    var onAddCategory: (() -> Void)?
+    var onRenameCategory: ((UUID) -> Void)?
+    var onViewModeChanged: ((Bool) -> Void)?
+    private var categoryRows: [SidebarCategoryRow] = []
+    private var savedExpandedURLs: [URL] = []
     private var showFilesInSidebar = true
     private var rootNodes: [FolderNode] = []
     private var renameWorkItem: DispatchWorkItem?
@@ -76,17 +93,26 @@ final class SidebarViewController: NSViewController {
     private let favoritesGroup = SidebarGroup("즐겨찾기")
     private let foldersGroup   = SidebarGroup("폴더")
     private let bookmarksRow   = SidebarBookmarksRow()
+    private let categoriesGroup = SidebarGroup("카테고리")
 
     override func loadView() {
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .sidebar
-        visualEffect.blendingMode = .behindWindow
-        view = visualEffect
+        view = LibrarySurfaceView(kind: .sidebar)
         setupHeaderBar()
         setupScrollView()
         setupOutlineView()
         setupAddButton()
         setupContextMenu()
+        categoryEmptyLabel.translatesAutoresizingMaskIntoConstraints = false
+        categoryEmptyLabel.font = .systemFont(ofSize: 12)
+        categoryEmptyLabel.textColor = .secondaryLabelColor
+        categoryEmptyLabel.alignment = .center
+        categoryEmptyLabel.isHidden = true
+        view.addSubview(categoryEmptyLabel)
+        NSLayoutConstraint.activate([
+            categoryEmptyLabel.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
+            categoryEmptyLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
+        ])
+        updateViewModeAppearance()
     }
 
     override func viewDidLoad() {
@@ -96,6 +122,78 @@ final class SidebarViewController: NSViewController {
     }
 
     // MARK: - Public
+
+    func setCategories(_ categories: [ImageCategory], selectedID: UUID?) {
+        categoryRows = categories.map(SidebarCategoryRow.init)
+        guard isViewLoaded else { return }
+        if isCategoryView {
+            let wasBookmarks = outlineView.item(atRow: outlineView.selectedRow) is SidebarBookmarksRow
+            isSuppressingSelectionDelegate = true
+            outlineView.reloadData()
+            expandGroups()
+            if wasBookmarks, selectedID == nil {
+                let row = outlineView.row(forItem: bookmarksRow)
+                if row >= 0 { outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false) }
+            } else { selectCategory(selectedID) }
+            isSuppressingSelectionDelegate = false
+        }
+        categoryEmptyLabel.isHidden = !isCategoryView || !categories.isEmpty
+    }
+
+    func selectCategory(_ id: UUID?) {
+        guard isCategoryView, let item = categoryRows.first(where: { $0.category.id == id }) else { return }
+        let row = outlineView.row(forItem: item)
+        guard row >= 0 else { return }
+        let wasSuppressing = isSuppressingSelectionDelegate
+        isSuppressingSelectionDelegate = true
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        isSuppressingSelectionDelegate = wasSuppressing
+    }
+
+    func setCategoryView(_ enabled: Bool) {
+        guard isCategoryView != enabled else { return }
+        renameWorkItem?.cancel()
+        if enabled { savedExpandedURLs = expandedFolderURLs }
+        isCategoryView = enabled
+        isSuppressingSelectionDelegate = true
+        outlineView.deselectAll(nil)
+        outlineView.reloadData()
+        expandGroups()
+        if !enabled {
+            for url in savedExpandedURLs.sorted(by: { $0.path.count < $1.path.count }) {
+                if let node = findNode(for: url) { outlineView.expandItem(node) }
+            }
+        }
+        isSuppressingSelectionDelegate = false
+        updateViewModeAppearance()
+    }
+
+    private func updateViewModeAppearance() {
+        folderModeButton.state = isCategoryView ? .off : .on
+        categoryModeButton.state = isCategoryView ? .on : .off
+        folderModeButton.contentTintColor = isCategoryView ? nil : .controlAccentColor
+        categoryModeButton.contentTintColor = isCategoryView ? .controlAccentColor : nil
+        recursiveToggle.isHidden = isCategoryView
+        showFilesToggle.isHidden = isCategoryView
+        addRootFolderButton.image = NSImage(systemSymbolName: isCategoryView ? "plus" : "folder.badge.plus",
+                                           accessibilityDescription: isCategoryView ? "카테고리 추가" : "폴더 추가")
+        addRootFolderButton.toolTip = isCategoryView ? "카테고리 추가" : "사이드바에 폴더 추가"
+        addButton.toolTip = isCategoryView ? "카테고리 추가" : "선택한 폴더에 새 폴더 만들기"
+        reloadButton.toolTip = isCategoryView ? "카테고리 목록 새로고침" : "폴더 목록 새로고침 (⌘⇧R)"
+        categoryEmptyLabel.isHidden = !isCategoryView || !categoryRows.isEmpty
+    }
+
+    @objc private func folderModeTapped(_ sender: Any?) {
+        guard isCategoryView else { return }
+        setCategoryView(false)
+        onViewModeChanged?(false)
+    }
+
+    @objc private func categoryModeTapped(_ sender: Any?) {
+        guard !isCategoryView else { return }
+        setCategoryView(true)
+        onViewModeChanged?(true)
+    }
 
     /// 등록된 폴더 목록으로 사이드바 구성
     func setFolders(_ urls: [URL]) {
@@ -133,6 +231,7 @@ final class SidebarViewController: NSViewController {
     }
 
     func selectFile(at url: URL) {
+        guard !isCategoryView else { return }
         let folderURL = url.deletingLastPathComponent()
 
         // 폴더 노드를 찾고 펼침
@@ -260,12 +359,13 @@ final class SidebarViewController: NSViewController {
 
     private func expandGroups() {
         outlineView.expandItem(favoritesGroup)
-        outlineView.expandItem(foldersGroup)
+        outlineView.expandItem(isCategoryView ? categoriesGroup : foldersGroup)
     }
 
     // MARK: - Context Menu
 
     @objc private func addFolderFromMenu(_ sender: Any?) {
+        if isCategoryView { onAddCategory?(); return }
         delegate?.sidebarDidRequestAddFolder(self)
     }
 
@@ -276,6 +376,7 @@ final class SidebarViewController: NSViewController {
     private var newFolderDelegate: NewFolderFieldDelegate?
 
     @objc private func createNewSubfolder(_ sender: Any?) {
+        if isCategoryView { onAddCategory?(); return }
         guard !isCreatingFolder else { return }
 
         // 선택된 폴더 결정 (이미지 선택 시 부모 폴더, 없으면 첫 루트)
@@ -421,6 +522,10 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func renameFromMenu(_ sender: Any?) {
+        if let id = (sender as? NSMenuItem)?.representedObject as? UUID {
+            onRenameCategory?(id)
+            return
+        }
         let clickedRow = outlineView.clickedRow
         guard clickedRow >= 0 else { return }
         let item = outlineView.item(atRow: clickedRow)
@@ -440,6 +545,10 @@ final class SidebarViewController: NSViewController {
 
     private func handleClickOnSelectedRow(at row: Int) {
         let item = outlineView.item(atRow: row)
+        if let categoryRow = item as? SidebarCategoryRow {
+            onSelectCategory?(categoryRow.category.id)
+            return
+        }
 
         if let node = item as? FolderNode {
             // 폴더: 토글 펼침/접기
@@ -468,6 +577,7 @@ final class SidebarViewController: NSViewController {
     }
 
     private func beginRename(at row: Int) {
+        guard !(outlineView.item(atRow: row) is SidebarCategoryRow) else { return }
         guard let cellView = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
               let textField = cellView.textField else { return }
 
@@ -513,6 +623,15 @@ final class SidebarViewController: NSViewController {
 
     /// 폴더 리스트 상단 바 — 왼쪽에 [폴더 추가], 오른쪽에 [하위 폴더 포함 토글][새로고침] 순으로 둔다.
     private func setupHeaderBar() {
+        let title = NSTextField(labelWithString: "라이브러리")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        title.textColor = .labelColor
+        title.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(title)
+        NSLayoutConstraint.activate([
+            title.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
+            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+        ])
         addRootFolderButton.translatesAutoresizingMaskIntoConstraints = false
         addRootFolderButton.bezelStyle = .smallSquare
         addRootFolderButton.isBordered = false
@@ -545,8 +664,31 @@ final class SidebarViewController: NSViewController {
         view.addSubview(recursiveToggle)
         updateRecursiveToggleAppearance()
 
+        for (button, symbol, title, action) in [
+            (folderModeButton, "folder", "폴더로 보기", #selector(folderModeTapped(_:))),
+            (categoryModeButton, "tag", "카테고리 보기", #selector(categoryModeTapped(_:))),
+        ] {
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.bezelStyle = .smallSquare
+            button.isBordered = false
+            button.setButtonType(.toggle)
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+            button.toolTip = title
+            button.target = self
+            button.action = action
+            view.addSubview(button)
+            NSLayoutConstraint.activate([
+                button.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
+                button.widthAnchor.constraint(equalToConstant: 24),
+                button.heightAnchor.constraint(equalToConstant: 24),
+            ])
+        }
+
         NSLayoutConstraint.activate([
-            reloadButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
+            folderModeButton.leadingAnchor.constraint(equalTo: addRootFolderButton.trailingAnchor, constant: 6),
+            categoryModeButton.leadingAnchor.constraint(equalTo: folderModeButton.trailingAnchor, constant: 2),
+            categoryModeButton.trailingAnchor.constraint(lessThanOrEqualTo: recursiveToggle.leadingAnchor, constant: -4),
+            reloadButton.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
             reloadButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             reloadButton.widthAnchor.constraint(equalToConstant: 24),
             reloadButton.heightAnchor.constraint(equalToConstant: 24),
@@ -566,12 +708,13 @@ final class SidebarViewController: NSViewController {
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
         scrollView.documentView = outlineView
         view.addSubview(scrollView)
 
         // scrollView는 상단 바 아래에 붙인다 (상단 바 자체가 트래픽 라이트 여백을 확보)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: reloadButton.bottomAnchor, constant: 4),
+            scrollView.topAnchor.constraint(equalTo: reloadButton.bottomAnchor, constant: 10),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
@@ -668,7 +811,11 @@ final class SidebarViewController: NSViewController {
         outlineView.headerView = nil
         outlineView.dataSource = self
         outlineView.delegate = self
-        outlineView.rowSizeStyle = .default
+        outlineView.backgroundColor = .clear
+        outlineView.rowSizeStyle = .custom
+        outlineView.rowHeight = 28
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
+        outlineView.indentationPerLevel = 12
         // source-list 스타일 적용 (macOS 11 이하 호환을 위해 style 설정 후 deprecated API 폴백)
         if #available(macOS 12.0, *) {
             outlineView.style = .sourceList
@@ -678,6 +825,11 @@ final class SidebarViewController: NSViewController {
 
         outlineView.onClickSelectedRow = { [weak self] row in
             self?.handleClickOnSelectedRow(at: row)
+        }
+        outlineView.onDoubleClickRow = { [weak self] row in
+            guard let self, let item = self.outlineView.item(atRow: row) as? SidebarCategoryRow else { return false }
+            self.onRenameCategory?(item.category.id)
+            return true
         }
     }
 
@@ -797,6 +949,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
         if item is SidebarGroup {
             if (item as AnyObject) === favoritesGroup { return 1 }
             if (item as AnyObject) === foldersGroup   { return rootNodes.count }
+            if (item as AnyObject) === categoriesGroup { return categoryRows.count }
         }
         guard let node = item as? FolderNode else { return 0 }
         node.loadChildren()
@@ -805,11 +958,12 @@ extension SidebarViewController: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         if item == nil {
-            return index == 0 ? favoritesGroup : foldersGroup
+            return index == 0 ? favoritesGroup : (isCategoryView ? categoriesGroup : foldersGroup)
         }
         if let group = item as? SidebarGroup {
             if group === favoritesGroup { return bookmarksRow }
             if group === foldersGroup   { return rootNodes[index] }
+            if group === categoriesGroup { return categoryRows[index] }
         }
         let node = item as! FolderNode
         return node.child(at: index, includeFiles: showFilesInSidebar)!
@@ -874,6 +1028,9 @@ extension SidebarViewController: NSOutlineViewDataSource {
 // MARK: - NSOutlineViewDelegate
 
 extension SidebarViewController: NSOutlineViewDelegate {
+    func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+        LibrarySidebarRowView()
+    }
 
     /// 그룹 헤더 판별 — SidebarGroup만 true
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
@@ -906,6 +1063,17 @@ extension SidebarViewController: NSOutlineViewDelegate {
             cell.imageView?.contentTintColor = .controlAccentColor
             let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
             countLabel?.stringValue = ""
+            return cell
+        }
+
+        if let row = item as? SidebarCategoryRow {
+            let id = NSUserInterfaceItemIdentifier("CategoryCell")
+            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
+                ?? createSidebarCell(identifier: id)
+            cell.textField?.stringValue = row.category.name
+            cell.imageView?.image = NSImage(systemSymbolName: "tag.fill", accessibilityDescription: row.category.name)
+            cell.imageView?.contentTintColor = .controlAccentColor
+            (cell.viewWithTag(Self.countLabelTag) as? NSTextField)?.stringValue = "\(row.category.paths.count)"
             return cell
         }
 
@@ -955,6 +1123,11 @@ extension SidebarViewController: NSOutlineViewDelegate {
         let row = outlineView.selectedRow
         guard row >= 0 else { return }
         let item = outlineView.item(atRow: row)
+
+        if let row = item as? SidebarCategoryRow {
+            onSelectCategory?(row.category.id)
+            return
+        }
 
         // 북마크 행 선택
         if item is SidebarBookmarksRow {
@@ -1025,6 +1198,7 @@ extension SidebarViewController: NSOutlineViewDelegate {
         let textField = NSTextField(labelWithString: "")
         textField.translatesAutoresizingMaskIntoConstraints = false
         textField.lineBreakMode = .byTruncatingTail
+        textField.font = .systemFont(ofSize: 12)
         cell.addSubview(textField)
         cell.textField = textField
 
@@ -1120,6 +1294,8 @@ extension SidebarViewController: NSTextFieldDelegate {
 
 extension SidebarViewController: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.item(withTag: Self.menuRenameTag)?.representedObject = nil
+        for item in menu.items { item.isHidden = false }
         let clickedRow = outlineView.clickedRow
         guard clickedRow >= 0 else {
             for item in menu.items { item.isHidden = true }
@@ -1127,6 +1303,12 @@ extension SidebarViewController: NSMenuDelegate {
         }
 
         let clickedItem = outlineView.item(atRow: clickedRow)
+
+        if let row = clickedItem as? SidebarCategoryRow {
+            for item in menu.items { item.isHidden = item.tag != Self.menuRenameTag }
+            menu.item(withTag: Self.menuRenameTag)?.representedObject = row.category.id
+            return
+        }
 
         // 센티넬 타입(그룹 헤더, 북마크 행)은 메뉴 항목 전부 숨김
         if clickedItem is SidebarGroup || clickedItem is SidebarBookmarksRow {

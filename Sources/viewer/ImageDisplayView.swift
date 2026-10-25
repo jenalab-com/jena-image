@@ -8,6 +8,7 @@ final class ImageDisplayView: NSView {
     private let scrollView = ZoomScrollView()
     private let clipView = CenteringClipView()
     private let imageView = NSImageView()
+    private let canvas = LibrarySurfaceView(kind: .canvas)
 
     /// 창 크기가 바뀔 때 다시 맞출 기준. none이면 사용자가 정한 배율을 그대로 둔다.
     private enum FitMode { case none, window, height, width }
@@ -55,7 +56,7 @@ final class ImageDisplayView: NSView {
         settingsObserver = NotificationCenter.default.addObserver(
             forName: .settingsChanged, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.scrollView.backgroundColor = AppSettings.shared.viewerBackground.color
+            self?.applyBackground(AppSettings.shared.viewerBackground)
         }
     }
 
@@ -402,14 +403,24 @@ final class ImageDisplayView: NSView {
 
     // MARK: - Setup
 
+    /// 기본 배경은 목록과 같은 블러이며 명시적으로 선택한 단색 배경도 유지한다.
+    func applyBackground(_ background: AppSettings.ViewerBackground) {
+        let translucent = background == .system
+        canvas.isHidden = !translucent
+        scrollView.drawsBackground = !translucent
+        scrollView.backgroundColor = background.color
+    }
+
     private func setupViews() {
+        canvas.frame = bounds
+        canvas.autoresizingMask = [.width, .height]
+        addSubview(canvas)
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.allowsMagnification = true
         scrollView.minMagnification = Self.minMagnification
         scrollView.maxMagnification = Self.maxMagnification
-        scrollView.backgroundColor = AppSettings.shared.viewerBackground.color
         scrollView.scrollerStyle = .overlay
         scrollView.onMagnificationChanged = { [weak self] in self?.notifyTransformChanged() }
 
@@ -417,6 +428,7 @@ final class ImageDisplayView: NSView {
         clipView.documentView = imageView
         scrollView.contentView = clipView
         addSubview(scrollView)
+        applyBackground(AppSettings.shared.viewerBackground)
 
         imageView.imageScaling = .scaleNone
         imageView.setAccessibilityRole(.image)

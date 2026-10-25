@@ -179,7 +179,7 @@ extension ThumbnailStripView: NSTableViewDelegate {
         let cell = NSTableCellView()
         cell.identifier = identifier
 
-        let imageView = NSImageView()
+        let imageView = ThumbnailImageView()
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.imageScaling = .scaleProportionallyUpOrDown
         cell.addSubview(imageView)

@@ -32,6 +32,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomFitWidth = NSToolbarItem.Identifier("zoomFitWidth")
         static let sort = NSToolbarItem.Identifier("sort")
         static let compare = NSToolbarItem.Identifier("compare")
+        static let layout = NSToolbarItem.Identifier("browserLayout")
     }
 
     // MARK: - Dependencies
@@ -41,6 +42,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     let securityService = SecurityScopeService()
     let folderWatcher = FolderWatcher()
     let bookmarkStore = BookmarkStore()
+    let categoryStore: CategoryStore
+    let similarityService: ImageSimilarityService
+    var similarityTask: Task<Void, Never>?
+    var similaritySession: UUID?
+    var similarityProgressAlert: NSAlert?
+    var similarityPresentation: SimilarityPresentation?
+    private var similarityCloseObserver: NSObjectProtocol?
 
     // MARK: - Child ViewControllers
 
@@ -63,6 +71,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // MARK: - State
 
+    var currentCategoryID: UUID?
+    var lastCategoryID: UUID?
+    var folderLoadGeneration = 0
     var currentFolderURL: URL?
     var contentMode: ContentMode = .browser
     var activePanel: ActivePanel = .browser
@@ -86,8 +97,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // MARK: - Init
 
-    init() {
-        browserVC = BrowserViewController(imageService: imageService)
+    init(categoryStore: CategoryStore = CategoryStore(), settings: AppSettings = .shared,
+         similarityService: ImageSimilarityService = ImageSimilarityService()) {
+        self.categoryStore = categoryStore
+        self.similarityService = similarityService
+        browserVC = BrowserViewController(imageService: imageService, settings: settings)
         viewerVC = ViewerViewController(imageService: imageService)
 
         let window = NSWindow(
@@ -97,9 +111,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             defer: false
         )
         window.title = "JenaImage"
-        window.titlebarAppearsTransparent = false
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.backgroundColor = .windowBackgroundColor
         window.titleVisibility = .visible
-        window.toolbarStyle = .unified
+        window.toolbarStyle = .unifiedCompact
         window.minSize = NSSize(width: 700, height: 500)
         window.setFrameAutosaveName("MainWindow")
         if !window.setFrameUsingName("MainWindow") {
@@ -111,12 +127,22 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         setupToolbar()
         setupDelegates()
         setupLayout()
+        setupCategories()
+        browserVC.onFindSimilarImage = { [weak self] url in self?.findSimilarImages(to: url) }
+        similarityCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in self?.clearSimilaritySearch() }
         setupFolderWatcher()
         setupThumbnailSettings()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit {
+        similarityTask?.cancel()
+        if let observer = similarityCloseObserver { NotificationCenter.default.removeObserver(observer) }
+    }
 
     // MARK: - Window Lifecycle
 
@@ -182,15 +208,22 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // MARK: - Navigation
 
     func navigateToFolder(_ url: URL) {
+        clearSimilaritySearch()
+        currentCategoryID = nil
+        folderLoadGeneration += 1
+        let generation = folderLoadGeneration
+        sidebarVC.setCategoryView(false)
         currentFolderURL = url
         syncWatchedFolders()
         switchToMode(.browser)
+        browserVC.display(folders: [], images: [])
+        updateToolbarState()
 
         // 디렉토리 열거를 백그라운드에서 수행해 대용량 폴더에서도 UI를 막지 않는다.
         Task { @MainActor in
             let result = await self.enumerateFolderContents(at: url)
             // 열거 도중 다른 폴더로 전환했거나 뷰어로 빠졌으면 결과를 폐기 (stale 방지)
-            guard self.currentFolderURL == url, self.contentMode == .browser else { return }
+            guard self.folderLoadGeneration == generation, self.currentFolderURL == url, self.contentMode == .browser else { return }
             switch result {
             case .success(let contents):
                 self.browserVC.display(
@@ -251,7 +284,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private func applyThumbnailSettings() {
         ThumbnailProvider.shared.setMemoryLimit(bytes: AppSettings.shared.thumbnailCacheMB * 1024 * 1024)
         ThumbnailProvider.shared.clearMemory()
-        guard contentMode == .browser, !browserVC.isBookmarkMode else { return }
+        guard contentMode == .browser else { return }
         refreshAfterExternalChange()
     }
 
@@ -303,6 +336,21 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     /// 외부(Finder 등)에서 파일이 변경된 후 앱이 활성화될 때 호출
     func refreshAfterExternalChange() {
+        if similarityTask != nil { return }
+        if browserVC.isSimilarityMode {
+            if contentMode == .viewer { viewerVC.reloadCurrentImage() }
+            else { refreshSimilarityResults() }
+            return
+        }
+        if browserVC.isCategoryMode {
+            if contentMode == .viewer { viewerVC.reloadCurrentImage() }
+            else { refreshCategories() }
+            return
+        }
+        if browserVC.isBookmarkMode, contentMode == .browser {
+            showBookmarks()
+            return
+        }
         guard let url = currentFolderURL else { return }
 
         // 뷰어 모드는 디렉토리 열거가 필요 없다.
@@ -312,19 +360,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             return
         }
 
-        // 북마크 보기 중이면 폴더 열거로 덮지 않는다(북마크 그리드를 유지·갱신).
-        // FolderWatcher가 감시 폴더 변경(이름변경·삭제 등)을 감지해 호출하더라도
-        // 북마크 뷰에서 폴더 리스트로 튕기지 않도록 한다.
-        if browserVC.isBookmarkMode {
-            showBookmarks()
-            sidebarVC.reloadCurrentFolder()
-            return
-        }
-
         // 브라우저 모드: 디렉토리 열거를 백그라운드에서 수행.
+        folderLoadGeneration += 1
+        let generation = folderLoadGeneration
         Task { @MainActor in
             let result = await self.enumerateFolderContents(at: url)
-            guard self.currentFolderURL == url, self.contentMode == .browser,
+            guard self.folderLoadGeneration == generation,
+                  self.currentFolderURL == url, self.contentMode == .browser,
                   case .success(let contents) = result else { return }
 
             // 기존 선택을 URL로 보존 후 복원 (인덱스가 바뀌어도 올바른 항목 유지)
@@ -348,9 +390,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     /// 사이드바 북마크 항목 → 메인을 북마크 그리드로 전환.
     func showBookmarks() {
+        clearSimilaritySearch()
+        folderLoadGeneration += 1
+        currentCategoryID = nil
         switchToMode(.browser)
         let files = bookmarkStore.bookmarks.compactMap { ImageFile(url: $0) }
         browserVC.displayBookmarks(files)
+        updateToolbarState()
         window?.title = "북마크"
         statusBar.update(folderCount: 0, imageCount: files.count, selectionCount: 0)
     }
@@ -365,6 +411,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     func refreshCurrentFolder() {
+        if browserVC.isSimilarityMode { refreshSimilarityResults(); return }
+        if browserVC.isCategoryMode {
+            if contentMode == .browser { showCategory(currentCategoryID) }
+            return
+        }
         guard let url = currentFolderURL else { return }
         navigateToFolder(url)
         sidebarVC.reloadCurrentFolder()
@@ -427,10 +478,18 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func updateToolbarState() {
         guard let toolbar = window?.toolbar else { return }
+        let identifiers = toolbarDefaultItemIdentifiers(toolbar)
+        if toolbar.items.map(\.itemIdentifier) != identifiers {
+            while !toolbar.items.isEmpty { toolbar.removeItem(at: 0) }
+            for (index, identifier) in identifiers.enumerated() { toolbar.insertItem(withItemIdentifier: identifier, at: index) }
+        }
+        syncFitModeSelection()
         for item in toolbar.items {
             switch item.itemIdentifier {
             case ToolbarID.back:
-                item.isEnabled = contentMode == .viewer
+                item.isEnabled = contentMode == .viewer || browserVC.isSimilarityMode
+            case ToolbarID.sort:
+                item.isEnabled = !browserVC.isSimilarityMode
             case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize,
                  ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
                 item.isEnabled = contentMode == .viewer
@@ -481,7 +540,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             forName: .bookmarksChanged, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            if self.browserVC.isBookmarkMode {
+            if self.browserVC.isBookmarkMode, self.contentMode == .browser {
                 self.showBookmarks()
             } else {
                 self.browserVC.refreshBookmarkIndicators()  // 폴더 보기의 ★ 배지 갱신
@@ -512,7 +571,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private func setupLayout() {
         // Split view
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
-        sidebarItem.minimumThickness = 200
+        sidebarItem.minimumThickness = 220
         sidebarItem.maximumThickness = 300
 
         let contentItem = NSSplitViewItem(viewController: browserVC)
@@ -539,7 +598,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             statusBar.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             statusBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 22),
+            statusBar.heightAnchor.constraint(equalToConstant: 28),
         ])
 
         let containerVC = NSViewController()

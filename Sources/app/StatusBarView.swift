@@ -67,7 +67,12 @@ final class StatusBarView: NSView {
 
     private func setupViews() {
         wantsLayer = true
+        let surface = LibrarySurfaceView(kind: .canvas)
+        surface.frame = bounds
+        surface.autoresizingMask = [.width, .height]
+        addSubview(surface)
 
+        separator.isHidden = true
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(separator)

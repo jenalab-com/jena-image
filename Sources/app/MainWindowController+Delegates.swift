@@ -34,23 +34,20 @@ extension MainWindowController: NSToolbarDelegate {
     ]
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
-            ToolbarID.back,
-            .flexibleSpace,
-            ToolbarID.zoomOut,
-            ToolbarID.zoomIn,
-            ToolbarID.zoomActualSize,
-            ToolbarID.zoomFit,
-            ToolbarID.zoomFitHeight,
-            ToolbarID.zoomFitWidth,
-            .flexibleSpace,
-            ToolbarID.sort,
-            ToolbarID.compare,
-        ]
+        if contentMode == .browser {
+            return [.toggleSidebar] + (browserVC.isSimilarityMode ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare]
+        }
+        return [.toggleSidebar, ToolbarID.back, .flexibleSpace,
+                ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
+                ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
+                .flexibleSpace, ToolbarID.sort, ToolbarID.compare]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar)
+        [.toggleSidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
+         ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
+         ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
+         ToolbarID.sort, ToolbarID.compare]
     }
 
     func toolbar(
@@ -61,9 +58,31 @@ extension MainWindowController: NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
 
         switch itemIdentifier {
+        case ToolbarID.layout:
+            let control = NSSegmentedControl()
+            control.segmentCount = 2
+            control.trackingMode = .selectOne
+            control.segmentStyle = .rounded
+            control.controlSize = .small
+            control.setImage(NSImage(systemSymbolName: "rectangle.grid.1x2", accessibilityDescription: "Masonry"), forSegment: 0)
+            control.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "일반 격자"), forSegment: 1)
+            control.setToolTip("Masonry — 원본 비율로 보기", forSegment: 0)
+            control.setToolTip("일반 격자 — 같은 크기로 보기", forSegment: 1)
+            control.setWidth(30, forSegment: 0)
+            control.setWidth(30, forSegment: 1)
+            control.selectedSegment = browserVC.layoutMode == .masonry ? 0 : 1
+            control.setAccessibilityLabel("이미지 목록 레이아웃")
+            control.target = self
+            control.action = #selector(changeBrowserLayout(_:))
+            item.view = control
+            item.label = "보기 방식"
+            item.toolTip = "Masonry / 일반 격자"
+            item.visibilityPriority = .high
+
         case ToolbarID.back:
+            item.isNavigational = true
             item.label = "뒤로"
-            item.toolTip = "브라우저로 돌아가기"
+            item.toolTip = contentMode == .browser ? "검색 전 목록으로 돌아가기" : "목록으로 돌아가기"
             item.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "뒤로")
             item.action = #selector(toolbarBack(_:))
             item.target = self
@@ -144,7 +163,7 @@ extension MainWindowController: SidebarDelegate {
     func sidebar(_ sidebar: SidebarViewController, didSelectImage file: ImageFile, inFolder url: URL) {
         activePanel = .sidebar
         // 해당 폴더로 이동 후 이미지 뷰어 열기
-        if currentFolderURL != url {
+        if currentFolderURL != url || browserVC.isCollectionMode {
             navigateToFolder(url)
         }
         let folderImages = imageFilesInCurrentFolder()
@@ -191,7 +210,7 @@ extension MainWindowController: SidebarDelegate {
 
     func sidebar(_ sidebar: SidebarViewController, didToggleRecursive enabled: Bool) {
         // 북마크 보기 중이면 폴더 목록으로 튕기지 않고, 다음 폴더 선택부터 새 모드가 적용된다.
-        guard !browserVC.isBookmarkMode, let url = currentFolderURL else { return }
+        guard !browserVC.isCollectionMode, let url = currentFolderURL else { return }
         if contentMode == .viewer {
             // 뷰어에서 토글하면 현재 이미지는 그대로 두고 좌우 탐색 목록만 새 모드로 바꾼다.
             // (하위 폴더 이미지를 보던 중 끄면 현재 폴더 목록에 없을 수 있으므로 그때는 유지)
@@ -296,6 +315,13 @@ extension MainWindowController: BrowserDelegate {
 
 extension MainWindowController: ViewerDelegate {
     func viewerDidRequestClose(_ viewer: ViewerViewController) {
+        if browserVC.isSimilarityMode {
+            switchToMode(.browser)
+            refreshSimilarityResults()
+            return
+        }
+        if browserVC.isCategoryMode { showCategory(currentCategoryID); return }
+        if browserVC.isBookmarkMode { showBookmarks(); return }
         switchToMode(.browser)
         if let url = currentFolderURL {
             window?.title = url.lastPathComponent
@@ -320,7 +346,7 @@ extension MainWindowController: ViewerDelegate {
     }
 
     func viewer(_ viewer: ViewerViewController, didNavigateToFile url: URL) {
-        sidebarVC.selectFile(at: url)
+        if !browserVC.isCollectionMode { sidebarVC.selectFile(at: url) }
         updateInfoPanelIfNeeded(for: url)
     }
 

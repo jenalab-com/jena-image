@@ -28,6 +28,8 @@ final class ViewerViewController: NSViewController {
     // 하단 버튼
     private let editButton = NSButton(title: "편집", target: nil, action: nil)
     private let thumbnailToggleButton = NSButton(title: "", target: nil, action: nil)
+    private let categoryButton = NSButton(title: "카테고리", target: nil, action: nil)
+    var categoryMenuProvider: (([URL]) -> NSMenu)?
     private let bookmarkButton = NSButton(title: "", target: nil, action: nil)
 
     /// MainWindowController가 주입하는 북마크 토글 클로저
@@ -277,6 +279,7 @@ final class ViewerViewController: NSViewController {
         videoPlayerView.isHidden = !toVideo
         editButton.isHidden = toVideo
         bookmarkButton.isHidden = toVideo
+        categoryButton.isHidden = toVideo
 
         if changed {
             delegate?.viewer(self, didSwitchToVideo: toVideo)
@@ -364,6 +367,16 @@ final class ViewerViewController: NSViewController {
         bookmarkButton.target = self
         bookmarkButton.action = #selector(bookmarkButtonTapped)
 
+        categoryButton.translatesAutoresizingMaskIntoConstraints = false
+        categoryButton.bezelStyle = .rounded
+        categoryButton.controlSize = .small
+        categoryButton.font = .systemFont(ofSize: 12)
+        categoryButton.image = NSImage(systemSymbolName: "tag", accessibilityDescription: "카테고리 지정")
+        categoryButton.imagePosition = .imageLeading
+        categoryButton.toolTip = "이 이미지의 카테고리 지정/해제"
+        categoryButton.target = self
+        categoryButton.action = #selector(categoryButtonTapped)
+        contentContainer.addSubview(categoryButton)
         contentContainer.addSubview(editButton)
         contentContainer.addSubview(thumbnailToggleButton)
         contentContainer.addSubview(bookmarkButton)
@@ -375,6 +388,8 @@ final class ViewerViewController: NSViewController {
             editButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
             editButton.trailingAnchor.constraint(equalTo: thumbnailToggleButton.leadingAnchor, constant: -6),
 
+            categoryButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
+            categoryButton.trailingAnchor.constraint(equalTo: bookmarkButton.leadingAnchor, constant: -6),
             bookmarkButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
             bookmarkButton.trailingAnchor.constraint(equalTo: editButton.leadingAnchor, constant: -6),
         ])
@@ -383,6 +398,11 @@ final class ViewerViewController: NSViewController {
     func updateBookmarkButton(isBookmarked: Bool) {
         let name = isBookmarked ? "star.fill" : "star"
         bookmarkButton.image = NSImage(systemSymbolName: name, accessibilityDescription: "북마크")
+    }
+
+    @objc private func categoryButtonTapped() {
+        guard let url = currentImageURL, let menu = categoryMenuProvider?([url]) else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: categoryButton.bounds.height), in: categoryButton)
     }
 
     @objc private func bookmarkButtonTapped() {
