@@ -28,6 +28,7 @@ extension MainWindowController {
             } else {
                 ThumbnailProvider.shared.invalidate(for: url)
                 bookmarkStore.remove(url)
+                removeDeletedFileFromCategories(url)
             }
         }
 
@@ -37,7 +38,7 @@ extension MainWindowController {
 
         // 현재 폴더가 삭제되었으면 부모로 이동
         let parentFolders = Set(urls.map { $0.deletingLastPathComponent() })
-        if let current = currentFolderURL, urls.contains(where: { current.path.hasPrefix($0.path) }) {
+        if !browserVC.isCategoryMode, let current = currentFolderURL, urls.contains(where: { current.path.hasPrefix($0.path) }) {
             if let parent = parentFolders.first {
                 navigateToFolder(parent)
             }
@@ -66,8 +67,9 @@ extension MainWindowController {
         for url in urls {
             let result = fileService.moveFile(from: url, to: target)
             switch result {
-            case .success:
+            case .success(let newURL):
                 ThumbnailProvider.shared.invalidate(for: url)
+                relocateCategories(from: url, to: newURL)
             case .failure(let error):
                 if case .nameConflict = error {
                     handleFileConflict(source: url, target: target, isMove: true)
@@ -122,6 +124,7 @@ extension MainWindowController {
         case .success(let newURL):
             ThumbnailProvider.shared.invalidate(for: url)
             bookmarkStore.rename(from: url, to: newURL)
+            relocateCategories(from: url, to: newURL)
             if contentMode == .viewer {
                 viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)
             }
@@ -178,14 +181,20 @@ extension MainWindowController {
             let newName = generateUniqueName(for: fileName, in: target)
             let newDest = target.appendingPathComponent(newName)
             if isMove {
-                try? FileManager.default.moveItem(at: source, to: newDest)
+                do {
+                    try FileManager.default.moveItem(at: source, to: newDest)
+                    relocateCategories(from: source, to: newDest)
+                } catch { showError(error) }
             } else {
                 try? FileManager.default.copyItem(at: source, to: newDest)
             }
         case .alertSecondButtonReturn:
             try? FileManager.default.removeItem(at: destination)
             if isMove {
-                try? FileManager.default.moveItem(at: source, to: destination)
+                do {
+                    try FileManager.default.moveItem(at: source, to: destination)
+                    relocateCategories(from: source, to: destination)
+                } catch { showError(error) }
             } else {
                 try? FileManager.default.copyItem(at: source, to: destination)
             }

@@ -193,6 +193,9 @@ final class BrowserViewController: NSViewController {
 
     /// MainWindowController가 주입하는 북마크 상태 조회 클로저
     var isBookmarkedProvider: ((URL) -> Bool)?
+    var categoryMenuProvider: (([URL]) -> NSMenu)?
+    var onRemoveFromCategory: (([URL]) -> Void)?
+    var onFindSimilarImage: ((URL) -> Void)?
 
     private let collectionView = DoubleClickCollectionView()
     private let scrollView = NSScrollView()
@@ -200,12 +203,25 @@ final class BrowserViewController: NSViewController {
     private let bookmarkEmptyLabel = NSTextField(labelWithString: "북마크가 비어 있어요")
 
     private(set) var isBookmarkMode = false
+    private(set) var isCategoryMode = false
+    private(set) var isSimilarityMode = false
+    var isCollectionMode: Bool { isBookmarkMode || isCategoryMode || isSimilarityMode }
     private var contents: [BrowserContent] = []
     private var imageFiles: [ImageFile] = []
+    /// 화면 밖으로 스크롤된 항목까지 포함한 현재 목록의 전체 이미지.
+    var listedImageURLs: [URL] { imageFiles.filter { !$0.isVideo }.map(\.url) }
     private var currentFolderURL: URL?
     /// 하위 폴더 포함 보기의 기준 폴더. nil이면 일반 보기(경로 줄 없음).
     private var recursiveRootURL: URL?
     private var thumbnailScale: CGFloat = 1.0
+    private(set) var layoutMode: BrowserLayoutMode
+    private let settings: AppSettings
+    private var aspectRatios: [URL: CGFloat] = [:]
+    private var measuredURLs = Set<URL>()
+    private var aspectTask: Task<Void, Never>?
+    private var aspectGeneration = 0
+    private var aspectLayoutWork: DispatchWorkItem?
+    private var viewportWidth: CGFloat = 0
 
     private var thumbnailMinPixelSize: Int { AppSettings.shared.thumbnailMaxPixel.rawValue }
     private var renameWorkItem: DispatchWorkItem?
@@ -219,7 +235,10 @@ final class BrowserViewController: NSViewController {
 
     /// `thumbnailProvider`의 기본값을 `.shared`로 두면 기본 인자가 비격리 문맥에서 평가돼 MainActor 경고가 난다.
     /// 그래서 nil을 받아 MainActor인 init 안에서 `.shared`로 푼다.
-    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil) {
+    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil,
+         settings: AppSettings = .shared) {
+        self.settings = settings
+        self.layoutMode = settings.browserLayoutMode
         self.imageService = imageService
         self.thumbnailProvider = thumbnailProvider ?? .shared
         super.init(nibName: nil, bundle: nil)
@@ -228,8 +247,10 @@ final class BrowserViewController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    deinit { aspectTask?.cancel() }
+
     override func loadView() {
-        view = NSView()
+        view = LibrarySurfaceView(kind: .canvas)
         setupScrollView()
         setupCollectionView()
         setupEmptyLabel()
@@ -237,11 +258,37 @@ final class BrowserViewController: NSViewController {
         observeFolderColorChanges()
     }
 
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        let width = scrollView.contentSize.width
+        if abs(width - viewportWidth) > 0.5 {
+            viewportWidth = width
+            collectionView.collectionViewLayout?.invalidateLayout()
+        }
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        aspectTask?.cancel()
+        aspectTask = nil
+        aspectGeneration += 1
+        aspectLayoutWork?.cancel()
+        aspectLayoutWork = nil
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        applyItemSize()
+        startReadingAspectRatios()
+    }
+
     // MARK: - Public
 
     /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
     func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
+        isSimilarityMode = false
         isBookmarkMode = false
+        isCategoryMode = false
         cancelAllThumbnailRequests()
         if recursiveRootURL != recursiveRoot {
             recursiveRootURL = recursiveRoot
@@ -252,6 +299,7 @@ final class BrowserViewController: NSViewController {
         let imageItems = images.compactMap { ImageFile(url: $0) }
         imageFiles = imageItems
         contents = folderNodes + imageItems.map { BrowserContent.image($0) }
+        resetAspectRatios()
 
         emptyLabel.isHidden = !contents.isEmpty
         bookmarkEmptyLabel.isHidden = true
@@ -264,7 +312,36 @@ final class BrowserViewController: NSViewController {
 
     /// 북마크(임의 위치 이미지) 평면 목록을 표시한다.
     func displayBookmarks(_ files: [ImageFile]) {
+        isSimilarityMode = false
         isBookmarkMode = true
+        isCategoryMode = false
+        bookmarkEmptyLabel.stringValue = "북마크가 비어 있어요"
+        displayCollection(files)
+    }
+
+    func displayCategory(_ files: [ImageFile]) {
+        isSimilarityMode = false
+        isBookmarkMode = false
+        isCategoryMode = true
+        bookmarkEmptyLabel.stringValue = "이 카테고리에 지정된 이미지가 없습니다"
+        displayCollection(files)
+    }
+
+    func displaySimilarImages(_ files: [ImageFile], resetScroll: Bool = false) {
+        isSimilarityMode = true
+        isBookmarkMode = false
+        isCategoryMode = false
+        bookmarkEmptyLabel.stringValue = "검색할 수 있는 다른 이미지가 없습니다. 현재 목록과 다운로드 상태를 확인하세요."
+        displayCollection(files)
+        if resetScroll {
+            collectionView.layoutSubtreeIfNeeded()
+            scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            schedulePrefetch()
+        }
+    }
+
+    private func displayCollection(_ files: [ImageFile]) {
         cancelAllThumbnailRequests()
         if recursiveRootURL != nil {
             recursiveRootURL = nil
@@ -272,6 +349,7 @@ final class BrowserViewController: NSViewController {
         }
         imageFiles = files
         contents = files.map { BrowserContent.image($0) }
+        resetAspectRatios()
         collectionView.reloadData()
         collectionView.deselectAll(nil)
         collectionView.resetSelectionAnchor()
@@ -281,7 +359,7 @@ final class BrowserViewController: NSViewController {
 
     private func updateEmptyState() {
         emptyLabel.isHidden = true
-        bookmarkEmptyLabel.isHidden = !(isBookmarkMode && contents.isEmpty)
+        bookmarkEmptyLabel.isHidden = !(isCollectionMode && contents.isEmpty)
     }
 
     /// URL 기반으로 선택 복원
@@ -295,19 +373,115 @@ final class BrowserViewController: NSViewController {
         collectionView.selectionIndexPaths = indexPaths
     }
 
+    func setLayoutMode(_ mode: BrowserLayoutMode) {
+        guard layoutMode != mode else { return }
+        layoutMode = mode
+        settings.browserLayoutMode = mode
+        renameWorkItem?.cancel()
+        relayoutPreservingScrollPosition()
+    }
+
     func updateThumbnailScale(_ scale: CGFloat) {
         thumbnailScale = scale
         applyItemSize()
         schedulePrefetch()  // 셀 크기가 바뀌면 화면 분량이 바뀐다
     }
 
-    /// 셀 크기 = 기본 크기 × 배율. 하위 폴더 포함 보기에선 경로 줄 높이만큼 더한다(글자 크기는 고정이므로 배율 미적용).
+    /// 슬라이더는 열의 목표 폭을 조절하고, 각 이미지 높이는 원본 비율로 정한다.
     private func applyItemSize() {
-        guard let layout = collectionView.collectionViewLayout as? NSCollectionViewFlowLayout else { return }
-        let base = BrowserItem.itemSize
-        let extra: CGFloat = recursiveRootURL == nil ? 0 : BrowserItem.pathLineHeight
-        layout.itemSize = NSSize(width: base.width * thumbnailScale, height: base.height * thumbnailScale + extra)
-        layout.invalidateLayout()
+        guard let layout = collectionView.collectionViewLayout as? MasonryLayout else { return }
+        layout.layoutMode = layoutMode
+        layout.preferredColumnWidth = BrowserItem.itemSize.width * thumbnailScale
+        layout.captionHeight = BrowserItem.captionHeight + (recursiveRootURL == nil ? 0 : BrowserItem.pathLineHeight)
+        layout.aspectRatios = contents.map { content in
+            if layoutMode == .grid { return 1 }
+            if case .image(let file) = content { return aspectRatios[file.url] ?? (file.isVideo ? 16.0 / 9.0 : 1) }
+            return 1
+        }
+    }
+
+    private func resetAspectRatios() {
+        aspectTask?.cancel()
+        aspectTask = nil
+        aspectGeneration += 1
+        aspectLayoutWork?.cancel()
+        aspectLayoutWork = nil
+        measuredURLs.removeAll()
+        aspectRatios.removeAll(keepingCapacity: true)
+        for file in imageFiles {
+            if let image = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: thumbnailMinPixelSize),
+               image.size.width > 0, image.size.height > 0 {
+                aspectRatios[file.url] = image.size.width / image.size.height
+            }
+        }
+        applyItemSize()
+        startReadingAspectRatios()
+    }
+
+    private func startReadingAspectRatios() {
+        guard aspectTask == nil else { return }
+        let urls = imageFiles.filter { !$0.isVideo && !measuredURLs.contains($0.url) }.map(\.url)
+        guard !urls.isEmpty else { return }
+        let generation = aspectGeneration
+        aspectTask = Task.detached(priority: .userInitiated) { [weak self] in
+            var batch: [URL: CGFloat] = [:]
+            var measured: [URL] = []
+            for (index, url) in urls.enumerated() {
+                guard !Task.isCancelled else { return }
+                if let ratio = autoreleasepool(invoking: { ImageAspectRatioReader.aspectRatio(at: url) }) {
+                    batch[url] = ratio
+                }
+                measured.append(url)
+                if measured.count == 64 || index == urls.count - 1 {
+                    let result = batch
+                    let completed = measured
+                    await MainActor.run { [weak self] in
+                        guard let self, self.aspectGeneration == generation else { return }
+                        self.measuredURLs.formUnion(completed)
+                        for (url, ratio) in result { self.acceptAspectRatio(ratio, for: url) }
+                    }
+                    batch.removeAll(keepingCapacity: true)
+                    measured.removeAll(keepingCapacity: true)
+                }
+            }
+            await MainActor.run { [weak self] in
+                guard let self, self.aspectGeneration == generation else { return }
+                self.aspectTask = nil
+            }
+        }
+    }
+
+    private func acceptAspectRatio(_ ratio: CGFloat, for url: URL) {
+        guard ratio.isFinite, ratio > 0 else { return }
+        if let previous = aspectRatios[url], abs(previous - ratio) <= 0.001 { return }
+        aspectRatios[url] = ratio
+        guard aspectLayoutWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.aspectLayoutWork = nil
+            self.relayoutPreservingScrollPosition()
+        }
+        aspectLayoutWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+    }
+
+    private func relayoutPreservingScrollPosition() {
+        guard let layout = collectionView.collectionViewLayout else { return }
+        let visible = collectionView.visibleRect
+        let anchor = layout.layoutAttributesForElements(in: visible).min {
+            abs($0.frame.minY - visible.minY) < abs($1.frame.minY - visible.minY)
+        }
+        let oldY = anchor?.frame.minY ?? 0
+        applyItemSize()
+        collectionView.layoutSubtreeIfNeeded()
+        if visible.minY > 1, let indexPath = anchor?.indexPath,
+           let updated = layout.layoutAttributesForItem(at: indexPath) {
+            let maxY = max(0, layout.collectionViewContentSize.height - scrollView.contentSize.height)
+            let y = min(maxY, max(0, visible.minY + updated.frame.minY - oldY))
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+        schedulePrefetch()
     }
 
     var hasSelection: Bool {
@@ -343,10 +517,14 @@ final class BrowserViewController: NSViewController {
     /// 셀이 화면에 들어올 때. 메모리 적중이면 동기 완료라 토큰이 nil로 돌아온다.
     private func requestThumbnail(for item: BrowserItem, url: URL) {
         guard !item.hasThumbnail, item.thumbnailToken == nil else { return }
-        let token = thumbnailProvider.request(url, minPixel: thumbnailMinPixelSize, priority: .visible) { [weak item] result in
+        let token = thumbnailProvider.request(url, minPixel: thumbnailMinPixelSize, priority: .visible) { [weak self, weak item] result in
             guard let item, item.representedURL == url else { return }
             item.thumbnailToken = nil
             item.showThumbnailResult(result)
+            if case .image(let image) = result, image.size.height > 0,
+               self?.aspectRatios[url] == nil {
+                self?.acceptAspectRatio(image.size.width / image.size.height, for: url)
+            }
         }
         item.thumbnailToken = token
     }
@@ -572,6 +750,33 @@ final class BrowserViewController: NSViewController {
         delegate?.browser(self, didRequestViewImage: url, inList: list)
     }
 
+    private func appendCategoryMenu(to menu: NSMenu, urls: [URL]) {
+        appendSimilarityMenu(to: menu, urls: urls)
+        let images = urls.filter { ImageFile(url: $0)?.isVideo == false }
+        guard !images.isEmpty, let submenu = categoryMenuProvider?(images) else { return }
+        let item = NSMenuItem(title: "카테고리 지정", action: nil, keyEquivalent: "")
+        item.submenu = submenu
+        menu.addItem(item)
+    }
+
+    private func appendSimilarityMenu(to menu: NSMenu, urls: [URL]) {
+        guard urls.count == 1, let url = urls.first, ImageFile(url: url)?.isVideo == false,
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        let item = NSMenuItem(title: "비슷한 이미지 찾기", action: #selector(contextFindSimilar(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = url
+        menu.addItem(item)
+    }
+
+    @objc private func contextFindSimilar(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        onFindSimilarImage?(url)
+    }
+
+    @objc private func contextRemoveCategory(_ sender: NSMenuItem) {
+        onRemoveFromCategory?(sender.representedObject as? [URL] ?? selectedURLs())
+    }
+
     @objc private func contextRemoveBookmark(_ sender: NSMenuItem) {
         let urls = selectedURLs()
         guard !urls.isEmpty else { return }
@@ -651,11 +856,12 @@ final class BrowserViewController: NSViewController {
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
         scrollView.documentView = collectionView
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -670,12 +876,11 @@ final class BrowserViewController: NSViewController {
     }
 
     private func setupCollectionView() {
+        collectionView.backgroundColors = [.clear]
         collectionView.wantsLayer = true  // 호버 확대 셀의 zPosition이 이웃 셀 위로 적용되도록
-        let layout = NSCollectionViewFlowLayout()
-        layout.itemSize = BrowserItem.itemSize
-        layout.minimumInteritemSpacing = 8
-        layout.minimumLineSpacing = 8
-        layout.sectionInset = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        let layout = MasonryLayout()
+        layout.preferredColumnWidth = BrowserItem.itemSize.width
+        layout.captionHeight = BrowserItem.captionHeight
 
         collectionView.collectionViewLayout = layout
         collectionView.isSelectable = true
@@ -879,7 +1084,7 @@ extension BrowserViewController: NSMenuDelegate {
         let urls = selectedURLs()
 
         // ── 북마크 모드 전용 메뉴 ──────────────────────────────────────────────
-        if isBookmarkMode {
+        if isCollectionMode {
             if urls.isEmpty { return }
 
             // 깨진 북마크(파일 없음)가 하나라도 포함되면 열기/이름변경/삭제 비활성화
@@ -899,10 +1104,14 @@ extension BrowserViewController: NSMenuDelegate {
             previewItem.representedObject = urls
             menu.addItem(previewItem)
 
-            let removeItem = NSMenuItem(title: "빼기", action: #selector(contextRemoveBookmark(_:)), keyEquivalent: "")
+            let removeItem = NSMenuItem(
+                title: isCategoryMode ? "카테고리에서 빼기" : "빼기",
+                action: isCategoryMode ? #selector(contextRemoveCategory(_:)) : #selector(contextRemoveBookmark(_:)),
+                keyEquivalent: ""
+            )
             removeItem.target = self
             removeItem.representedObject = urls
-            menu.addItem(removeItem)
+            if !isSimilarityMode { menu.addItem(removeItem) }
 
             menu.addItem(NSMenuItem.separator())
 
@@ -917,6 +1126,15 @@ extension BrowserViewController: NSMenuDelegate {
             deleteItem.target = self
             deleteItem.representedObject = urls
             menu.addItem(deleteItem)
+            if isCategoryMode || isSimilarityMode {
+                let imageURLs = urls.filter { ImageFile(url: $0)?.isVideo == false }
+                let allBookmarked = imageURLs.allSatisfy { isBookmarkedProvider?($0) ?? false }
+                let bookmarkItem = NSMenuItem(title: allBookmarked ? "북마크에서 빼기" : "북마크에 추가",
+                                              action: #selector(contextToggleBookmark(_:)), keyEquivalent: "")
+                bookmarkItem.target = self
+                menu.addItem(bookmarkItem)
+            }
+            appendCategoryMenu(to: menu, urls: urls)
 
             if !hasBroken, urls.count == 1, ImageFile(url: urls[0]) != nil {
                 menu.addItem(NSMenuItem.separator())
@@ -995,6 +1213,7 @@ extension BrowserViewController: NSMenuDelegate {
                 item.representedObject = urls
             }
 
+            appendCategoryMenu(to: menu, urls: urls)
             menu.addItem(NSMenuItem.separator())
         }
 

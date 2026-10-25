@@ -1,9 +1,9 @@
 APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
-VERSION      = 1.8.0
+VERSION      = 1.9.0
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
-FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing
+FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision
 
 APP_BUNDLE   = $(BUILD_DIR)/$(APP_NAME).app
 BINARY       = $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
@@ -12,7 +12,7 @@ BINARY       = $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 
 build: $(BINARY)
 
-$(BINARY): $(SOURCES)
+$(BINARY): $(SOURCES) Info.plist $(wildcard Resources/$(APP_NAME).icns)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
 	swiftc $(FRAMEWORKS) -O $(SOURCES) -o $(BINARY)
@@ -49,12 +49,26 @@ dmg: build
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
 
 TEST_SOURCES = Sources/services/ThumbnailScheduler.swift \
+               Sources/models/BrowserLayoutMode.swift \
+               Sources/browser/MasonryLayout.swift \
+               Sources/models/ImageFile.swift \
+               Sources/models/ImageFormat.swift \
+               Sources/services/ImageAspectRatioReader.swift \
+               Sources/models/ImageCategory.swift \
+               Sources/services/CategoryStore.swift \
                Sources/services/ThumbnailCache.swift \
                Sources/services/ThumbnailProvider.swift \
                Sources/services/ThumbnailDiskStore.swift \
-               $(shell find Tests -name '*.swift')
+               $(wildcard Tests/*.swift)
 
 test:
 	@mkdir -p $(BUILD_DIR)
 	swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers $(TEST_SOURCES) -o $(BUILD_DIR)/tests
 	@$(BUILD_DIR)/tests
+
+# UI 연결 검증은 실제 사용자 캐시 대신 메모리 썸네일 공급자를 사용한다.
+.PHONY: test-ui
+test-ui:
+	@mkdir -p $(BUILD_DIR)
+	swiftc $(FRAMEWORKS) $(filter-out Sources/app/main.swift Sources/services/ThumbnailProvider+App.swift,$(SOURCES)) Tests/TestSupport.swift $(wildcard Tests/UI/*.swift) -o $(BUILD_DIR)/category-ui-tests
+	@$(BUILD_DIR)/category-ui-tests

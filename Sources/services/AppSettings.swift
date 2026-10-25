@@ -3,9 +3,9 @@ import AppKit
 /// 앱 설정 관리 (UserDefaults 래퍼)
 final class AppSettings {
     static let shared = AppSettings()
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
-    private init() {}
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     // MARK: - Keys
 
@@ -24,6 +24,7 @@ final class AppSettings {
         case thumbnailCacheMB = "thumbnailCacheMB"
         case thumbnailDiskCacheMB = "thumbnailDiskCacheMB"
         case viewerFitMode = "viewerFitMode"
+        case browserLayout = "browserLayout"
     }
 
     // MARK: - Language
@@ -126,6 +127,11 @@ final class AppSettings {
     }
 
     // MARK: - Browser Sort
+
+    var browserLayoutMode: BrowserLayoutMode {
+        get { BrowserLayoutMode(rawValue: defaults.string(forKey: Key.browserLayout.rawValue) ?? "") ?? .masonry }
+        set { defaults.set(newValue.rawValue, forKey: Key.browserLayout.rawValue) }
+    }
 
     var sortKey: SortKey {
         get {

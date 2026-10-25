@@ -1,6 +1,8 @@
 import Foundation
 
 runSchedulerTests()
+runMasonryTests()
+runCategoryStoreTests()
 runDiskStoreTests()
 MainActor.assumeIsolated { runProviderTests() }
 

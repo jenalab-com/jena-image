@@ -4,9 +4,16 @@ import AppKit
 
 extension MainWindowController {
 
+    @objc func changeBrowserLayout(_ sender: NSSegmentedControl) {
+        guard contentMode == .browser else { return }
+        browserVC.setLayoutMode(sender.selectedSegment == 0 ? .masonry : .grid)
+    }
+
     @objc func toolbarBack(_ sender: Any?) {
         if contentMode == .viewer {
             viewerDidRequestClose(viewerVC)
+        } else if browserVC.isSimilarityMode {
+            closeSimilarityResults()
         }
     }
 
@@ -130,7 +137,7 @@ extension MainWindowController {
             return
         }
 
-        guard let folderURL = currentFolderURL else { return }
+        guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, let folderURL = currentFolderURL else { return }
 
         let pasteboard = NSPasteboard.general
 
@@ -149,8 +156,9 @@ extension MainWindowController {
             if isCut {
                 // 잘라넣기 → 이동
                 let result = fileService.moveFile(from: url, to: folderURL)
-                if case .success = result {
+                if case .success(let newURL) = result {
                     ThumbnailProvider.shared.invalidate(for: url)
+                    relocateCategories(from: url, to: newURL)
                     pastedAny = true
                     // 원본 폴더 갱신
                     sidebarVC.reloadFolder(at: url.deletingLastPathComponent())
@@ -345,7 +353,7 @@ extension MainWindowController: NSToolbarItemValidation {
         // 붙여넣기: 텍스트 편집 중이면 활성, 아니면 파일 URL 확인
         case #selector(pasteFiles(_:)):
             if isEditingText { return true }
-            guard currentFolderURL != nil else { return false }
+            guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, currentFolderURL != nil else { return false }
             return NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
 
         // 선택 필요 (이미지 또는 비루트 폴더)
@@ -396,6 +404,10 @@ extension MainWindowController: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === sortMenu else { return }
         menu.removeAllItems()
+        if browserVC.isSimilarityMode {
+            menu.addItem(withTitle: "유사도순", action: nil, keyEquivalent: "")
+            return
+        }
 
         let labels: [(String, SortKey)] = [
             ("이름", .name),
@@ -420,6 +432,7 @@ extension MainWindowController: NSMenuDelegate {
     }
 
     @objc func sortByMenuItem(_ sender: NSMenuItem) {
+        guard !browserVC.isSimilarityMode else { return }
         guard let key = sender.representedObject as? SortKey else { return }
         // 같은 기준을 다시 고르면 정렬 방향을 토글 (Finder 동작과 동일)
         if AppSettings.shared.sortKey == key {
@@ -431,6 +444,7 @@ extension MainWindowController: NSMenuDelegate {
     }
 
     @objc func toggleSortOrder(_ sender: Any?) {
+        guard !browserVC.isSimilarityMode else { return }
         AppSettings.shared.sortAscending.toggle()
         refreshCurrentFolder()
     }

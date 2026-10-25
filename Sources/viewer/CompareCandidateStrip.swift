@@ -29,7 +29,8 @@ final class CompareCandidateStrip: NSView {
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         for (i, file) in files.enumerated() {
-            let button = NSButton()
+            let button = ThumbnailButton()
+            button.isBordered = false
             button.bezelStyle = .smallSquare
             button.imageScaling = .scaleProportionallyUpOrDown
             button.title = ""

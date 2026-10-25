@@ -3,11 +3,13 @@ import AppKit
 /// 브라우저 NSCollectionView의 셀 아이템
 final class BrowserItem: NSCollectionViewItem {
     static let identifier = NSUserInterfaceItemIdentifier("BrowserItem")
-    static let itemSize = NSSize(width: 120, height: 140)
+    static let itemSize = NSSize(width: 180, height: 212)
+    /// 이미지 위·아래 여백, 경로 간격, 두 줄 파일명 영역의 합.
+    static let captionHeight: CGFloat = 36
     /// 하위 폴더 포함 보기에서 파일 이름 위에 붙는 상대 경로 줄 높이
     static let pathLineHeight: CGFloat = 14
 
-    private let thumbnailView = NSImageView()
+    private let thumbnailView = ThumbnailImageView()
     private let pathLabel = NSTextField(labelWithString: "")
     private var pathLabelHeight: NSLayoutConstraint!
     /// 기준 폴더 아래 상대 경로 구성 요소. nil이면 경로 줄 자체를 접는다(일반 보기).
@@ -18,8 +20,8 @@ final class BrowserItem: NSCollectionViewItem {
     private var isEditingName = false
     private var renameDelegate: RenameFieldDelegate?
 
-    /// 마우스 오버 시 썸네일 확대 배율 (Dock 느낌). 1.2배면 이웃 셀을 살짝 덮는 정도.
-    private static let hoverScale: CGFloat = 1.2
+    /// 카드 안에서만 가볍게 반응하는 호버 확대.
+    private static let hoverScale: CGFloat = 1.025
     private static let hoverDuration: CFTimeInterval = 0.15
     private var isHovered = false
 
@@ -47,7 +49,7 @@ final class BrowserItem: NSCollectionViewItem {
     }()
 
     override func loadView() {
-        view = NSView(frame: NSRect(origin: .zero, size: Self.itemSize))
+        view = LibraryCardView(frame: NSRect(origin: .zero, size: Self.itemSize))
         view.wantsLayer = true  // 호버 zPosition·선택 배경에 레이어가 처음부터 필요
         setupThumbnailView()
         setupPlayBadge()
@@ -130,6 +132,7 @@ final class BrowserItem: NSCollectionViewItem {
 
         switch content {
         case .folder(let node):
+            thumbnailView.showsCheckerboard = false
             hideSkeleton(animated: false)
             hasThumbnail = true  // 폴더는 심볼이 곧 완성 상태
             let config = NSImage.SymbolConfiguration(pointSize: 32, weight: .regular)
@@ -142,8 +145,9 @@ final class BrowserItem: NSCollectionViewItem {
             thumbnailView.layer?.borderWidth = 0
             thumbnailView.layer?.backgroundColor = nil
         case .image(let file):
-            thumbnailView.imageScaling = .scaleProportionallyDown
-            thumbnailView.layer?.borderWidth = 0.5
+            thumbnailView.showsCheckerboard = true
+            thumbnailView.imageScaling = .scaleProportionallyUpOrDown
+            thumbnailView.layer?.borderWidth = 0
             thumbnailView.layer?.backgroundColor = nil
 
             // 깨진 북마크: 파일이 존재하지 않으면 경고 플레이스홀더 표시
@@ -210,7 +214,7 @@ final class BrowserItem: NSCollectionViewItem {
         skeletonFadeGeneration += 1  // 진행 중이던 페이드아웃 완료 블록을 무효화한다
         thumbnailView.image = nil
         thumbnailView.contentTintColor = nil
-        thumbnailView.imageScaling = .scaleProportionallyDown
+        thumbnailView.imageScaling = .scaleProportionallyUpOrDown
         skeletonLayer.backgroundColor = NSColor.quaternaryLabelColor.cgColor  // 다크·라이트 전환을 따라가도록 보일 때마다
         skeletonLayer.isHidden = false
         skeletonLayer.opacity = 1
@@ -221,7 +225,7 @@ final class BrowserItem: NSCollectionViewItem {
 
     func showThumbnail(_ image: NSImage, animated: Bool) {
         hasThumbnail = true
-        thumbnailView.imageScaling = .scaleProportionallyDown
+        thumbnailView.imageScaling = .scaleProportionallyUpOrDown
         thumbnailView.contentTintColor = nil
         thumbnailView.image = image
         hideSkeleton(animated: animated)
@@ -329,13 +333,13 @@ final class BrowserItem: NSCollectionViewItem {
 
     private func setupThumbnailView() {
         thumbnailView.translatesAutoresizingMaskIntoConstraints = false
-        thumbnailView.imageScaling = .scaleProportionallyDown
+        thumbnailView.imageScaling = .scaleProportionallyUpOrDown
         thumbnailView.unregisterDraggedTypes()
         thumbnailView.wantsLayer = true
-        thumbnailView.layer?.cornerRadius = 6
+        thumbnailView.layer?.cornerRadius = 12
         thumbnailView.layer?.masksToBounds = true
         thumbnailView.layer?.borderColor = NSColor.separatorColor.cgColor
-        thumbnailView.layer?.borderWidth = 0.5
+        thumbnailView.layer?.borderWidth = 0
         view.addSubview(thumbnailView)
 
         // 썸네일 영역 마우스 오버 추적. inVisibleRect라 크기가 바뀌어도 자동으로 따라간다.
@@ -348,13 +352,13 @@ final class BrowserItem: NSCollectionViewItem {
         thumbnailView.addTrackingArea(tracking)
 
         NSLayoutConstraint.activate([
-            thumbnailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            thumbnailView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            thumbnailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            thumbnailView.heightAnchor.constraint(equalTo: thumbnailView.widthAnchor),
+            thumbnailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
+            thumbnailView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 2),
+            thumbnailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -2),
+
         ])
 
-        skeletonLayer.cornerRadius = 6
+        skeletonLayer.cornerRadius = 12
         skeletonLayer.backgroundColor = NSColor.quaternaryLabelColor.cgColor
         skeletonLayer.isHidden = true
         thumbnailView.layer?.addSublayer(skeletonLayer)
@@ -411,7 +415,7 @@ final class BrowserItem: NSCollectionViewItem {
 
     private func setupPathLabel() {
         pathLabel.translatesAutoresizingMaskIntoConstraints = false
-        pathLabel.alignment = .center
+        pathLabel.alignment = .left
         pathLabel.lineBreakMode = .byTruncatingMiddle
         pathLabel.font = .systemFont(ofSize: 10)
         pathLabel.textColor = .secondaryLabelColor
@@ -422,17 +426,17 @@ final class BrowserItem: NSCollectionViewItem {
         pathLabelHeight = pathLabel.heightAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
             pathLabel.topAnchor.constraint(equalTo: thumbnailView.bottomAnchor, constant: 4),
-            pathLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
-            pathLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
+            pathLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            pathLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             pathLabelHeight,
         ])
     }
 
     private func setupNameLabel() {
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.alignment = .center
+        nameLabel.alignment = .left
         nameLabel.lineBreakMode = .byTruncatingMiddle
-        nameLabel.font = .systemFont(ofSize: 11)
+        nameLabel.font = .systemFont(ofSize: 11, weight: .medium)
         nameLabel.textColor = .labelColor
         nameLabel.maximumNumberOfLines = 2
         view.addSubview(nameLabel)
@@ -440,8 +444,10 @@ final class BrowserItem: NSCollectionViewItem {
         NSLayoutConstraint.activate([
             // 경로 줄이 접혀 있으면(높이 0) 기존과 같은 위치가 된다
             nameLabel.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 0),
-            nameLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
-            nameLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
+            nameLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            nameLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            nameLabel.heightAnchor.constraint(equalToConstant: 28),
+            nameLabel.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -2),
         ])
     }
 
@@ -453,33 +459,16 @@ final class BrowserItem: NSCollectionViewItem {
         guard isDropTarget != highlighted else { return }
         isDropTarget = highlighted
         view.wantsLayer = true
-        if highlighted {
-            view.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
-            view.layer?.cornerRadius = 8
-            view.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.6).cgColor
-            view.layer?.borderWidth = 2
-        } else {
-            updateSelectionAppearance()
-            view.layer?.borderColor = nil
-            view.layer?.borderWidth = 0
-        }
+        (view as? LibraryCardView)?.isDropTarget = highlighted
+        updateSelectionAppearance()
     }
 
     private func updateSelectionAppearance() {
-        view.wantsLayer = true
-        if isSelected {
-            view.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.12).cgColor
-            view.layer?.cornerRadius = 8
-            nameLabel.textColor = .controlAccentColor
-            thumbnailView.layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.5).cgColor
-            thumbnailView.layer?.borderWidth = 2
-        } else {
-            view.layer?.backgroundColor = nil
-            nameLabel.textColor = .labelColor
-            thumbnailView.layer?.borderColor = NSColor.separatorColor.cgColor
-            thumbnailView.layer?.borderWidth = 0.5
-        }
+        (view as? LibraryCardView)?.isHighlighted = isSelected
+        nameLabel.textColor = isSelected ? .controlAccentColor : .labelColor
+        thumbnailView.layer?.borderWidth = 0
     }
+
 }
 
 // MARK: - Rename Field Delegate
