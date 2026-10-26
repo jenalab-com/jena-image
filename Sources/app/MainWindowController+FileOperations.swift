@@ -165,6 +165,28 @@ extension MainWindowController {
         }
     }
 
+    /// 클립보드 이미지를 PNG로 현재 폴더에 저장하고, 목록을 갱신한 뒤 새 파일을 선택한다.
+    /// 파일명은 macOS 스크린샷과 같은 "클립보드 이미지 YYYY-MM-DD HH.mm.ss.png" 꼴, 겹치면 번호를 붙인다.
+    func saveClipboardImage(_ image: NSImage, to folder: URL) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        let baseName = "클립보드 이미지 \(formatter.string(from: Date())).png"
+        let name = fileService.fileExists(at: folder.appendingPathComponent(baseName))
+            ? generateUniqueName(for: baseName, in: folder)
+            : baseName
+        let destination = folder.appendingPathComponent(name)
+
+        switch imageService.exportImage(image, to: destination, format: .png, quality: 100) {
+        case .success:
+            pendingSelectionURLs = [destination]
+            refreshCurrentFolder()
+            sidebarVC.reloadFolder(at: folder)
+        case .failure(let error):
+            showError(error)
+        }
+    }
+
     private func handleFileConflict(source: URL, target: URL, isMove: Bool) {
         let fileName = source.lastPathComponent
         let alert = NSAlert()
@@ -202,7 +224,7 @@ extension MainWindowController {
         }
     }
 
-    private func generateUniqueName(for name: String, in folder: URL) -> String {
+    func generateUniqueName(for name: String, in folder: URL) -> String {
         let baseName = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
         var counter = 2

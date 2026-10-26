@@ -33,6 +33,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let sort = NSToolbarItem.Identifier("sort")
         static let compare = NSToolbarItem.Identifier("compare")
         static let layout = NSToolbarItem.Identifier("browserLayout")
+        static let share = NSToolbarItem.Identifier("share")
+        static let search = NSToolbarItem.Identifier("search")
     }
 
     // MARK: - Dependencies
@@ -81,6 +83,17 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // 폴더 변경 디바운스용 (FolderWatcher 콜백에서 사용) — 폴더별로 따로 관리해야
     // 서로 다른 폴더의 연속 변경이 서로를 취소하지 않는다.
     var folderChangeWorkItems: [URL: DispatchWorkItem] = [:]
+
+    // 다음 폴더 로드가 끝나면 선택할 URL (클립보드 이미지 저장 직후 새 파일 강조용)
+    var pendingSelectionURLs: Set<URL> = []
+
+    // 공유 피커 — 표시 중엔 참조를 유지해야 한다
+    var sharingPicker: NSSharingServicePicker?
+
+    // 파일명 검색 상태. 툴바 검색 필드는 모드 전환으로 툴바가 다시 짜여도 한 인스턴스를 유지한다.
+    var searchPresentation: SearchPresentation?
+    var searchSourceURLs: [URL]?
+    var searchToolbarItem: NSSearchToolbarItem?
 
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
@@ -174,6 +187,34 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         navigateToFolder(url)
     }
 
+    /// 최근 폴더 메뉴에서 고른 폴더로 이동. 사이드바 루트 아래면 트리에서 펼쳐 선택하고,
+    /// 어느 루트에도 속하지 않으면 "폴더 추가"와 같이 루트로 등록한다.
+    @objc func openRecentFolder(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            AppSettings.shared.removeRecentFolder(url)
+            let alert = NSAlert()
+            alert.messageText = "폴더를 찾을 수 없습니다"
+            alert.informativeText = "'\(url.path)'이(가) 이동되었거나 삭제되었습니다. 최근 폴더 목록에서 제거했습니다."
+            alert.alertStyle = .warning
+            alert.runModal()
+            return
+        }
+        if sidebarVC.revealFolder(at: url) {
+            navigateToFolder(url)
+        } else {
+            securityService.addBookmark(for: url)
+            securityService.startAccessing(url)
+            sidebarVC.addFolder(url)
+            navigateToFolder(url)
+        }
+    }
+
+    @objc func clearRecentFolders(_ sender: Any?) {
+        AppSettings.shared.clearRecentFolders()
+    }
+
     /// 선택된 URL들로 비교 창을 연다(2장 이상, 비디오 제외).
     func compareFiles(_ urls: [URL]) {
         let files = urls.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }
@@ -209,11 +250,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func navigateToFolder(_ url: URL) {
         clearSimilaritySearch()
+        clearSearch()
         currentCategoryID = nil
         folderLoadGeneration += 1
         let generation = folderLoadGeneration
         sidebarVC.setCategoryView(false)
         currentFolderURL = url
+        AppSettings.shared.addRecentFolder(url)
         syncWatchedFolders()
         switchToMode(.browser)
         browserVC.display(folders: [], images: [])
@@ -232,10 +275,13 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
                     recursiveRoot: AppSettings.shared.recursiveBrowsing ? url : nil
                 )
                 self.window?.title = url.lastPathComponent
+                let pending = self.pendingSelectionURLs
+                self.pendingSelectionURLs = []
+                if !pending.isEmpty { self.browserVC.restoreSelection(urls: pending) }
                 self.statusBar.update(
                     folderCount: contents.folders.count,
                     imageCount: contents.images.count,
-                    selectionCount: 0
+                    selectionCount: self.browserVC.selectedURLs().count
                 )
             case .failure(let error):
                 self.showError(error)
@@ -342,6 +388,11 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             else { refreshSimilarityResults() }
             return
         }
+        if browserVC.isSearchMode {
+            if contentMode == .viewer { viewerVC.reloadCurrentImage() }
+            else { refreshSearchResults() }
+            return
+        }
         if browserVC.isCategoryMode {
             if contentMode == .viewer { viewerVC.reloadCurrentImage() }
             else { refreshCategories() }
@@ -391,6 +442,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     /// 사이드바 북마크 항목 → 메인을 북마크 그리드로 전환.
     func showBookmarks() {
         clearSimilaritySearch()
+        clearSearch()
         folderLoadGeneration += 1
         currentCategoryID = nil
         switchToMode(.browser)
@@ -412,6 +464,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func refreshCurrentFolder() {
         if browserVC.isSimilarityMode { refreshSimilarityResults(); return }
+        if browserVC.isSearchMode { refreshSearchResults(); return }
         if browserVC.isCategoryMode {
             if contentMode == .browser { showCategory(currentCategoryID) }
             return
@@ -487,7 +540,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         for item in toolbar.items {
             switch item.itemIdentifier {
             case ToolbarID.back:
-                item.isEnabled = contentMode == .viewer || browserVC.isSimilarityMode
+                item.isEnabled = contentMode == .viewer || browserVC.isSimilarityMode || browserVC.isSearchMode
             case ToolbarID.sort:
                 item.isEnabled = !browserVC.isSimilarityMode
             case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize,

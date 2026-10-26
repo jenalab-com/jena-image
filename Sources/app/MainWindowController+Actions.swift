@@ -14,6 +14,8 @@ extension MainWindowController {
             viewerDidRequestClose(viewerVC)
         } else if browserVC.isSimilarityMode {
             closeSimilarityResults()
+        } else if browserVC.isSearchMode {
+            closeSearchResults()
         }
     }
 
@@ -137,14 +139,19 @@ extension MainWindowController {
             return
         }
 
-        guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, let folderURL = currentFolderURL else { return }
+        guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, !browserVC.isSearchMode, let folderURL = currentFolderURL else { return }
 
         let pasteboard = NSPasteboard.general
 
-        // 클립보드에서 파일 URL 읽기
+        // 클립보드에서 파일 URL 읽기. 파일이 없고 이미지 데이터(스크린샷 등)만 있으면 파일로 저장한다.
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
             .urlReadingFileURLsOnly: true,
-        ]) as? [URL], !urls.isEmpty else { return }
+        ]) as? [URL], !urls.isEmpty else {
+            if let image = NSImage(pasteboard: pasteboard) {
+                saveClipboardImage(image, to: folderURL)
+            }
+            return
+        }
 
         // Finder 잘라내기(⌘⌥V) 감지: com.apple.pasteboard.promised-file-url 또는 cut flag
         let isCut = pasteboard.types?.contains(NSPasteboard.PasteboardType("com.apple.pasteboard.cut")) == true
@@ -350,11 +357,16 @@ extension MainWindowController: NSToolbarItemValidation {
              #selector(printImage(_:)):
             return hasActiveImageSelection()
 
+        case #selector(shareSelected(_:)):
+            return !shareableURLs().isEmpty
+
         // 붙여넣기: 텍스트 편집 중이면 활성, 아니면 파일 URL 확인
         case #selector(pasteFiles(_:)):
             if isEditingText { return true }
-            guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, currentFolderURL != nil else { return false }
-            return NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+            guard !browserVC.isCategoryMode, !browserVC.isSimilarityMode, !browserVC.isSearchMode, currentFolderURL != nil else { return false }
+            let pasteboard = NSPasteboard.general
+            return pasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+                || pasteboard.canReadObject(forClasses: [NSImage.self], options: nil)
 
         // 선택 필요 (이미지 또는 비루트 폴더)
         case #selector(deleteSelected(_:)),
@@ -387,7 +399,8 @@ extension MainWindowController: NSToolbarItemValidation {
             return isViewer
 
         // 브라우저 모드에서만 활성
-        case #selector(selectAllItems(_:)):
+        case #selector(selectAllItems(_:)),
+             #selector(focusSearchField(_:)):
             return !isViewer
 
         default:

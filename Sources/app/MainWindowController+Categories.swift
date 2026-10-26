@@ -65,6 +65,7 @@ extension MainWindowController {
 
     func showCategory(_ id: UUID?) {
         clearSimilaritySearch()
+        clearSearch()
         do {
             let category = try categoryStore.categories().first { $0.id == id }
             folderLoadGeneration += 1

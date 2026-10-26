@@ -184,6 +184,7 @@ protocol BrowserDelegate: AnyObject {
     func browserDidToggleBookmark(_ browser: BrowserViewController, urls: [URL])
     func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL])
     func browser(_ browser: BrowserViewController, didRequestShowInfo url: URL)
+    func browser(_ browser: BrowserViewController, didRequestShare urls: [URL])
 }
 
 // MARK: - ViewController
@@ -205,7 +206,8 @@ final class BrowserViewController: NSViewController {
     private(set) var isBookmarkMode = false
     private(set) var isCategoryMode = false
     private(set) var isSimilarityMode = false
-    var isCollectionMode: Bool { isBookmarkMode || isCategoryMode || isSimilarityMode }
+    private(set) var isSearchMode = false
+    var isCollectionMode: Bool { isBookmarkMode || isCategoryMode || isSimilarityMode || isSearchMode }
     private var contents: [BrowserContent] = []
     private var imageFiles: [ImageFile] = []
     /// 화면 밖으로 스크롤된 항목까지 포함한 현재 목록의 전체 이미지.
@@ -287,6 +289,7 @@ final class BrowserViewController: NSViewController {
     /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
     func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
         isSimilarityMode = false
+        isSearchMode = false
         isBookmarkMode = false
         isCategoryMode = false
         cancelAllThumbnailRequests()
@@ -313,6 +316,7 @@ final class BrowserViewController: NSViewController {
     /// 북마크(임의 위치 이미지) 평면 목록을 표시한다.
     func displayBookmarks(_ files: [ImageFile]) {
         isSimilarityMode = false
+        isSearchMode = false
         isBookmarkMode = true
         isCategoryMode = false
         bookmarkEmptyLabel.stringValue = "북마크가 비어 있어요"
@@ -321,6 +325,7 @@ final class BrowserViewController: NSViewController {
 
     func displayCategory(_ files: [ImageFile]) {
         isSimilarityMode = false
+        isSearchMode = false
         isBookmarkMode = false
         isCategoryMode = true
         bookmarkEmptyLabel.stringValue = "이 카테고리에 지정된 이미지가 없습니다"
@@ -329,16 +334,30 @@ final class BrowserViewController: NSViewController {
 
     func displaySimilarImages(_ files: [ImageFile], resetScroll: Bool = false) {
         isSimilarityMode = true
+        isSearchMode = false
         isBookmarkMode = false
         isCategoryMode = false
         bookmarkEmptyLabel.stringValue = "검색할 수 있는 다른 이미지가 없습니다. 현재 목록과 다운로드 상태를 확인하세요."
         displayCollection(files)
-        if resetScroll {
-            collectionView.layoutSubtreeIfNeeded()
-            scrollView.contentView.scroll(to: .zero)
-            scrollView.reflectScrolledClipView(scrollView.contentView)
-            schedulePrefetch()
-        }
+        if resetScroll { scrollToTop() }
+    }
+
+    /// 파일명 검색 결과 평면 목록. 유사 이미지 결과와 같은 꼴이며, 셀에는 파일명만 표시한다.
+    func displaySearchResults(_ files: [ImageFile], query: String, resetScroll: Bool = false) {
+        isSearchMode = true
+        isSimilarityMode = false
+        isBookmarkMode = false
+        isCategoryMode = false
+        bookmarkEmptyLabel.stringValue = "\"\(query)\"과(와) 일치하는 파일이 없습니다"
+        displayCollection(files)
+        if resetScroll { scrollToTop() }
+    }
+
+    private func scrollToTop() {
+        collectionView.layoutSubtreeIfNeeded()
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        schedulePrefetch()
     }
 
     private func displayCollection(_ files: [ImageFile]) {
@@ -371,6 +390,13 @@ final class BrowserViewController: NSViewController {
             }
         }
         collectionView.selectionIndexPaths = indexPaths
+    }
+
+    /// 공유 피커 등 팝오버를 붙일 자리 — 첫 선택 셀의 프레임(collectionView 좌표). 선택이 없으면 nil.
+    func anchorForSelection() -> (NSRect, NSView)? {
+        guard let indexPath = collectionView.selectionIndexPaths.sorted().first,
+              let attributes = collectionView.layoutAttributesForItem(at: indexPath) else { return nil }
+        return (attributes.frame, collectionView)
     }
 
     func setLayoutMode(_ mode: BrowserLayoutMode) {
@@ -730,6 +756,11 @@ final class BrowserViewController: NSViewController {
         } else {
             OpenWithService.openWithDefault(target.fileURL)
         }
+    }
+
+    @objc private func contextShare(_ sender: NSMenuItem) {
+        guard let urls = sender.representedObject as? [URL] else { return }
+        delegate?.browser(self, didRequestShare: urls)
     }
 
     @objc private func contextShowInfo(_ sender: NSMenuItem) {
@@ -1111,7 +1142,7 @@ extension BrowserViewController: NSMenuDelegate {
             )
             removeItem.target = self
             removeItem.representedObject = urls
-            if !isSimilarityMode { menu.addItem(removeItem) }
+            if !isSimilarityMode, !isSearchMode { menu.addItem(removeItem) }
 
             menu.addItem(NSMenuItem.separator())
 
@@ -1126,7 +1157,7 @@ extension BrowserViewController: NSMenuDelegate {
             deleteItem.target = self
             deleteItem.representedObject = urls
             menu.addItem(deleteItem)
-            if isCategoryMode || isSimilarityMode {
+            if isCategoryMode || isSimilarityMode || isSearchMode {
                 let imageURLs = urls.filter { ImageFile(url: $0)?.isVideo == false }
                 let allBookmarked = imageURLs.allSatisfy { isBookmarkedProvider?($0) ?? false }
                 let bookmarkItem = NSMenuItem(title: allBookmarked ? "북마크에서 빼기" : "북마크에 추가",
@@ -1135,6 +1166,14 @@ extension BrowserViewController: NSMenuDelegate {
                 menu.addItem(bookmarkItem)
             }
             appendCategoryMenu(to: menu, urls: urls)
+
+            if !hasBroken, urls.allSatisfy({ ImageFile(url: $0) != nil }) {
+                menu.addItem(NSMenuItem.separator())
+                let shareItem = NSMenuItem(title: L10n.string(.share), action: #selector(contextShare(_:)), keyEquivalent: "")
+                shareItem.target = self
+                shareItem.representedObject = urls
+                menu.addItem(shareItem)
+            }
 
             if !hasBroken, urls.count == 1, ImageFile(url: urls[0]) != nil {
                 menu.addItem(NSMenuItem.separator())
@@ -1178,6 +1217,12 @@ extension BrowserViewController: NSMenuDelegate {
             if urls.count == 1, hasImages {
                 menu.addItem(NSMenuItem.separator())
                 menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
+            }
+
+            // 공유: 선택이 모두 미디어 파일일 때(폴더가 섞이면 숨김)
+            if urls.allSatisfy({ ImageFile(url: $0) != nil }) {
+                menu.addItem(NSMenuItem.separator())
+                menu.addItem(withTitle: L10n.string(.share), action: #selector(contextShare(_:)), keyEquivalent: "")
             }
 
             if urls.count == 1, hasImages {
