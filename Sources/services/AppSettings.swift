@@ -26,6 +26,8 @@ final class AppSettings {
         case viewerFitMode = "viewerFitMode"
         case browserLayout = "browserLayout"
         case recentFolders = "recentFolderPaths"
+        case batchExportResize = "batchExportResize"
+        case batchExportLongEdge = "batchExportLongEdge"
     }
 
     // MARK: - Language
@@ -89,6 +91,23 @@ final class AppSettings {
             return val > 0 ? val : 85
         }
         set { defaults.set(newValue, forKey: Key.defaultExportQuality.rawValue) }
+    }
+
+    // MARK: - Batch Export
+
+    /// 일괄 내보내기 "긴 변 기준 축소" 체크 상태. 기본 꺼짐.
+    var batchExportResize: Bool {
+        get { defaults.bool(forKey: Key.batchExportResize.rawValue) }
+        set { defaults.set(newValue, forKey: Key.batchExportResize.rawValue) }
+    }
+
+    /// 일괄 내보내기 긴 변 상한(px). 기본 2000.
+    var batchExportLongEdge: Int {
+        get {
+            let v = defaults.integer(forKey: Key.batchExportLongEdge.rawValue)
+            return v >= 16 ? v : 2000
+        }
+        set { defaults.set(newValue, forKey: Key.batchExportLongEdge.rawValue) }
     }
 
     // MARK: - Viewer

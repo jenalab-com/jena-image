@@ -64,6 +64,10 @@ enum MainMenu {
         let saveAs = NSMenuItem(title: L10n.string(.saveAs), action: #selector(MainWindowController.exportCurrentImage(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(saveAs)
+
+        let batchExport = NSMenuItem(title: L10n.string(.batchExport), action: #selector(MainWindowController.batchExportSelected(_:)), keyEquivalent: "S")
+        batchExport.keyEquivalentModifierMask = [.command, .shift, .option]
+        fileMenu.addItem(batchExport)
         fileMenu.addItem(withTitle: L10n.string(.share), action: #selector(MainWindowController.shareSelected(_:)), keyEquivalent: "")
 
         fileMenu.addItem(NSMenuItem.separator())

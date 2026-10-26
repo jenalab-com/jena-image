@@ -46,6 +46,7 @@ enum L10nKey: String {
     case clearRecentFolders
     case share
     case find
+    case batchExport
 
     // Edit
     case edit
@@ -167,6 +168,7 @@ enum L10n {
             .clearRecentFolders: "목록 지우기",
             .share: "공유…",
             .find: "검색…",
+            .batchExport: "일괄 내보내기…",
             .edit: "편집",
             .copy: "복사",
             .paste: "붙여넣기",
@@ -249,6 +251,7 @@ enum L10n {
             .clearRecentFolders: "Clear Menu",
             .share: "Share…",
             .find: "Find…",
+            .batchExport: "Batch Export…",
             .edit: "Edit",
             .copy: "Copy",
             .paste: "Paste",
@@ -331,6 +334,7 @@ enum L10n {
             .clearRecentFolders: "メニューを消去",
             .share: "共有…",
             .find: "検索…",
+            .batchExport: "一括書き出し…",
             .edit: "編集",
             .copy: "コピー",
             .paste: "ペースト",
@@ -413,6 +417,7 @@ enum L10n {
             .clearRecentFolders: "清除菜单",
             .share: "共享…",
             .find: "查找…",
+            .batchExport: "批量导出…",
             .edit: "编辑",
             .copy: "复制",
             .paste: "粘贴",

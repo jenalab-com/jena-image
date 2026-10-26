@@ -185,6 +185,7 @@ protocol BrowserDelegate: AnyObject {
     func browserDidRequestRemoveBookmark(_ browser: BrowserViewController, urls: [URL])
     func browser(_ browser: BrowserViewController, didRequestShowInfo url: URL)
     func browser(_ browser: BrowserViewController, didRequestShare urls: [URL])
+    func browser(_ browser: BrowserViewController, didRequestBatchExport urls: [URL])
 }
 
 // MARK: - ViewController
@@ -758,6 +759,11 @@ final class BrowserViewController: NSViewController {
         }
     }
 
+    @objc private func contextBatchExport(_ sender: NSMenuItem) {
+        guard let urls = sender.representedObject as? [URL] else { return }
+        delegate?.browser(self, didRequestBatchExport: urls)
+    }
+
     @objc private func contextShare(_ sender: NSMenuItem) {
         guard let urls = sender.representedObject as? [URL] else { return }
         delegate?.browser(self, didRequestShare: urls)
@@ -1167,6 +1173,14 @@ extension BrowserViewController: NSMenuDelegate {
             }
             appendCategoryMenu(to: menu, urls: urls)
 
+            if !hasBroken, urls.compactMap({ ImageFile(url: $0) }).filter({ !$0.isVideo }).count >= 2 {
+                menu.addItem(NSMenuItem.separator())
+                let batchItem = NSMenuItem(title: L10n.string(.batchExport), action: #selector(contextBatchExport(_:)), keyEquivalent: "")
+                batchItem.target = self
+                batchItem.representedObject = urls
+                menu.addItem(batchItem)
+            }
+
             if !hasBroken, urls.allSatisfy({ ImageFile(url: $0) != nil }) {
                 menu.addItem(NSMenuItem.separator())
                 let shareItem = NSMenuItem(title: L10n.string(.share), action: #selector(contextShare(_:)), keyEquivalent: "")
@@ -1217,6 +1231,10 @@ extension BrowserViewController: NSMenuDelegate {
             if urls.count == 1, hasImages {
                 menu.addItem(NSMenuItem.separator())
                 menu.addItem(withTitle: "다른 이름으로 저장", action: #selector(contextExport(_:)), keyEquivalent: "")
+            }
+            if nonVideoCount >= 2 {
+                menu.addItem(NSMenuItem.separator())
+                menu.addItem(withTitle: L10n.string(.batchExport), action: #selector(contextBatchExport(_:)), keyEquivalent: "")
             }
 
             // 공유: 선택이 모두 미디어 파일일 때(폴더가 섞이면 숨김)

@@ -297,6 +297,7 @@ final class SidebarViewController: NSViewController {
     /// 사이드바 전체 새로고침 — 모든 루트와, 이미 펼쳐본 하위 폴더를 디스크에서 다시 읽는다.
     /// 펼침 상태와 선택 항목은 그대로 유지된다.
     @objc func reloadAll(_ sender: Any?) {
+        FolderMediaCountService.shared.invalidateAll()
         for root in rootNodes {
             reload(node: root)
         }
@@ -325,6 +326,7 @@ final class SidebarViewController: NSViewController {
     /// 노드 하나를 디스크 기준으로 갱신하고, 선택 항목을 URL 기준으로 복원한다.
     private func reload(node: FolderNode) {
         let selectedURL = selectedItemURL
+        FolderMediaCountService.shared.invalidate(node.url)
         node.refresh()
         outlineView.reloadItem(node, reloadChildren: true)
         restoreSelection(to: selectedURL)
@@ -1104,11 +1106,10 @@ extension SidebarViewController: NSOutlineViewDelegate {
             cell.imageView?.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: node.name)
             cell.imageView?.contentTintColor = FolderColorService.shared.color(for: node.url)
 
-            // 미디어 파일 개수 표시
+            // 하위 폴더까지 합친 미디어 파일 총계. 아직 안 세었으면 비워 두고, 계산이 끝나면 onUpdate로 다시 채운다.
+            node.loadChildren()   // 펼침 삼각형 판단(빈 폴더는 삼각형 없음)을 위해 직속 내용은 미리 읽는다
             let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
-            node.loadChildren()
-            let count = node.mediaFileCount
-            countLabel?.stringValue = count > 0 ? "\(count)" : ""
+            countLabel?.stringValue = Self.countText(for: node.url)
             return cell
         }
 
@@ -1391,6 +1392,24 @@ extension SidebarViewController {
         ) { [weak self] _ in
             self?.outlineView.reloadData()
         }
+        FolderMediaCountService.shared.onUpdate = { [weak self] in self?.refreshVisibleCounts() }
+    }
+
+    /// 폴더 총계 계산이 끝나면 보이는 폴더 행의 숫자만 다시 그린다(행 재생성 없이 레이블만 갱신).
+    private func refreshVisibleCounts() {
+        let visible = outlineView.rows(in: outlineView.visibleRect)
+        guard visible.length > 0 else { return }
+        for row in visible.location..<(visible.location + visible.length) {
+            guard let node = outlineView.item(atRow: row) as? FolderNode,
+                  let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
+                  let label = cell.viewWithTag(Self.countLabelTag) as? NSTextField else { continue }
+            label.stringValue = Self.countText(for: node.url)
+        }
+    }
+
+    private static func countText(for url: URL) -> String {
+        guard let count = FolderMediaCountService.shared.count(for: url) else { return "" }
+        return count > 0 ? "\(count)" : ""
     }
 }
 

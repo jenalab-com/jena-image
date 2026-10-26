@@ -61,7 +61,7 @@ final class HelpWindowController: NSWindowController {
         result.append(item("폴더 제거", detail: "사이드바에서 등록된 폴더를 우클릭하여 '사이드바에서 제거'를 선택합니다."))
         result.append(item("최근 폴더", detail: "파일 메뉴 → '최근 폴더'에서 최근에 연 폴더 10개로 바로 이동합니다. 사이드바에 없는 폴더를 고르면 루트로 다시 등록됩니다."))
         result.append(item("폴더 탐색", detail: "사이드바에서 폴더를 클릭하면 우측 브라우저에 내용이 표시됩니다. 다시 클릭하면 펼침/접기가 토글됩니다."))
-        result.append(item("미디어 개수", detail: "사이드바 폴더 이름 우측에 해당 폴더 안의 이미지·영상 파일 수가 표시됩니다."))
+        result.append(item("미디어 개수", detail: "사이드바 폴더 이름 우측에 그 폴더와 하위 폴더를 모두 합친 이미지·영상 파일 수가 표시됩니다. 큰 폴더는 백그라운드에서 세어 잠시 뒤 나타납니다."))
         result.append(spacer())
 
         // 브라우저
@@ -120,7 +120,8 @@ final class HelpWindowController: NSWindowController {
         // 내보내기
         result.append(h2("이미지 내보내기"))
         result.append(body("다른 이름으로 저장(⇧⌘S) 시 포맷을 변환하여 내보낼 수 있습니다."))
-        result.append(body("지원 포맷: JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF"))
+        result.append(item("일괄 내보내기", detail: "여러 장을 선택하고 파일 메뉴 '일괄 내보내기…'(⌥⇧⌘S) 또는 우클릭 메뉴를 열면, 같은 포맷·품질로 한 번에 저장합니다. '긴 변이 다음보다 크면 줄이기'를 켜면 비율을 유지한 채 긴 변만 그 길이로 줄이고, 그보다 작은 이미지는 원본 크기 그대로 둡니다. 파일명은 원본 이름에 새 확장자를 붙이고, 겹치면 번호를 더합니다."))
+        result.append(body("내보내기 포맷: JPEG, PNG, HEIC, AVIF, TIFF, BMP, GIF (WebP·HEIF는 읽기만 지원 — macOS가 쓰기를 제공하지 않습니다)"))
         result.append(spacer())
 
         // 지원 파일 형식
@@ -133,6 +134,7 @@ final class HelpWindowController: NSWindowController {
         result.append(h2("단축키 요약"))
         result.append(shortcut("폴더 추가", key: "⌘O"))
         result.append(shortcut("다른 이름으로 저장", key: "⇧⌘S"))
+        result.append(shortcut("일괄 내보내기", key: "⌥⇧⌘S"))
         result.append(shortcut("삭제", key: "⌫"))
         result.append(shortcut("Finder에서 보기", key: "⌘R"))
         result.append(shortcut("정보 보기", key: "⌘I"))
