@@ -258,6 +258,17 @@ extension MainWindowController {
         performExport(url: url)
     }
 
+    /// 파일 메뉴 "일괄 내보내기…" — 브라우저 선택 전체(이미지만).
+    @objc func batchExportSelected(_ sender: Any?) {
+        performBatchExport(urls: activeSelectedURLs())
+    }
+
+    /// 일괄 내보내기 대상 — 브라우저 모드에서 비디오 아닌 이미지가 1장 이상.
+    func batchExportTargetCount() -> Int {
+        guard contentMode == .browser, !isSidebarFocused else { return 0 }
+        return browserVC.selectedURLs().compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
+    }
+
     @objc func deleteSelected(_ sender: Any?) {
         if isSidebarFocused, sidebarVC.selectedItemIsNonRoot, let url = sidebarVC.selectedItemURL {
             performDelete(urls: [url])
@@ -359,6 +370,9 @@ extension MainWindowController: NSToolbarItemValidation {
 
         case #selector(shareSelected(_:)):
             return !shareableURLs().isEmpty
+
+        case #selector(batchExportSelected(_:)):
+            return batchExportTargetCount() >= 1
 
         // 붙여넣기: 텍스트 편집 중이면 활성, 아니면 파일 URL 확인
         case #selector(pasteFiles(_:)):

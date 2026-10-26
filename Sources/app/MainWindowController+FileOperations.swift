@@ -165,6 +165,35 @@ extension MainWindowController {
         }
     }
 
+    /// 선택한 이미지들을 같은 설정으로 내보내는 시트를 연다(비디오 제외).
+    func performBatchExport(urls: [URL]) {
+        guard let window, batchExportController == nil else { return }
+        let images = urls.compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.map(\.url)
+        guard !images.isEmpty else { return }
+        let controller = BatchExportWindowController(sources: images)
+        controller.onFinish = { [weak self] report, destination in
+            guard let self else { return }
+            self.batchExportController = nil
+            if !report.succeeded.isEmpty {
+                self.sidebarVC.reloadFolder(at: destination)
+                if destination == self.currentFolderURL || AppSettings.shared.recursiveBrowsing {
+                    self.refreshCurrentFolder()
+                }
+            }
+            guard !report.failed.isEmpty else { return }
+            let alert = NSAlert()
+            alert.messageText = "일부 이미지를 내보내지 못했습니다"
+            let lines = report.failed.prefix(8).map { "• \($0.source.lastPathComponent) — \($0.reason)" }
+            var text = "성공 \(report.succeeded.count)개, 실패 \(report.failed.count)개\n" + lines.joined(separator: "\n")
+            if report.failed.count > 8 { text += "\n…" }
+            alert.informativeText = text
+            alert.alertStyle = .warning
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        }
+        batchExportController = controller
+        controller.beginSheet(for: window)
+    }
+
     /// 클립보드 이미지를 PNG로 현재 폴더에 저장하고, 목록을 갱신한 뒤 새 파일을 선택한다.
     /// 파일명은 macOS 스크린샷과 같은 "클립보드 이미지 YYYY-MM-DD HH.mm.ss.png" 꼴, 겹치면 번호를 붙인다.
     func saveClipboardImage(_ image: NSImage, to folder: URL) {

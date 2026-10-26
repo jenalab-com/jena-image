@@ -2,10 +2,34 @@ import AppKit
 
 /// 다른 이름으로 저장 패널의 accessory view (포맷 선택 + 품질 슬라이더)
 final class ExportAccessoryView: NSView {
+    /// 쓸 수 없는 포맷을 넣으면 목록의 첫 포맷(JPEG)으로 바꾼다.
     var selectedFormat: ImageFormat = .jpeg {
-        didSet { updateQualityVisibility() }
+        didSet {
+            // didSet 안에서 다시 대입해도 관찰자는 재호출되지 않으므로 보정 뒤 갱신까지 여기서 끝낸다.
+            if !ImageFormat.writableFormats.contains(selectedFormat) {
+                selectedFormat = ImageFormat.writableFormats[0]
+            }
+            if let index = ImageFormat.writableFormats.firstIndex(of: selectedFormat), formatPopup.indexOfSelectedItem != index {
+                formatPopup.selectItem(at: index)
+            }
+            updateQualityVisibility()
+        }
     }
-    var quality: Float { Float(qualitySlider.integerValue) }
+    var quality: Float {
+        get { Float(qualitySlider.integerValue) }
+        set {
+            qualitySlider.integerValue = Int(newValue)
+            qualityValueLabel.stringValue = "\(qualitySlider.integerValue)"
+        }
+    }
+
+    /// 일괄 내보내기 진행 중 잠그기 위한 스위치
+    var isEnabled: Bool = true {
+        didSet {
+            formatPopup.isEnabled = isEnabled
+            qualitySlider.isEnabled = isEnabled
+        }
+    }
 
     private let formatPopup = NSPopUpButton()
     private let qualitySlider = NSSlider()
@@ -27,7 +51,7 @@ final class ExportAccessoryView: NSView {
         addSubview(formatLabel)
 
         formatPopup.translatesAutoresizingMaskIntoConstraints = false
-        for format in ImageFormat.allCases {
+        for format in ImageFormat.writableFormats {
             formatPopup.addItem(withTitle: format.displayName)
             formatPopup.lastItem?.representedObject = format
         }
@@ -67,7 +91,7 @@ final class ExportAccessoryView: NSView {
         ])
 
         // 초기 포맷 선택
-        if let index = ImageFormat.allCases.firstIndex(of: selectedFormat) {
+        if let index = ImageFormat.writableFormats.firstIndex(of: selectedFormat) {
             formatPopup.selectItem(at: index)
         }
         updateQualityVisibility()

@@ -322,6 +322,10 @@ extension MainWindowController: BrowserDelegate {
         showInfo(for: url)
     }
 
+    func browser(_ browser: BrowserViewController, didRequestBatchExport urls: [URL]) {
+        performBatchExport(urls: urls)
+    }
+
     func browser(_ browser: BrowserViewController, didRequestShare urls: [URL]) {
         share(urls: urls.filter { ImageFile(url: $0) != nil && FileManager.default.fileExists(atPath: $0.path) })
     }

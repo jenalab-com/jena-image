@@ -1,3 +1,4 @@
+import ImageIO
 import UniformTypeIdentifiers
 
 /// 지원하는 이미지 포맷 정의
@@ -69,6 +70,14 @@ enum ImageFormat: String, CaseIterable {
         let lowered = ext.lowercased()
         return allCases.first { $0.fileExtensions.contains(lowered) }
     }
+
+    /// 이 macOS의 ImageIO가 **쓸 수 있는** 포맷. 읽기는 되지만 쓰기는 안 되는 것(WebP·HEIF 등, macOS 14 기준)이 있어
+    /// 내보내기 목록은 이걸로 만든다. 순서는 `allCases`를 따른다.
+    static let writableFormats: [ImageFormat] = {
+        let writable = Set((CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? [])
+        let list = allCases.filter { writable.contains($0.utType.identifier) }
+        return list.isEmpty ? [.jpeg, .png] : list
+    }()
 
     /// 지원하는 모든 확장자 집합
     static let supportedExtensions: Set<String> = {

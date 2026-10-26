@@ -1,6 +1,6 @@
 APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
-VERSION      = 1.9.1
+VERSION      = 1.9.2
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
 FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision

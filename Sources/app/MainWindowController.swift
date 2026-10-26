@@ -95,6 +95,9 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     var searchSourceURLs: [URL]?
     var searchToolbarItem: NSSearchToolbarItem?
 
+    // 일괄 내보내기 시트 보관
+    var batchExportController: BatchExportWindowController?
+
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
 
