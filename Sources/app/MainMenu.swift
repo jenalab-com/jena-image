@@ -48,6 +48,10 @@ enum MainMenu {
         let fileMenu = NSMenu(title: L10n.string(.file))
 
         fileMenu.addItem(withTitle: L10n.string(.addFolder), action: #selector(MainWindowController.addFolder(_:)), keyEquivalent: "o")
+
+        let recent = NSMenuItem(title: L10n.string(.recentFolders), action: nil, keyEquivalent: "")
+        recent.submenu = RecentFoldersMenu.shared.makeMenu()
+        fileMenu.addItem(recent)
         fileMenu.addItem(NSMenuItem.separator())
         fileMenu.addItem(withTitle: L10n.string(.revealInFinder), action: #selector(MainWindowController.revealInFinder(_:)), keyEquivalent: "r")
         fileMenu.addItem(NSMenuItem.separator())
@@ -60,6 +64,7 @@ enum MainMenu {
         let saveAs = NSMenuItem(title: L10n.string(.saveAs), action: #selector(MainWindowController.exportCurrentImage(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(saveAs)
+        fileMenu.addItem(withTitle: L10n.string(.share), action: #selector(MainWindowController.shareSelected(_:)), keyEquivalent: "")
 
         fileMenu.addItem(NSMenuItem.separator())
 
@@ -90,6 +95,8 @@ enum MainMenu {
 
         editMenu.addItem(NSMenuItem.separator())
         editMenu.addItem(withTitle: L10n.string(.selectAll), action: #selector(MainWindowController.selectAllItems(_:)), keyEquivalent: "a")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: L10n.string(.find), action: #selector(MainWindowController.focusSearchField(_:)), keyEquivalent: "f")
 
         let item = NSMenuItem()
         item.submenu = editMenu

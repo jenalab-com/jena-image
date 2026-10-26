@@ -59,6 +59,7 @@ final class HelpWindowController: NSWindowController {
         result.append(h2("시작하기"))
         result.append(item("폴더 추가", detail: "사이드바 하단의 + 버튼, 툴바의 폴더 추가 버튼, 또는 ⌘O로 폴더를 사이드바에 등록합니다."))
         result.append(item("폴더 제거", detail: "사이드바에서 등록된 폴더를 우클릭하여 '사이드바에서 제거'를 선택합니다."))
+        result.append(item("최근 폴더", detail: "파일 메뉴 → '최근 폴더'에서 최근에 연 폴더 10개로 바로 이동합니다. 사이드바에 없는 폴더를 고르면 루트로 다시 등록됩니다."))
         result.append(item("폴더 탐색", detail: "사이드바에서 폴더를 클릭하면 우측 브라우저에 내용이 표시됩니다. 다시 클릭하면 펼침/접기가 토글됩니다."))
         result.append(item("미디어 개수", detail: "사이드바 폴더 이름 우측에 해당 폴더 안의 이미지·영상 파일 수가 표시됩니다."))
         result.append(spacer())
@@ -70,6 +71,7 @@ final class HelpWindowController: NSWindowController {
         result.append(item("다른 앱으로 열기", detail: "파일을 우클릭한 뒤 '다른 앱으로 열기'에서 시스템에 등록된 호환 앱을 선택합니다. 맨 위의 '기본 앱으로 열기'는 macOS 기본 앱으로 엽니다."))
         result.append(item("폴더 열기", detail: "폴더를 더블클릭하면 해당 폴더로 이동합니다."))
         result.append(item("모두 선택", detail: "⌘A로 현재 폴더의 모든 항목을 선택합니다."))
+        result.append(item("파일명 검색", detail: "툴바 검색 필드(⌘F)에 낱말을 입력하고 Return을 누르면 현재 폴더와 하위 폴더에서 파일명이 일치하는 이미지를 별도 목록으로 보여줍니다. 낱말을 띄어 쓰면 모두 포함된 파일만 찾고, 대소문자는 구분하지 않습니다. 북마크·카테고리 목록에서는 그 목록 안에서 찾습니다. 뒤로(⌘[)나 필드의 x로 원래 목록으로 돌아갑니다."))
         result.append(spacer())
 
         // 뷰어
@@ -104,11 +106,14 @@ final class HelpWindowController: NSWindowController {
         result.append(item("이동/복사", detail: "우클릭 후 이동 또는 복사를 선택하거나, 파일 메뉴에서 접근합니다."))
         result.append(item("정보 보기", detail: "⌘I 또는 우클릭 메뉴에서 파일 크기·해상도·DPI·색 공간과 EXIF 촬영 정보(카메라·ISO·조리개·GPS)를 확인합니다."))
         result.append(item("드래그 앤 드롭", detail: "브라우저나 사이드바에서 이미지를 폴더로 드래그하여 이동할 수 있습니다."))
+        result.append(item("공유", detail: "툴바의 공유 버튼, 파일 메뉴의 '공유…', 또는 우클릭 메뉴에서 선택한 파일을 AirDrop·Mail·메시지 등 macOS 공유 시트로 보냅니다."))
         result.append(spacer())
 
         // 편집
         result.append(h2("편집"))
         result.append(shortcut("복사 (클립보드)", key: "⌘C"))
+        result.append(shortcut("붙여넣기", key: "⌘V"))
+        result.append(item("클립보드 이미지 저장", detail: "클립보드에 파일이 아닌 이미지(스크린샷 ⌃⇧⌘4 등)가 있으면 ⌘V로 현재 폴더에 PNG 파일로 저장합니다."))
         result.append(shortcut("모두 선택", key: "⌘A"))
         result.append(spacer())
 
@@ -132,7 +137,9 @@ final class HelpWindowController: NSWindowController {
         result.append(shortcut("Finder에서 보기", key: "⌘R"))
         result.append(shortcut("정보 보기", key: "⌘I"))
         result.append(shortcut("복사 (클립보드)", key: "⌘C"))
+        result.append(shortcut("붙여넣기 / 클립보드 이미지 저장", key: "⌘V"))
         result.append(shortcut("모두 선택", key: "⌘A"))
+        result.append(shortcut("파일명 검색", key: "⌘F"))
         result.append(shortcut("사이드바 토글", key: "⌥⌘S"))
         result.append(shortcut("뒤로", key: "⌘["))
         result.append(shortcut("이전 파일", key: "↑"))

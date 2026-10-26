@@ -35,19 +35,20 @@ extension MainWindowController: NSToolbarDelegate {
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         if contentMode == .browser {
-            return [.toggleSidebar] + (browserVC.isSimilarityMode ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare]
+            let showsBack = browserVC.isSimilarityMode || browserVC.isSearchMode
+            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.share]
         }
         return [.toggleSidebar, ToolbarID.back, .flexibleSpace,
                 ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-                .flexibleSpace, ToolbarID.sort, ToolbarID.compare]
+                .flexibleSpace, ToolbarID.sort, ToolbarID.compare, ToolbarID.share]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
          ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
          ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-         ToolbarID.sort, ToolbarID.compare]
+         ToolbarID.sort, ToolbarID.compare, ToolbarID.share, ToolbarID.search]
     }
 
     func toolbar(
@@ -136,6 +137,17 @@ extension MainWindowController: NSToolbarDelegate {
             menuItem.menu = sortMenu
             menuItem.showsIndicator = true
             return menuItem
+
+        case ToolbarID.search:
+            return makeSearchToolbarItem()
+
+        case ToolbarID.share:
+            // 시스템 공유 버튼. 대상은 delegate의 items(for:)가 매번 제공하고, 비어 있으면 자동 비활성.
+            let shareItem = NSSharingServicePickerToolbarItem(itemIdentifier: itemIdentifier)
+            shareItem.label = "공유"
+            shareItem.toolTip = "선택한 파일 공유"
+            shareItem.delegate = self
+            return shareItem
 
         case ToolbarID.compare:
             item.label = "비교"
@@ -309,6 +321,10 @@ extension MainWindowController: BrowserDelegate {
     func browser(_ browser: BrowserViewController, didRequestShowInfo url: URL) {
         showInfo(for: url)
     }
+
+    func browser(_ browser: BrowserViewController, didRequestShare urls: [URL]) {
+        share(urls: urls.filter { ImageFile(url: $0) != nil && FileManager.default.fileExists(atPath: $0.path) })
+    }
 }
 
 // MARK: - ViewerDelegate
@@ -320,11 +336,19 @@ extension MainWindowController: ViewerDelegate {
             refreshSimilarityResults()
             return
         }
+        if browserVC.isSearchMode {
+            switchToMode(.browser)
+            refreshSearchResults()
+            return
+        }
         if browserVC.isCategoryMode { showCategory(currentCategoryID); return }
         if browserVC.isBookmarkMode { showBookmarks(); return }
         switchToMode(.browser)
         if let url = currentFolderURL {
             window?.title = url.lastPathComponent
+            // 뷰어에서 파일을 넘기는 동안 사이드바 선택이 파일에 머무르므로, 목록으로 돌아오면 폴더로 되돌린다.
+            // (하위 폴더 포함 보기에서는 다른 폴더의 파일이 선택된 채 남아 더 어색하다) 델리게이트는 억제해 재로드를 막는다.
+            sidebarVC.revealFolder(at: url)
         }
     }
 

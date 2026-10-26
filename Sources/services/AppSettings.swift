@@ -25,6 +25,7 @@ final class AppSettings {
         case thumbnailDiskCacheMB = "thumbnailDiskCacheMB"
         case viewerFitMode = "viewerFitMode"
         case browserLayout = "browserLayout"
+        case recentFolders = "recentFolderPaths"
     }
 
     // MARK: - Language
@@ -209,6 +210,39 @@ final class AppSettings {
             return min(max(v, Self.thumbnailDiskCacheMBRange.lowerBound), Self.thumbnailDiskCacheMBRange.upperBound)
         }
         set { defaults.set(newValue, forKey: Key.thumbnailDiskCacheMB.rawValue) }
+    }
+
+    // MARK: - Recent Folders
+
+    static let recentFoldersLimit = 10
+
+    /// 최근 연 폴더. 최신이 앞. 샌드박스가 아니라 루트 폴더와 같은 방식으로 경로 문자열로 저장한다.
+    var recentFolders: [URL] {
+        get {
+            let paths = defaults.stringArray(forKey: Key.recentFolders.rawValue) ?? []
+            return paths.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        }
+        set {
+            let paths = newValue.map { $0.standardizedFileURL.path }
+            defaults.set(Array(paths.prefix(Self.recentFoldersLimit)), forKey: Key.recentFolders.rawValue)
+        }
+    }
+
+    /// 폴더를 최근 목록 맨 앞으로 올린다(이미 있으면 자리만 옮김).
+    func addRecentFolder(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        var list = recentFolders.filter { $0.standardizedFileURL.path != path }
+        list.insert(URL(fileURLWithPath: path, isDirectory: true), at: 0)
+        recentFolders = list
+    }
+
+    func removeRecentFolder(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        recentFolders = recentFolders.filter { $0.standardizedFileURL.path != path }
+    }
+
+    func clearRecentFolders() {
+        recentFolders = []
     }
 
     // MARK: - Slideshow

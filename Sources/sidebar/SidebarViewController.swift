@@ -230,6 +230,22 @@ final class SidebarViewController: NSViewController {
         outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
     }
 
+    /// 루트 아래 폴더를 트리에서 펼쳐 선택한다(델리게이트 억제 — 호출자가 직접 이동시킨다).
+    /// 어느 루트에도 속하지 않으면 false.
+    @discardableResult
+    func revealFolder(at url: URL) -> Bool {
+        guard !isCategoryView else { return false }
+        if findNode(for: url) == nil { expandToSubfolder(url) }
+        guard let node = findNode(for: url) else { return false }
+        let row = outlineView.row(forItem: node)
+        guard row >= 0 else { return false }
+        isSuppressingSelectionDelegate = true
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        isSuppressingSelectionDelegate = false
+        outlineView.scrollRowToVisible(row)
+        return true
+    }
+
     func selectFile(at url: URL) {
         guard !isCategoryView else { return }
         let folderURL = url.deletingLastPathComponent()

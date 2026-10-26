@@ -1,6 +1,6 @@
 # jena-image 기능 계획
 
-> 최종 갱신: 2026-10-24 (v1.8.0 기준). ✅ 완료 · 🔶 부분 구현 · ❌ 미착수.
+> 최종 갱신: 2026-10-26 (v1.9.0 + 최근 폴더·클립보드 이미지·공유·파일명 검색 구현). ✅ 완료 · 🔶 부분 구현 · ❌ 미착수.
 
 ## v1.0 — 핵심 이미지 뷰어 ✅
 
@@ -52,7 +52,7 @@
 - CGImageSource / ImageIO 프레임워크 활용
 - 구현: `ImageInfoWindowController`(패널) + `ImageMetadataService`(ImageIO 조회). 파일 메뉴 ⌘I, 브라우저 우클릭 "정보 보기", 뷰어에서 다음/이전 이미지로 이동하면 패널이 열려 있을 때 자동 갱신된다. 동영상은 파일 정보만 표시.
 
-## v1.4 — 생산성 향상 (일부 완료)
+## v1.4 — 생산성 향상 (배치 내보내기·검색·태그 필터 제외 완료)
 
 ### 21. 배치 내보내기 ❌
 - 브라우저에서 다중 선택 → 일괄 포맷 변환/리사이즈/내보내기
@@ -72,23 +72,25 @@
 - 전체화면 자동 재생 (간격 조절: 3/5/10초)
 - 일시정지, 이전/다음 컨트롤
 
-### 25. 공유 (Share Sheet) ❌
+### 25. 공유 (Share Sheet) ✅
 - macOS Share Sheet 연동 (AirDrop, Mail, Messages 등)
 - NSSharingServicePicker 활용
+- 구현: `MainWindowController+Share.swift`. 진입점 3곳 — 툴바 `NSSharingServicePickerToolbarItem`(대상 없으면 자동 비활성), 파일 메뉴 "공유…", 브라우저 우클릭 "공유…"(폴더·북마크·카테고리 모드 공통, 선택이 모두 미디어 파일일 때). 피커는 첫 선택 셀(브라우저) 또는 뷰어 화면에 붙는다.
 
 ### 26. 즐겨찾기 / 태그 🔶
 - macOS Finder 태그 연동 또는 자체 즐겨찾기 시스템 — **북마크로 구현 완료**
 - 태그별 필터링/검색 — ❌ 미착수
 - 상세는 [bookmark-plan.md](bookmark-plan.md).
 
-### 27. 검색 ❌
-- 파일명 기반 검색 (현재 폴더 / 전체 폴더)
+### 27. 검색 ✅
+- 파일명 기반 검색 (현재 폴더 + 하위 폴더 전체)
 - 검색 필드는 툴바에 배치
+- 구현: `MainWindowController+Search.swift`. 툴바 `NSSearchToolbarItem`(⌘F로 포커스, Return으로 검색). 폴더 모드는 `FileService.recursiveImages`로 현재 폴더 트리를 백그라운드 열거해 파일명 매칭(낱말 AND, 대소문자·발음 부호 무시), 북마크·카테고리·유사 목록에서는 그 목록 안에서 거른다. 결과는 `BrowserViewController.displaySearchResults`로 유사 이미지와 같은 평면 목록(`isSearchMode`), 뒤로 버튼·x·ESC로 출발한 목록 복귀. 정렬 변경·파일 변경·뷰어 복귀 시 같은 조건으로 재검색.
 
-### 28. 클립보드 이미지 저장 ❌
+### 28. 클립보드 이미지 저장 ✅
 - ⌘V로 클립보드의 이미지를 현재 폴더에 파일로 저장
 - 스크린샷 워크플로우에 유용
-- 현재 ⌘V(`pasteFiles`)는 클립보드의 **파일 URL** 붙여넣기/잘라내기만 처리한다.
+- 구현: `pasteFiles`가 파일 URL이 없을 때 `NSImage(pasteboard:)`로 이미지를 읽어 `saveClipboardImage`로 PNG 저장("클립보드 이미지 YYYY-MM-DD HH.mm.ss.png", 겹치면 번호). 저장 뒤 목록을 갱신하고 새 파일을 선택한다. 파일 URL이 있으면 기존 붙여넣기/잘라내기 동작이 우선.
 
 ### 29. 이미지 회전 🔶
 - 90° 단위 회전 후 저장 지원
@@ -96,13 +98,22 @@
 - 뷰어 회전(`ImageDisplayView.rotationAngle`)은 **보기 변환만** 하고 저장하지 않는다.
 - 에디터의 회전(`ImageEditorWindowController`)은 "다른 이름으로 저장"으로 결과를 저장할 수 있다.
 
-### 30. 최근 폴더 ❌
+### 30. 최근 폴더 ✅
 - 앱 실행 시 최근 열었던 폴더 목록 빠른 접근
 - File 메뉴 → "최근 폴더" 하위 메뉴
+- 구현: `AppSettings.recentFolders`(경로 문자열, 최신 앞, 10개)에 `navigateToFolder`가 기록. `RecentFoldersMenu`가 메뉴 열릴 때 재구성(폴더 아이콘·경로 툴팁·"목록 지우기"). 선택 시 사이드바 루트 아래면 트리를 펼쳐 선택, 아니면 루트로 등록. 없어진 폴더는 경고 뒤 목록에서 제거.
+
+## v2.0 후보 — P2P 이미지 공유 ❌
+
+### 31. 읽기 전용 로컬 네트워크 공유 ❌
+- 사용자가 선택한 폴더의 직속 이미지를 같은 네트워크의 다른 Mac과 직접 공유
+- 사이드바 `네트워크 공유` 섹션에서 공유 폴더 발견·썸네일 탐색·선택 원본 다운로드
+- 중계서버 없음, 원격 업로드·수정·삭제 없음
+- 인터넷 직접 연결·인증·암호화는 별도 후속 단계
+- 상세는 [p2p-sharing-design.md](p2p-sharing-design.md)
 
 ## 다음 후보 (우선순위 제안)
 
-1. v1.4 저비용 항목 — 최근 폴더(30) · 클립보드 이미지 저장(28) · 공유(25)
-2. 규모 있는 항목 — 배치 내보내기(21) · 검색(27)
-3. 장기 과제 — [editor-roadmap.md](editor-roadmap.md) Phase 1(비파괴 편집 기반)부터
+1. 규모 있는 항목 — 배치 내보내기(21) · 태그별 필터(26)
+2. 장기 과제 — [editor-roadmap.md](editor-roadmap.md) Phase 1(비파괴 편집 기반)부터
 

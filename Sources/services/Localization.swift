@@ -41,6 +41,11 @@ enum L10nKey: String {
     case noCompatibleApps
     case imageInfo
     case delete
+    case recentFolders
+    case noRecentFolders
+    case clearRecentFolders
+    case share
+    case find
 
     // Edit
     case edit
@@ -157,6 +162,11 @@ enum L10n {
             .noCompatibleApps: "사용 가능한 앱 없음",
             .imageInfo: "정보 보기",
             .delete: "삭제",
+            .recentFolders: "최근 폴더",
+            .noRecentFolders: "최근 폴더 없음",
+            .clearRecentFolders: "목록 지우기",
+            .share: "공유…",
+            .find: "검색…",
             .edit: "편집",
             .copy: "복사",
             .paste: "붙여넣기",
@@ -234,6 +244,11 @@ enum L10n {
             .noCompatibleApps: "No Compatible Apps",
             .imageInfo: "Show Info",
             .delete: "Delete",
+            .recentFolders: "Recent Folders",
+            .noRecentFolders: "No Recent Folders",
+            .clearRecentFolders: "Clear Menu",
+            .share: "Share…",
+            .find: "Find…",
             .edit: "Edit",
             .copy: "Copy",
             .paste: "Paste",
@@ -311,6 +326,11 @@ enum L10n {
             .noCompatibleApps: "利用可能なアプリなし",
             .imageInfo: "情報を見る",
             .delete: "削除",
+            .recentFolders: "最近使ったフォルダ",
+            .noRecentFolders: "最近使ったフォルダなし",
+            .clearRecentFolders: "メニューを消去",
+            .share: "共有…",
+            .find: "検索…",
             .edit: "編集",
             .copy: "コピー",
             .paste: "ペースト",
@@ -388,6 +408,11 @@ enum L10n {
             .noCompatibleApps: "没有可用的应用",
             .imageInfo: "显示简介",
             .delete: "删除",
+            .recentFolders: "最近的文件夹",
+            .noRecentFolders: "没有最近的文件夹",
+            .clearRecentFolders: "清除菜单",
+            .share: "共享…",
+            .find: "查找…",
             .edit: "编辑",
             .copy: "复制",
             .paste: "粘贴",
