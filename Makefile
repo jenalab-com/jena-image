@@ -48,7 +48,8 @@ dmg: build
 	@rm -rf /tmp/$(APP_NAME)_dmg_staging
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
 
-TEST_SOURCES = Sources/services/ThumbnailScheduler.swift \
+TEST_SOURCES = Sources/ai/AIImageGenerationService.swift \
+               Sources/services/ThumbnailScheduler.swift \
                Sources/models/BrowserLayoutMode.swift \
                Sources/browser/MasonryLayout.swift \
                Sources/models/ImageFile.swift \

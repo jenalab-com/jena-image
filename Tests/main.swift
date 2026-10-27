@@ -1,5 +1,6 @@
 import Foundation
 
+runAIImageGenerationTests()
 runSchedulerTests()
 runMasonryTests()
 runCategoryStoreTests()
