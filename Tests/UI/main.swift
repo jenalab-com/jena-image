@@ -190,6 +190,7 @@ runTest("우클릭 이름 변경은 선택된 행 대신 우클릭한 카테고�
     checkEqual(requested, first.id, "우클릭한 카테고리 이름 변경")
 }
 
+MainActor.assumeIsolated { runAIImageUITests(controller: controller, directory: temporary) }
 MainActor.assumeIsolated { runMasonryUITests(directory: temporary) }
 MainActor.assumeIsolated { runLibraryDesignTests(directory: temporary) }
 MainActor.assumeIsolated { runSimilarityTests(directory: temporary) }

@@ -36,19 +36,19 @@ extension MainWindowController: NSToolbarDelegate {
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         if contentMode == .browser {
             let showsBack = browserVC.isSimilarityMode || browserVC.isSearchMode
-            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.share]
+            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
         }
         return [.toggleSidebar, ToolbarID.back, .flexibleSpace,
                 ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-                .flexibleSpace, ToolbarID.sort, ToolbarID.compare, ToolbarID.share]
+                .flexibleSpace, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
          ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
          ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-         ToolbarID.sort, ToolbarID.compare, ToolbarID.share, ToolbarID.search]
+         ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share, ToolbarID.search]
     }
 
     func toolbar(
@@ -148,6 +148,13 @@ extension MainWindowController: NSToolbarDelegate {
             shareItem.toolTip = "선택한 파일 공유"
             shareItem.delegate = self
             return shareItem
+
+        case ToolbarID.ai:
+            item.label = "AI 모드"
+            item.toolTip = "AI 이미지 생성"
+            let button = NSButton(title: "AI", target: self, action: #selector(showAIMode(_:)))
+            button.setAccessibilityLabel("AI 모드")
+            item.view = button
 
         case ToolbarID.compare:
             item.label = "비교"

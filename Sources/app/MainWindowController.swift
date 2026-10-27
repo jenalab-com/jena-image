@@ -31,6 +31,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomFitHeight = NSToolbarItem.Identifier("zoomFitHeight")
         static let zoomFitWidth = NSToolbarItem.Identifier("zoomFitWidth")
         static let sort = NSToolbarItem.Identifier("sort")
+        static let ai = NSToolbarItem.Identifier("aiImageGeneration")
         static let compare = NSToolbarItem.Identifier("compare")
         static let layout = NSToolbarItem.Identifier("browserLayout")
         static let share = NSToolbarItem.Identifier("share")
@@ -97,6 +98,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // 일괄 내보내기 시트 보관
     var batchExportController: BatchExportWindowController?
+
+    var aiWindowController: AIImageWindowController?
 
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?

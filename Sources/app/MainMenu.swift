@@ -111,6 +111,7 @@ enum MainMenu {
 
     private static func createImageMenu() -> NSMenuItem {
         let imageMenu = NSMenu(title: L10n.string(.image))
+        imageMenu.addItem(withTitle: "AI 이미지 생성…", action: #selector(MainWindowController.showAIMode(_:)), keyEquivalent: "")
         imageMenu.addItem(withTitle: L10n.string(.imageEdit), action: #selector(MainWindowController.openImageEditor(_:)), keyEquivalent: "e")
 
         let item = NSMenuItem()
