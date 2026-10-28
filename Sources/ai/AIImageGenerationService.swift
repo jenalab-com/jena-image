@@ -78,6 +78,25 @@ final class AIImageGenerationService: @unchecked Sendable {
         }
     }
 
+    private func saveGeneratedImage(at source: URL, for request: AIImageRequest) throws -> URL {
+        let baseName = request.references.first.map { $0.deletingPathExtension().lastPathComponent + "_AI" }
+            ?? "AI-\(UUID().uuidString)"
+        var sequence = 1
+        while true {
+            let suffix = sequence == 1 ? "" : "_\(sequence)"
+            let destination = request.destination.appendingPathComponent("\(baseName)\(suffix).png")
+            do {
+                try FileManager.default.copyItem(at: source, to: destination)
+                return destination
+            } catch {
+                // Retry the copy itself so a concurrent save cannot overwrite an existing result.
+                let failure = error as NSError
+                guard failure.domain == NSCocoaErrorDomain, failure.code == NSFileWriteFileExistsError else { throw error }
+                sequence += 1
+            }
+        }
+    }
+
     private func run(_ request: AIImageRequest) throws -> [URL] {
         let fileManager = FileManager.default
         guard !request.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -169,8 +188,7 @@ final class AIImageGenerationService: @unchecked Sendable {
             var saved: [URL] = []
             do {
                 for candidate in candidates {
-                    let destination = request.destination.appendingPathComponent("AI-\(UUID().uuidString).png")
-                    try fileManager.copyItem(at: candidate, to: destination)
+                    let destination = try saveGeneratedImage(at: candidate, for: request)
                     saved.append(destination)
                 }
             } catch {
