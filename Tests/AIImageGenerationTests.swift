@@ -38,10 +38,35 @@ func runAIImageGenerationTests() {
                 return
             }
             checkEqual(firstURLs.count, 1, "결과 수")
+            let sourceName = original.deletingPathExtension().lastPathComponent
+            checkEqual(firstURLs[0].lastPathComponent, "\(sourceName)_AI.png", "참조 원본 이름 뒤에 AI 표시")
+            checkEqual(secondURLs[0].lastPathComponent, "\(sourceName)_AI_2.png", "이름 충돌 시 번호 추가")
             checkEqual(firstURLs[0].deletingLastPathComponent().path, destination.path, "선택한 폴더로 저장")
             check(firstURLs[0] != secondURLs[0], "반복 생성 시 덮어쓰기 방지")
             checkEqual(try? Data(contentsOf: original), originalBytes, "원본 보존")
             check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("unsafe").path), "문자열을 셸로 실행하지 않는다")
+        }
+        let otherReference = root.appendingPathComponent("다른.원본.jpg")
+        try originalBytes.write(to: otherReference)
+        let existing = destination.appendingPathComponent("다른.원본_AI.png")
+        let preservedBytes = Data("existing file".utf8)
+        try preservedBytes.write(to: existing)
+        try script("cp reference-1.png output/first.png\ncp reference-1.png output/second.png\n")
+        runTest("여러 참조와 결과는 첫 원본 이름을 따르고 기존 파일을 보존한다") {
+            guard case .success(let urls) = execute(request([otherReference, original])) else {
+                check(false, "여러 이미지 생성 성공"); return
+            }
+            checkEqual(urls.map(\.lastPathComponent), ["다른.원본_AI_2.png", "다른.원본_AI_3.png"], "원본 확장자만 제거하고 각 결과를 구별")
+            checkEqual(try? Data(contentsOf: existing), preservedBytes, "같은 이름의 기존 파일 보존")
+        }
+        try script("printf '%s' '\(originalBytes.base64EncodedString())' | /usr/bin/base64 -D > output/result.png\n")
+        runTest("참조 없이 생성한 이미지는 기존 UUID 파일명을 유지한다") {
+            guard case .success(let urls) = execute(request()) else { check(false, "참조 없는 생성 성공"); return }
+            checkEqual(urls.count, 1, "결과 수")
+            let name = urls[0].deletingPathExtension().lastPathComponent
+            check(name.hasPrefix("AI-"), "기존 AI 접두어 유지")
+            check(UUID(uuidString: String(name.dropFirst(3))) != nil, "UUID 파일명 유지")
+            checkEqual(urls[0].pathExtension, "png", "PNG 출력 유지")
         }
         try script("echo 'not an image' > output/fake.png\n")
         runTest("AI 잘못된 이미지와 빈 출력을 성공으로 표시하지 않는다") {
