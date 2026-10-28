@@ -1,6 +1,6 @@
 APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
-VERSION      = 1.9.2
+VERSION      = 2.0.0
 BUILD_DIR    = .build
 SOURCES      = $(shell find Sources -name '*.swift')
 FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision
@@ -48,7 +48,8 @@ dmg: build
 	@rm -rf /tmp/$(APP_NAME)_dmg_staging
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
 
-TEST_SOURCES = Sources/ai/AIImageGenerationService.swift \
+TEST_SOURCES = Sources/ai/AIConnectionService.swift \
+               Sources/ai/AIImageGenerationService.swift \
                Sources/services/ThumbnailScheduler.swift \
                Sources/models/BrowserLayoutMode.swift \
                Sources/browser/MasonryLayout.swift \

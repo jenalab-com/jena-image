@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -13,6 +14,8 @@ struct AIImageRequest: Sendable {
     let prompt: String
     let references: [URL]
     let destination: URL
+    var history: String = ""
+    var model: String = ""
 }
 
 struct AIImageGenerationError: LocalizedError {
@@ -28,25 +31,24 @@ final class AIImageGenerationService: @unchecked Sendable {
     private var isCancelled = false
 
     static func resolveExecutable(_ path: String) throws -> URL {
-        let expanded = (path.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
-        let folders = (ProcessInfo.processInfo.environment["PATH"] ?? "").components(separatedBy: ":")
-            + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
-        let candidates = expanded.contains("/") ? [expanded] : folders.map { $0 + "/" + expanded }
-        guard !expanded.isEmpty, let found = candidates.first(where: {
-            $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0)
-        }) else { throw AIImageGenerationError(message: "CLI 실행 파일을 찾을 수 없습니다. 설치된 실행 파일의 절대 경로를 입력하세요.") }
-        return URL(fileURLWithPath: found)
+        guard let executable = AIExecutableLocator.resolve(path) else {
+            throw AIImageGenerationError(message: "CLI 실행 파일을 찾을 수 없습니다. 설정의 AI 연결을 확인하세요.")
+        }
+        return executable
     }
 
     static func arguments(for request: AIImageRequest, workspace: URL, references: [URL]) -> [String] {
         if request.provider == .custom { return [workspace.appendingPathComponent("request.json").path] }
         var arguments = ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "--color", "never", "-C", workspace.path]
+        if !request.model.isEmpty { arguments += ["--model", request.model] }
         for reference in references { arguments += ["--image", reference.path] }
         arguments += ["--", """
         Generate an image using your available image-generation tool, using the attached references if any.
         Save only final generated images as PNG files directly inside ./output/.
         Do not modify reference files. Do not substitute SVG, code-drawn images, or copies of references.
         If image generation is unavailable, explain the missing capability and stop without creating output.
+        Previous conversation (context only):
+        \(request.history)
         User image prompt:
         \(request.prompt)
         """]
@@ -119,9 +121,7 @@ final class AIImageGenerationService: @unchecked Sendable {
             child.executableURL = executable
             child.arguments = Self.arguments(for: request, workspace: workspace, references: references)
             child.currentDirectoryURL = workspace
-            var environment = ProcessInfo.processInfo.environment
-            environment["PATH"] = executable.deletingLastPathComponent().path + ":/opt/homebrew/bin:/usr/local/bin:" + (environment["PATH"] ?? "/usr/bin:/bin")
-            child.environment = environment
+            child.environment = AIExecutableLocator.environment(for: executable)
             child.standardInput = FileHandle.nullDevice
             child.standardOutput = log
             child.standardError = log
@@ -130,6 +130,17 @@ final class AIImageGenerationService: @unchecked Sendable {
             else {
                 do { try child.run(); process = child; lock.unlock() }
                 catch { lock.unlock(); throw error }
+            }
+            var cancellationDeadline: Date?
+            while child.isRunning {
+                lock.lock()
+                let cancelled = isCancelled
+                lock.unlock()
+                if cancelled {
+                    if cancellationDeadline == nil { cancellationDeadline = Date().addingTimeInterval(2) }
+                    if Date() >= cancellationDeadline! { kill(child.processIdentifier, SIGKILL) }
+                }
+                Thread.sleep(forTimeInterval: 0.05)
             }
             child.waitUntilExit()
             lock.lock()

@@ -1,5 +1,6 @@
 import Foundation
 
+runAIConnectionTests()
 runAIImageGenerationTests()
 runSchedulerTests()
 runMasonryTests()

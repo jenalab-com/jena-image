@@ -10,6 +10,8 @@ final class AppSettings {
     // MARK: - Keys
 
     private enum Key: String {
+        case aiExecutable = "aiExecutable"
+        case aiModel = "aiModel"
         case language = "appLanguage"
         case viewerBackground = "viewerBackground"
         case defaultExportFormat = "defaultExportFormat"
@@ -28,6 +30,16 @@ final class AppSettings {
         case recentFolders = "recentFolderPaths"
         case batchExportResize = "batchExportResize"
         case batchExportLongEdge = "batchExportLongEdge"
+    }
+
+    var aiModel: String {
+        get { defaults.string(forKey: Key.aiModel.rawValue) ?? "" }
+        set { defaults.set(newValue, forKey: Key.aiModel.rawValue) }
+    }
+
+    var aiExecutable: String {
+        get { defaults.string(forKey: Key.aiExecutable.rawValue) ?? "codex" }
+        set { defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiExecutable.rawValue) }
     }
 
     // MARK: - Language

@@ -9,6 +9,10 @@ private final class DoubleClickCollectionView: NSCollectionView {
     var onDropOnItem: ((_ fileURLs: [URL], _ targetIndexPath: IndexPath) -> Bool)?
     var onDragOverItem: ((_ targetIndex: Int?) -> Void)?
     var onSpaceKey: (() -> Void)?
+    var onSelectionChanged: (() -> Void)?
+    override var selectionIndexPaths: Set<IndexPath> {
+        didSet { onSelectionChanged?() }
+    }
     private var didDrag = false
 
     override func keyDown(with event: NSEvent) {
@@ -198,6 +202,13 @@ final class BrowserViewController: NSViewController {
     var categoryMenuProvider: (([URL]) -> NSMenu)?
     var onRemoveFromCategory: (([URL]) -> Void)?
     var onFindSimilarImage: ((URL) -> Void)?
+    var onSelectionChanged: (([URL]) -> Void)?
+    private var isRestoringSelection = false
+
+    private func notifySelectionChanged() {
+        guard !isRestoringSelection else { return }
+        onSelectionChanged?(selectedURLs())
+    }
 
     private let collectionView = DoubleClickCollectionView()
     private let scrollView = NSScrollView()
@@ -289,6 +300,8 @@ final class BrowserViewController: NSViewController {
 
     /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
     func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
+        isRestoringSelection = true
+        defer { isRestoringSelection = false }
         isSimilarityMode = false
         isSearchMode = false
         isBookmarkMode = false
@@ -362,6 +375,8 @@ final class BrowserViewController: NSViewController {
     }
 
     private func displayCollection(_ files: [ImageFile]) {
+        isRestoringSelection = true
+        defer { isRestoringSelection = false }
         cancelAllThumbnailRequests()
         if recursiveRootURL != nil {
             recursiveRootURL = nil
@@ -384,6 +399,8 @@ final class BrowserViewController: NSViewController {
 
     /// URL 기반으로 선택 복원
     func restoreSelection(urls: Set<URL>) {
+        isRestoringSelection = true
+        defer { isRestoringSelection = false }
         var indexPaths = Set<IndexPath>()
         for (i, content) in contents.enumerated() {
             if urls.contains(content.url) {
@@ -921,6 +938,10 @@ final class BrowserViewController: NSViewController {
 
         collectionView.collectionViewLayout = layout
         collectionView.isSelectable = true
+        collectionView.onSelectionChanged = { [weak self] in
+            guard let self else { return }
+            self.notifySelectionChanged()
+        }
         collectionView.allowsMultipleSelection = true
         collectionView.allowsEmptySelection = true
         collectionView.register(BrowserItem.self, forItemWithIdentifier: BrowserItem.identifier)
@@ -1045,6 +1066,14 @@ extension BrowserViewController: NSCollectionViewDataSource {
 // MARK: - NSCollectionViewDelegate
 
 extension BrowserViewController: NSCollectionViewDelegate {
+
+    func collectionView(_ collectionView: NSCollectionView, didSelectItemsAt indexPaths: Set<IndexPath>) {
+        notifySelectionChanged()
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>) {
+        notifySelectionChanged()
+    }
     func collectionView(_ collectionView: NSCollectionView, willDisplay item: NSCollectionViewItem,
                         forRepresentedObjectAt indexPath: IndexPath) {
         guard let cell = item as? BrowserItem,

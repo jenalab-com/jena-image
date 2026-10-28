@@ -114,7 +114,7 @@ extension MainWindowController {
 
     @objc func copyFiles(_ sender: Any?) {
         // 텍스트 편집 중이면 텍스트 복사로 위임
-        if let textView = window?.firstResponder as? NSTextView, textView.isFieldEditor {
+        if let textView = window?.firstResponder as? NSTextView {
             textView.copy(sender)
             return
         }
@@ -134,7 +134,7 @@ extension MainWindowController {
 
     @objc func pasteFiles(_ sender: Any?) {
         // 텍스트 편집 중이면 텍스트 붙여넣기로 위임
-        if let textView = window?.firstResponder as? NSTextView, textView.isFieldEditor {
+        if let textView = window?.firstResponder as? NSTextView {
             textView.paste(sender)
             return
         }
@@ -190,6 +190,10 @@ extension MainWindowController {
     }
 
     @objc func selectAllItems(_ sender: Any?) {
+        if let textView = window?.firstResponder as? NSTextView {
+            textView.selectAll(sender)
+            return
+        }
         guard contentMode == .browser else { return }
         browserVC.selectAllItems()
     }
@@ -342,7 +346,7 @@ extension MainWindowController: NSToolbarItemValidation {
         }
 
         // 텍스트 편집 중이면 복사/붙여넣기 항상 활성화
-        let isEditingText = (window?.firstResponder as? NSTextView)?.isFieldEditor == true
+        let isEditingText = window?.firstResponder is NSTextView
 
         if menuItem.action == #selector(compareSelected(_:)) {
             let imageCount = browserVC.selectedURLs()

@@ -6,10 +6,12 @@ final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
     private let settings = AppSettings.shared
+    private let aiConnectionVC = AIConnectionViewController()
+    private let tabView = NSTabView()
 
     private init() {
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 340),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 430),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -23,7 +25,7 @@ final class PreferencesWindowController: NSWindowController {
         setupUI()
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: win, queue: .main
-        ) { [weak self] _ in self?.stopDiskUsageRefresh() }
+        ) { [weak self] _ in self?.stopDiskUsageRefresh(); self?.aiConnectionVC.stopChecking() }
     }
 
     @available(*, unavailable)
@@ -35,6 +37,12 @@ final class PreferencesWindowController: NSWindowController {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         startDiskUsageRefresh()
+        if tabView.selectedTabViewItem?.identifier as? String == "ai" { aiConnectionVC.recheck() }
+    }
+
+    func showAI() {
+        show()
+        tabView.selectTabViewItem(withIdentifier: "ai")
     }
 
     // MARK: - 디스크 사용량 주기 갱신
@@ -61,8 +69,8 @@ final class PreferencesWindowController: NSWindowController {
     private func setupUI() {
         guard let window else { return }
 
-        let tabView = NSTabView()
         tabView.translatesAutoresizingMaskIntoConstraints = false
+        tabView.delegate = self
 
         // 일반 탭
         let generalTab = NSTabViewItem(identifier: "general")
@@ -87,6 +95,11 @@ final class PreferencesWindowController: NSWindowController {
         exportTab.label = L10n.string(.saveAsFile)
         exportTab.view = createExportView()
         tabView.addTabViewItem(exportTab)
+
+        let aiTab = NSTabViewItem(identifier: "ai")
+        aiTab.label = "AI 연결"
+        aiTab.viewController = aiConnectionVC
+        tabView.addTabViewItem(aiTab)
 
         window.contentView = tabView
     }
@@ -501,5 +514,13 @@ final class PreferencesWindowController: NSWindowController {
             label.widthAnchor.constraint(equalToConstant: 100),
         ])
         return label
+    }
+}
+
+
+extension PreferencesWindowController: NSTabViewDelegate {
+    func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        if tabViewItem?.identifier as? String == "ai" { aiConnectionVC.recheck() }
+        else { aiConnectionVC.stopChecking() }
     }
 }
