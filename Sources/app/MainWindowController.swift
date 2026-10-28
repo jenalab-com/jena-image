@@ -77,7 +77,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     var currentCategoryID: UUID?
     var lastCategoryID: UUID?
     var folderLoadGeneration = 0
-    var currentFolderURL: URL?
+    var currentFolderURL: URL? { didSet { aiChatVC?.refreshDestination() } }
     var contentMode: ContentMode = .browser
     var activePanel: ActivePanel = .browser
 
@@ -99,7 +99,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // 일괄 내보내기 시트 보관
     var batchExportController: BatchExportWindowController?
 
-    var aiWindowController: AIImageWindowController?
+    var aiChatVC: AIChatViewController?
+    var aiSplitItem: NSSplitViewItem?
 
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
@@ -300,7 +301,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         contentMode = mode
 
         // NSSplitViewItem.viewController는 교체 불가 — item 자체를 교체
-        let oldItem = splitViewController.splitViewItems.last!
+        let oldItem = splitViewController.splitViewItems[1]
         splitViewController.removeSplitViewItem(oldItem)
 
         let newVC: NSViewController
@@ -315,7 +316,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
         let newItem = NSSplitViewItem(viewController: newVC)
         newItem.minimumThickness = 400
-        splitViewController.addSplitViewItem(newItem)
+        splitViewController.insertSplitViewItem(newItem, at: 1)
 
         updateToolbarState()
     }
@@ -536,6 +537,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     func updateToolbarState() {
+        aiChatVC?.refreshDestination()
         guard let toolbar = window?.toolbar else { return }
         let identifiers = toolbarDefaultItemIdentifiers(toolbar)
         if toolbar.items.map(\.itemIdentifier) != identifiers {
@@ -590,6 +592,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     private func setupDelegates() {
         sidebarVC.delegate = self
         browserVC.delegate = self
+        browserVC.onSelectionChanged = { [weak self] urls in
+            guard let self, self.aiSplitItem?.isCollapsed == false else { return }
+            self.aiChatVC?.selectionChanged(urls)
+        }
         viewerVC.delegate = self
 
         browserVC.isBookmarkedProvider = { [weak self] url in self?.bookmarkStore.contains(url) ?? false }

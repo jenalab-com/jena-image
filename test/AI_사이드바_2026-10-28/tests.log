@@ -1,0 +1,62 @@
+swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers Sources/ai/AIConnectionService.swift Sources/ai/AIImageGenerationService.swift Sources/services/ThumbnailScheduler.swift Sources/models/BrowserLayoutMode.swift Sources/browser/MasonryLayout.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/services/ImageAspectRatioReader.swift Sources/models/ImageCategory.swift Sources/services/CategoryStore.swift Sources/services/ThumbnailCache.swift Sources/services/ThumbnailProvider.swift Sources/services/ThumbnailDiskStore.swift Tests/AIConnectionTests.swift Tests/AIImageGenerationTests.swift Tests/CategoryStoreTests.swift Tests/MasonryTests.swift Tests/TestSupport.swift Tests/ThumbnailDiskStoreTests.swift Tests/ThumbnailProviderTests.swift Tests/ThumbnailSchedulerTests.swift Tests/main.swift -o .build/tests
+✅ CLI 미설치와 실행 파일이 아닌 디렉터리를 구분한다
+✅ 재확인은 CLI 계정 프로토콜로 로그인 계정을 읽는다
+✅ 로그아웃 후 재확인하면 이전 계정을 유지하지 않는다
+✅ API 키 계정에 이메일을 만들어 표시하지 않는다
+✅ CLI 오류를 미설치 또는 로그인 완료로 오인하지 않는다
+✅ 응답 없는 CLI의 연결 확인은 시간 제한으로 끝난다
+✅ AI 참조 복사본을 전달하고 선택 폴더에 충돌 없이 저장한다
+✅ AI 잘못된 이미지와 빈 출력을 성공으로 표시하지 않는다
+✅ AI CLI가 텍스트만 반환하면 생성 실패로 처리한다
+✅ AI CLI 실패 시 진단 가능한 오류를 제공한다
+✅ AI 출력의 심볼릭 링크를 저장하지 않는다
+✅ AI 실행 중 사용자 취소로 CLI가 종료된다
+✅ 종료 신호를 무시하는 CLI도 취소 후 작업을 풀어준다
+✅ AI 취소된 작업은 실행하지 않는다
+✅ Codex 참조 경로와 프롬프트를 독립된 인자로 전달한다
+✅ 우선순위 높은 것 먼저, 같은 우선순위는 들어온 순서(FIFO)
+✅ 이미 끝난 토큰을 취소해도 내부 집합에 남지 않는다
+✅ testCancelledEntryIsSkipped: 취소된 항목은 실행되지 않는다
+✅ reprioritize: 대기 중이면 우선순위를 올려 먼저 꺼내고, 실행 중이면 false
+✅ cancelAll은 대기 중인 것을 모두 버린다
+✅ 워커 수만큼만 동시에 실행된다
+✅ 일반 격자는 이미지 비율과 무관하게 같은 크기의 행과 열을 만든다
+✅ masonry는 같은 폭·다른 높이로 원본 비율을 유지한다
+✅ 다음 이미지는 가장 짧은 열 아래에 배치되어 행 사이 빈 공간이 없다
+✅ masonry 항목은 서로 겹치지 않고 콘텐츠 경계 안에 들어간다
+✅ 좁은 창과 크기 조절 슬라이더에 맞춰 열 수가 변한다
+✅ 화면 검색은 위에서 시작한 긴 이미지와 새로 보이는 이미지를 모두 찾는다
+✅ 빈 목록과 잘못된 비율도 유효한 레이아웃을 만든다
+✅ 원본 메타데이터에서 EXIF 회전을 반영한 비율을 읽는다
+✅ 카테고리 이름과 분류는 저장소 재생성 후에도 유지된다
+✅ 한 이미지의 여러 카테고리 지정은 서로 독립적이다
+✅ 여러 폴더 이미지를 일괄 지정해도 경로 중복이 생기지 않는다
+✅ 빈 이름과 중복 이름 거절 시 기존 분류를 보존한다
+✅ 없는 원본도 복원 시 분류에서 자동으로 지우지 않는다
+✅ 폴더 이동은 하위 분류 경로만 바꾸고 비슷한 접두사는 보존한다
+✅ 명시적으로 삭제한 원본만 모든 카테고리에서 제거한다
+✅ 손상된 분류 데이터를 빈 목록으로 덮어쓰지 않는다
+✅ 카테고리 이름 변경 후 ID·이미지·순서와 재실행 복원이 유지된다
+✅ 잘못된 이름 변경은 기존 이름과 이미지 지정을 보존한다
+✅ 카테고리 지정은 기존 북마크와 등록 폴더를 변경하지 않는다
+✅ 키는 경로·mtime·size·px를 모두 담는다
+✅ testKeyChangesWithSize: mtime 같고 size만 달라도 다른 키
+✅ store 후 lookup 적중, usedBytes 증가
+✅ 더 큰 px 항목이 작은 요청을 만족한다, 작은 항목은 큰 요청을 못 만족한다
+✅ 원본 mtime이 바뀌면 적중하지 않는다
+✅ testLoweringLimitTriggersGC: 한도를 내리면 오래된 것부터 지워 90% 이하로
+✅ lookup 적중은 LRU 순서를 갱신한다
+✅ limitBytes 변경은 호출자를 막지 않는다
+✅ clear는 전부 지우고 usedBytes 0
+✅ recount는 디렉터리 실제 크기로 맞춘다
+✅ testProviderCoalescesSameKey: 같은 URL 두 요청 → 생성 1회, 완료 2회
+✅ 실행 중인 선로드 항목이 visible로 승격돼도 생성은 1회, 두 요청 모두 완료
+✅ 원본이 바뀌면(mtime) 메모리 캐시는 미적중이고 다시 생성한다
+✅ 메모리 적중은 동기 완료 + nil 토큰
+✅ 작은 썸네일만 있으면 큰 요청은 재생성한다(승격)
+✅ 취소 후에는 완료가 오지 않는다
+✅ 생성 실패는 .failed, 같은 파일 재요청 시 생성을 다시 부르지 않는다
+✅ minPixel을 단계로 올림: 160 → 220, 441 → 440(최대)
+✅ 디스크에 있으면 생성을 부르지 않고 메모리에도 채운다
+✅ 생성 결과는 디스크에 저장된다
+all tests passed

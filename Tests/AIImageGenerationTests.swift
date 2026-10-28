@@ -76,11 +76,32 @@ func runAIImageGenerationTests() {
             guard case .failure(let error) = result else { check(false, "취소된 결과 저장 방지"); return }
             check(error.localizedDescription.contains("취소"), "취소 이유 표시")
         }
+        try script("trap '' TERM\necho started > '\(marker.path)'\nexec /bin/sleep 30\n")
+        try? FileManager.default.removeItem(at: marker)
+        runTest("종료 신호를 무시하는 CLI도 취소 후 작업을 풀어준다") {
+            let service = AIImageGenerationService()
+            var result: Result<[URL], Error>?
+            Task { @MainActor in
+                do { result = .success(try await service.generate(request())) }
+                catch { result = .failure(error) }
+            }
+            check(waitUntil(timeout: 5) { FileManager.default.fileExists(atPath: marker.path) }, "무응답 CLI 시작")
+            service.cancel()
+            check(waitUntil(timeout: 5) { result != nil }, "강제 종료 후 완료")
+            guard case .failure = result else { check(false, "취소를 성공으로 표시하지 않는다"); return }
+        }
         runTest("AI 취소된 작업은 실행하지 않는다") {
             let service = AIImageGenerationService()
             service.cancel()
             guard case .failure(let error) = execute(request(), service: service) else { check(false, "취소 반영"); return }
             check(error.localizedDescription.contains("취소"), "취소 이유 표시")
+        }
+        runTest("Codex 모델 선택은 독립 인자이며 기본 모델은 CLI 설정을 따른다") {
+            var request = AIImageRequest(provider: .codex, executable: "codex", prompt: "test", references: [], destination: root)
+            check(!AIImageGenerationService.arguments(for: request, workspace: root, references: []).contains("--model"), "기본 모델 인자 생략")
+            request.model = "fixture-model"
+            let args = AIImageGenerationService.arguments(for: request, workspace: root, references: [])
+            check(args.firstIndex(of: "--model").map { args[$0 + 1] == "fixture-model" } == true, "선택 모델 전달")
         }
         runTest("Codex 참조 경로와 프롬프트를 독립된 인자로 전달한다") {
             let codex = AIImageRequest(provider: .codex, executable: "codex", prompt: "$(touch unsafe)", references: [original], destination: destination)
