@@ -1,0 +1,46 @@
+swiftc -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision Sources/sidebar/SidebarViewController.swift Sources/ui/LibraryAppearance.swift Sources/ui/ThumbnailImageView.swift Sources/app/MainMenu.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Actions.swift Sources/app/MainWindowController+FileOperations.swift Sources/app/ExportAccessoryView.swift Sources/app/MainWindowController+Delegates.swift Sources/app/MainWindowController+Search.swift Sources/app/MainWindowController+Share.swift Sources/app/PreferencesWindowController.swift Sources/app/RecentFoldersMenu.swift Sources/app/ImageInfoWindowController.swift Sources/app/MainWindowController+AI.swift Sources/app/HelpWindowController.swift Sources/app/StatusBarView.swift Sources/app/BatchExportWindowController.swift Sources/app/AppDelegate.swift Sources/app/MainWindowController+Similarity.swift Sources/app/MainWindowController+Categories.swift Sources/models/FolderNode.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/models/BrowserLayoutMode.swift Sources/models/BrowserContent.swift Sources/models/ImageCategory.swift Sources/browser/BrowserViewController.swift Sources/browser/BrowserItem.swift Sources/browser/MasonryLayout.swift Sources/viewer/VideoPlayerView.swift Sources/viewer/ViewerViewController.swift Sources/viewer/CompareWindowController.swift Sources/viewer/CropOverlayView.swift Sources/viewer/CompareCandidateStrip.swift Sources/viewer/ImageDisplayView.swift Sources/viewer/CompareSyncCoordinator.swift Sources/viewer/ThumbnailStripView.swift Sources/viewer/ImageEditorWindowController.swift Sources/viewer/ComparePaneView.swift Sources/ai/AIChatInputView.swift Sources/ai/AIImageGenerationService.swift Sources/ai/AIChatTranscriptView.swift Sources/ai/AIConnectionViewController.swift Sources/ai/AIChatViewController.swift Sources/ai/AIConnectionService.swift Sources/services/ImageService.swift Sources/services/ThumbnailProvider.swift Sources/services/OpenWithService.swift Sources/services/ImageSimilarityService.swift Sources/services/Localization.swift Sources/services/AppSettings.swift Sources/services/ImageMetadataService.swift Sources/services/FolderColorService.swift Sources/services/SecurityScopeService.swift Sources/services/ImageEditingService.swift Sources/services/BatchExportService.swift Sources/services/FileService.swift Sources/services/ThumbnailScheduler.swift Sources/services/ThumbnailCache.swift Sources/services/CategoryStore.swift Sources/services/ImageAspectRatioReader.swift Sources/services/FolderWatcher.swift Sources/services/BookmarkStore.swift Sources/services/ThumbnailDiskStore.swift Sources/services/FolderMediaCountService.swift Tests/TestSupport.swift Tests/UI/AIImageUITests.swift Tests/UI/LibraryDesignTests.swift Tests/UI/MasonryUITests.swift Tests/UI/SimilarityTests.swift Tests/UI/main.swift -o .build/category-ui-tests
+✅ 사이드바 아이콘 전환과 카테고리 선택이 이미지 목록에 연결된다
+✅ 목록 메뉴의 부분 선택을 누르면 선택 이미지 모두 지정된다
+✅ 카테고리 그리드 우클릭에 지정과 분류 해제가 모두 노출된다
+✅ 상세에서 분류 해제해도 상세를 유지하고 돌아오면 목록에 반영된다
+✅ 느린 폴더 열거 결과가 이후 선택한 카테고리를 덮지 않는다
+✅ 카테고리 안에서 이름 변경 시 분류와 그리드가 함께 갱신된다
+✅ 카테고리 보기에는 이전 폴더로의 파일 붙여넣기를 허용하지 않는다
+✅ 북마크와 폴더 이미지 목록에서도 카테고리 지정 메뉴를 제공한다
+✅ 카테고리 이미지 이동 후에도 분류와 목록을 유지한다
+✅ 카테고리 이름 변경은 현재 선택과 이미지 목록을 보존하며 메뉴에 반영된다
+✅ 카테고리 더블클릭은 해당 행의 이름 변경을 요청한다
+✅ 우클릭 이름 변경은 선택된 행 대신 우클릭한 카테고리를 대상으로 한다
+✅ AI는 우측 패널에서 열리고 선택 이미지가 제거 가능한 썸네일로 첨부된다
+✅ AI 제목과 닫기는 헤더 아래에서 창 크기와 모드 변경을 따른다
+✅ AI 저장 대상은 전송 시점 폴더이며 생성 중 이동해도 바뀌지 않는다
+✅ 채팅 Enter는 전송하고 Shift Enter와 한글 조합 확정은 전송하지 않는다
+✅ AI 설정은 미설치·미로그인·계정 연결 상태별 액션을 표시한다
+✅ masonry 브라우저는 메타데이터 로딩 후 이미지 비율대로 배치한다
+✅ masonry 크기 조절·창 리사이즈 후에도 선택한 이미지를 유지한다
+✅ masonry 셀은 둥근 이미지와 두 줄 파일명 공간을 함께 유지한다
+✅ 북마크·카테고리·하위 폴더 목록에도 masonry를 적용한다
+✅ masonry 갱신 후 화면 안의 모든 항목이 빠짐없이 표시된다
+Masonry preview: /Volumes/Backup/Project/jena/source/jena-image/.build/masonry-preview.png
+✅ 늦게 로드된 썸네일 비율이 원본 정보와 달라도 카드가 실제 이미지에 맞춰진다
+✅ 썸네일의 투명 부분은 체크무늬이고 불투명 이미지 색은 유지된다
+✅ 사이드바는 흰색이고 목록에만 네이티브 반투명 표면을 사용한다
+✅ 상세 기본 배경은 목록과 같고 단색 배경 선택도 유지한다
+✅ 상단 버튼으로 격자로 전환해도 현재 카테고리와 선택을 유지한다
+Library preview: /Volumes/Backup/Project/jena/source/jena-image/.build/library-detail.png
+✅ 상세 화면에서는 줌 도구를 제공하고 복귀 시 보기 방식 버튼을 복원한다
+Library preview: /Volumes/Backup/Project/jena/source/jena-image/.build/library-grid.png
+✅ 격자에서 masonry로 돌아가면 원본 비율과 선택을 유지한다
+Library preview: /Volumes/Backup/Project/jena/source/jena-image/.build/library-masonry.png
+✅ 밝은 모드와 어두운 모드 모두 카드 표면을 다시 그린다
+Library preview: /Volumes/Backup/Project/jena/source/jena-image/.build/library-dark.png
+✅ 실제 모델이 동일 이미지를 최상위로 찾고 중복 이미지와 영상을 제외한다
+✅ 서비스 재생성 후에도 저장된 특징을 재사용한다
+✅ 변경한 이미지만 재분석하고 목록에서 사라진 이미지를 보고한다
+✅ 손상된 특징 캐시를 원본에서 재생성한다
+✅ 취소된 검색은 결과를 반환하지 않는다
+✅ 새 검색 결과는 masonry와 격자 모두 목록 맨 위에서 시작한다
+✅ 우클릭 검색 결과를 카테고리에 수집하고 상세에서 돌아와도 순서를 유지한다
+✅ 폴더 등록 없이 현재 목록을 검색하고 이전 분석을 그대로 재사용한다
+✅ 검색 중 다른 카테고리로 이동하면 늦은 결과가 화면을 덮지 않는다
+all category UI tests passed

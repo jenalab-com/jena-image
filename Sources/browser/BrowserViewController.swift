@@ -231,6 +231,7 @@ final class BrowserViewController: NSViewController {
     private(set) var layoutMode: BrowserLayoutMode
     private let settings: AppSettings
     private var aspectRatios: [URL: CGFloat] = [:]
+    private var thumbnailAspectURLs = Set<URL>()
     private var measuredURLs = Set<URL>()
     private var aspectTask: Task<Void, Never>?
     private var aspectGeneration = 0
@@ -452,10 +453,12 @@ final class BrowserViewController: NSViewController {
         aspectLayoutWork = nil
         measuredURLs.removeAll()
         aspectRatios.removeAll(keepingCapacity: true)
+        thumbnailAspectURLs.removeAll(keepingCapacity: true)
         for file in imageFiles {
             if let image = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: thumbnailMinPixelSize),
                image.size.width > 0, image.size.height > 0 {
                 aspectRatios[file.url] = image.size.width / image.size.height
+                thumbnailAspectURLs.insert(file.url)
             }
         }
         applyItemSize()
@@ -495,8 +498,11 @@ final class BrowserViewController: NSViewController {
         }
     }
 
-    private func acceptAspectRatio(_ ratio: CGFloat, for url: URL) {
+    private func acceptAspectRatio(_ ratio: CGFloat, for url: URL, fromThumbnail: Bool = false) {
         guard ratio.isFinite, ratio > 0 else { return }
+        // 메타데이터는 임시 크기다. 화면에 표시할 썸네일이 도착하면 그 비율을 우선한다.
+        if fromThumbnail { thumbnailAspectURLs.insert(url) }
+        else if thumbnailAspectURLs.contains(url) { return }
         if let previous = aspectRatios[url], abs(previous - ratio) <= 0.001 { return }
         aspectRatios[url] = ratio
         guard aspectLayoutWork == nil else { return }
@@ -565,9 +571,8 @@ final class BrowserViewController: NSViewController {
             guard let item, item.representedURL == url else { return }
             item.thumbnailToken = nil
             item.showThumbnailResult(result)
-            if case .image(let image) = result, image.size.height > 0,
-               self?.aspectRatios[url] == nil {
-                self?.acceptAspectRatio(image.size.width / image.size.height, for: url)
+            if case .image(let image) = result, image.size.height > 0 {
+                self?.acceptAspectRatio(image.size.width / image.size.height, for: url, fromThumbnail: true)
             }
         }
         item.thumbnailToken = token
@@ -1034,6 +1039,11 @@ extension BrowserViewController: NSCollectionViewDataSource {
             }
             return nil
         }()
+
+        // 메모리 적중은 비동기 완료 콜백을 거치지 않아 여기서도 카드 비율을 갱신한다.
+        if let thumbnail, thumbnail.size.height > 0 {
+            acceptAspectRatio(thumbnail.size.width / thumbnail.size.height, for: content.url, fromThumbnail: true)
+        }
 
         // 북마크 그리드 자체에선 모두 북마크이므로 배지 생략, 일반 폴더 보기에서만 표시.
         let isBookmarked = !isBookmarkMode && (isBookmarkedProvider?(content.url) ?? false)
