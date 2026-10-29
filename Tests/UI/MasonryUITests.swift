@@ -123,6 +123,35 @@ func runMasonryUITests(directory: URL) {
         try? bitmap.representation(using: .png, properties: [:])?.write(to: output)
         print("Masonry preview: \(output.path)")
     }
+    runTest("늦게 로드된 썸네일 비율이 원본 정보와 달라도 카드가 실제 이미지에 맞춰진다") {
+        let delayedProvider = ThumbnailProvider(workerCount: 1, memoryCache: ThumbnailCache()) { _, _ in
+            Thread.sleep(forTimeInterval: 0.3)
+            return NSImage(size: NSSize(width: 600, height: 300))
+        }
+        let delayedBrowser = BrowserViewController(thumbnailProvider: delayedProvider, settings: AppSettings(defaults: defaults))
+        window.contentViewController = delayedBrowser
+        window.setContentSize(NSSize(width: 820, height: 640))
+        window.displayIfNeeded()
+        window.contentView?.layoutSubtreeIfNeeded()
+        delayedBrowser.display(folders: [], images: [urls[0]])
+        let delayedCollection = descendants(delayedBrowser.view, of: NSCollectionView.self).first!
+        @MainActor func matchesThumbnail() -> Bool {
+            window.contentView?.layoutSubtreeIfNeeded()
+            delayedCollection.layoutSubtreeIfNeeded()
+            guard let item = delayedCollection.item(at: IndexPath(item: 0, section: 0)) as? BrowserItem,
+                  item.hasThumbnail,
+                  let thumbnail = descendants(item.view, of: ThumbnailImageView.self).first else { return false }
+            item.view.layoutSubtreeIfNeeded()
+            let expectedHeight = thumbnail.frame.width / 2
+            return abs(thumbnail.frame.height - expectedHeight) < 1
+                && abs(item.view.frame.height - BrowserItem.captionHeight - expectedHeight) < 1
+        }
+        check(waitUntil(timeout: 5) { matchesThumbnail() }, "비동기 완료 후 실제 카드와 썸네일 프레임이 2:1로 갱신된다")
+        delayedBrowser.display(folders: [], images: [urls[0]])
+        _ = waitUntil(timeout: 0.5) { false }
+        check(waitUntil(timeout: 3) { matchesThumbnail() }, "캐시 재표시 후 늦은 메타데이터가 비율을 덮어쓰지 않는다")
+        delayedBrowser.viewWillDisappear()
+    }
     browser.viewWillDisappear()
     window.close()
     NSApp.setActivationPolicy(.prohibited)
