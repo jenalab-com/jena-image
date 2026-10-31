@@ -188,3 +188,44 @@ enum CanvasAlignment: Int, CaseIterable {
         return CGPoint(x: x, y: y)
     }
 }
+
+
+struct ImageAdjustment: Sendable {
+    let brightness: Float
+    let contrast: Float
+    let saturation: Float
+    let highlights: Float
+    let shadows: Float
+}
+
+/// 미리보기만 축소한다. 적용·저장은 기존 원본 해상도 경로를 유지한다.
+actor ImageAdjustmentPreviewService {
+    private let editingService = ImageEditingService()
+    private var sourceImage: NSImage?
+    private var previewImage: NSImage?
+
+    func render(_ image: NSImage, adjustment: ImageAdjustment) -> NSImage? {
+        guard !Task.isCancelled else { return nil }
+        return autoreleasepool {
+            if sourceImage !== image {
+                guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+                let scale = min(1, 1600 / CGFloat(max(cg.width, cg.height)))
+                let width = max(1, Int(CGFloat(cg.width) * scale))
+                let height = max(1, Int(CGFloat(cg.height) * scale))
+                guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+                context.interpolationQuality = .high
+                context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+                guard let resized = context.makeImage() else { return nil }
+                previewImage = NSImage(cgImage: resized, size: image.size)
+                sourceImage = image
+            }
+            guard !Task.isCancelled, let previewImage else { return nil }
+            let result = editingService.adjustImage(previewImage, brightness: adjustment.brightness,
+                contrast: adjustment.contrast, saturation: adjustment.saturation,
+                highlights: adjustment.highlights, shadows: adjustment.shadows)
+            return Task.isCancelled ? nil : result
+        }
+    }
+}

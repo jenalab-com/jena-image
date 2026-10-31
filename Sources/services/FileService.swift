@@ -36,11 +36,19 @@ enum FileServiceError: Error, LocalizedError {
     }
 }
 
+struct FolderScanProgress: Sendable {
+    let previewURLs: [URL]
+    let imageCount: Int
+}
+
 // MARK: - Protocol
 
 protocol FileServiceProtocol {
     func contentsOfFolder(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<(folders: [URL], images: [URL]), FileServiceError>
     func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<[URL], FileServiceError>
+    func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool,
+                         progress: (FolderScanProgress) -> Void,
+                         isCancelled: () -> Bool) -> Result<[URL], FileServiceError>
     func moveFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func duplicateFile(at url: URL) -> Result<URL, FileServiceError>
@@ -48,6 +56,14 @@ protocol FileServiceProtocol {
     func renameFile(at url: URL, newName: String) -> Result<URL, FileServiceError>
     func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError>
     func fileExists(at url: URL) -> Bool
+}
+
+extension FileServiceProtocol {
+    func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool,
+                         progress: (FolderScanProgress) -> Void,
+                         isCancelled: () -> Bool) -> Result<[URL], FileServiceError> {
+        recursiveImages(at: url, sortKey: sortKey, ascending: ascending)
+    }
 }
 
 // MARK: - Implementation
@@ -100,6 +116,13 @@ final class FileService: FileServiceProtocol {
     /// 폴더와 모든 하위 폴더의 이미지를 한 평면 목록으로 모아 정렬해 돌려준다.
     /// 숨김 파일·패키지 내부·심볼릭 링크 순환은 건너뛴다(enumerator 기본 동작).
     func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool) -> Result<[URL], FileServiceError> {
+        recursiveImages(at: url, sortKey: sortKey, ascending: ascending,
+                        progress: { _ in }, isCancelled: { Task.isCancelled })
+    }
+
+    func recursiveImages(at url: URL, sortKey: SortKey, ascending: Bool,
+                         progress: (FolderScanProgress) -> Void,
+                         isCancelled: () -> Bool) -> Result<[URL], FileServiceError> {
         guard fileManager.isReadableFile(atPath: url.path) else {
             return .failure(.folderNotReadable(url))
         }
@@ -117,12 +140,25 @@ final class FileService: FileServiceProtocol {
         }
 
         var images: [URL] = []
+        var lastProgress = ProcessInfo.processInfo.systemUptime
+        var sentPreview = false
         for case let item as URL in enumerator {
-            guard (try? item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
-            if ImageFile.allSupportedExtensions.contains(item.pathExtension.lowercased()) {
+            guard !isCancelled() else { return .failure(.operationFailed("폴더 탐색이 취소되었습니다")) }
+            // 확장자를 먼저 확인해 미디어가 아닌 파일의 추가 메타데이터 조회를 피한다.
+            if ImageFile.allSupportedExtensions.contains(item.pathExtension.lowercased()),
+               (try? item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
                 images.append(item)
             }
+            let now = ProcessInfo.processInfo.systemUptime
+            if (!sentPreview && images.count >= 32) || now - lastProgress >= 0.2 {
+                progress(FolderScanProgress(previewURLs: Array(images.prefix(64)), imageCount: images.count))
+                sentPreview = sentPreview || !images.isEmpty
+                lastProgress = now
+            }
         }
+        guard !isCancelled() else { return .failure(.operationFailed("폴더 탐색이 취소되었습니다")) }
+        // 정렬이 오래 걸려도 발견된 첫 묶음은 먼저 표시할 수 있다.
+        progress(FolderScanProgress(previewURLs: Array(images.prefix(64)), imageCount: images.count))
         return .success(sortURLs(images, by: sortKey, ascending: ascending))
     }
 

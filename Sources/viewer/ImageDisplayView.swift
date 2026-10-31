@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 
 /// 확대/축소/패닝 가능한 이미지 뷰
 final class ImageDisplayView: NSView {
@@ -9,6 +10,11 @@ final class ImageDisplayView: NSView {
     private let clipView = CenteringClipView()
     private let imageView = NSImageView()
     private let canvas = LibrarySurfaceView(kind: .canvas)
+    private let loadingPreview = NSImageView()
+    private let loadingPanel = LibraryCardView()
+    private let loadingIndicator = NSProgressIndicator()
+    private let loadingLabel = NSTextField(labelWithString: "이미지를 불러오는 중…")
+    private(set) var isLoading = false
 
     /// 창 크기가 바뀔 때 다시 맞출 기준. none이면 사용자가 정한 배율을 그대로 둔다.
     private enum FitMode { case none, window, height, width }
@@ -120,12 +126,50 @@ final class ImageDisplayView: NSView {
 
     // MARK: - Public
 
+    /// 이전 원본을 즉시 해제해 새 파일의 로딩 중에 표시·편집되지 않게 한다.
+    func displayLoading() {
+        clearImage()
+        isLoading = true
+        loadingPanel.isHidden = false
+        loadingIndicator.startAnimation(nil)
+    }
+
+    /// 미리보기는 원본과 분리해 편집·내보내기의 대상으로 사용하지 않는다.
+    func displayLoadingPreview(_ thumbnail: NSImage) {
+        guard isLoading else { return }
+        loadingPreview.image = thumbnail
+        loadingPreview.isHidden = false
+        loadingPanel.isHidden = true
+        loadingIndicator.stopAnimation(nil)
+    }
+
+    func clearImage() {
+        finishLoading()
+        removeCropOverlay()
+        originalImage = nil
+        imageView.image = nil
+        imageView.frame = .zero
+        isFlippedHorizontally = false
+        isFlippedVertically = false
+        rotationAngle = 0
+    }
+
+    private func finishLoading() {
+        isLoading = false
+        loadingPreview.image = nil
+        loadingPreview.isHidden = true
+        loadingIndicator.stopAnimation(nil)
+        loadingPanel.isHidden = true
+    }
+
     func display(_ image: NSImage) {
+        finishLoading()
         originalImage = image
         imageView.image = image
         imageView.frame = NSRect(origin: .zero, size: image.size)
         isFlippedHorizontally = false
         isFlippedVertically = false
+        rotationAngle = 0
         applyFit(AppSettings.shared.viewerFitMode)
     }
 
@@ -139,6 +183,7 @@ final class ImageDisplayView: NSView {
     }
 
     func displayError() {
+        clearImage()
         imageView.image = NSImage(
             systemSymbolName: "exclamationmark.triangle",
             accessibilityDescription: "이미지를 표시할 수 없습니다"
@@ -432,6 +477,7 @@ final class ImageDisplayView: NSView {
 
         imageView.imageScaling = .scaleNone
         imageView.setAccessibilityRole(.image)
+        setupLoadingPanel()
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor),
@@ -440,6 +486,51 @@ final class ImageDisplayView: NSView {
             scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
     }
+
+    private func setupLoadingPanel() {
+        // 작은 캐시 비트맵을 화면 크기로 확대한다. 원본 크기의 중간 비트맵은 만들지 않는다.
+        loadingPreview.translatesAutoresizingMaskIntoConstraints = false
+        loadingPreview.imageScaling = .scaleProportionallyUpOrDown
+        loadingPreview.imageAlignment = .alignCenter
+        loadingPreview.wantsLayer = true
+        loadingPreview.layer?.masksToBounds = true
+        if let blur = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 6]) {
+            loadingPreview.contentFilters = [blur]
+        }
+        loadingPreview.setAccessibilityLabel("불러오는 이미지 미리보기")
+        loadingPreview.isHidden = true
+        addSubview(loadingPreview)
+        NSLayoutConstraint.activate([
+            loadingPreview.topAnchor.constraint(equalTo: topAnchor),
+            loadingPreview.bottomAnchor.constraint(equalTo: bottomAnchor),
+            loadingPreview.leadingAnchor.constraint(equalTo: leadingAnchor),
+            loadingPreview.trailingAnchor.constraint(equalTo: trailingAnchor),
+        ])
+        loadingPanel.translatesAutoresizingMaskIntoConstraints = false
+        loadingPanel.isHidden = true
+        addSubview(loadingPanel)
+        loadingIndicator.style = .spinning
+        loadingIndicator.controlSize = .small
+        loadingIndicator.isIndeterminate = true
+        loadingIndicator.setAccessibilityLabel("이미지 로딩 중")
+        loadingLabel.font = .systemFont(ofSize: 14)
+        loadingLabel.textColor = .labelColor
+        let stack = NSStackView(views: [loadingIndicator, loadingLabel])
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        loadingPanel.addSubview(stack)
+        NSLayoutConstraint.activate([
+            loadingPanel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            loadingPanel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stack.leadingAnchor.constraint(equalTo: loadingPanel.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: loadingPanel.trailingAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: loadingPanel.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: loadingPanel.bottomAnchor, constant: -16),
+        ])
+    }
+
 }
 
 // MARK: - Zoom Scroll View

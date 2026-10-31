@@ -42,12 +42,17 @@ final class ImageService: ImageServiceProtocol, @unchecked Sendable {
     private static let nsImageFallbackExtensions: Set<String> = ["svg", "ai", "eps"]
 
     func loadImage(at url: URL) async -> Result<NSImage, ImageServiceError> {
-        // async 선언만으로는 호출자(주로 @MainActor) 스레드에서 실행된다.
-        // Task.detached로 감싸 이미지 디코딩을 확실히 백그라운드에서 수행한다.
-        await Task.detached(priority: .userInitiated) { [self] in
-            loadImageSync(at: url)
-        }.value
+        let task = Task.detached(priority: .userInitiated) { [self] in
+            await Self.loadExecutor.load(at: url) { self.loadImageSync(at: url) }
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
+
+    private static let loadExecutor = ImageLoadExecutor()
 
     private func loadImageSync(at url: URL) -> Result<NSImage, ImageServiceError> {
         let ext = url.pathExtension.lowercased()
@@ -220,5 +225,15 @@ final class ImageService: ImageServiceProtocol, @unchecked Sendable {
         }
 
         return .success(())
+    }
+}
+
+/// 원본 디코딩은 한 번에 한 장만 수행한다. 취소된 대기 요청은 파일을 열기 전에 건너뛴다.
+actor ImageLoadExecutor {
+    func load(at url: URL, decode: () -> Result<NSImage, ImageServiceError>) -> Result<NSImage, ImageServiceError> {
+        guard !Task.isCancelled else { return .failure(.loadFailed(url)) }
+        let result = autoreleasepool { decode() }
+        guard !Task.isCancelled else { return .failure(.loadFailed(url)) }
+        return result
     }
 }

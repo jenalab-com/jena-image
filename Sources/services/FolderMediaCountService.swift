@@ -9,7 +9,23 @@ final class FolderMediaCountService {
     static let shared = FolderMediaCountService()
 
     private var cache: [String: Int] = [:]
-    private var pending: Set<String> = []
+    private var pending: [String: Operation] = [:]
+    private let queue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.jenalab.jenaimage.folder-count"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
+    private let scan: (URL, () -> Bool) -> [String: Int]
+
+    init(scan: ((URL, () -> Bool) -> [String: Int])? = nil) {
+        self.scan = scan ?? { root, isCancelled in
+            var results: [String: Int] = [:]
+            _ = Self.countSubtree(at: root, into: &results, isCancelled: isCancelled)
+            return results
+        }
+    }
     private var generation = 0
 
     /// 계산이 끝났을 때(메인 스레드). 보이는 행의 숫자를 다시 그리면 된다.
@@ -35,36 +51,49 @@ final class FolderMediaCountService {
         }
         // 진행 중인 계산 결과는 더 이상 믿을 수 없으니 세대를 올려 버린다.
         generation += 1
+        queue.cancelAllOperations()
         pending.removeAll()
     }
 
     func invalidateAll() {
         cache.removeAll()
         generation += 1
+        queue.cancelAllOperations()
         pending.removeAll()
     }
 
     private func request(key: String) {
-        guard pending.insert(key).inserted else { return }
+        // 상위 탐색이 하위 폴더의 값까지 채운다. 경로 구분자로 형제 이름의 접두사 충돌을 피한다.
+        guard !pending.keys.contains(where: { key == $0 || key.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }) else { return }
+        let prefix = key.hasSuffix("/") ? key : key + "/"
+        for child in Array(pending.keys) where child.hasPrefix(prefix) {
+            pending.removeValue(forKey: child)?.cancel()
+        }
         let currentGeneration = generation
         let root = URL(fileURLWithPath: key, isDirectory: true)
-        Task.detached(priority: .utility) {
-            var collected: [String: Int] = [:]
-            _ = Self.countSubtree(at: root, into: &collected)
-            let results = collected
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.pending.remove(key)
-                guard self.generation == currentGeneration else { return }
+        let scanner = scan
+        let operation = BlockOperation()
+        operation.addExecutionBlock { [weak self, weak operation] in
+            guard let operation, !operation.isCancelled else { return }
+            let results = scanner(root) { operation.isCancelled }
+            guard !operation.isCancelled else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.generation == currentGeneration,
+                      self.pending[key] === operation else { return }
+                self.pending.removeValue(forKey: key)
                 self.cache.merge(results) { _, new in new }
                 self.onUpdate?()
             }
         }
+        pending[key] = operation
+        queue.addOperation(operation)
     }
 
     /// 폴더 하나의 총계를 돌려주면서, 하위 폴더 각각의 총계도 `results`에 적는다.
     /// `FolderNode.loadChildren`과 같은 규칙: 숨김 파일 제외, 패키지는 내려가지 않음, 미디어 확장자만.
-    private static func countSubtree(at url: URL, into results: inout [String: Int]) -> Int {
+    private static func countSubtree(at url: URL, into results: inout [String: Int],
+                                     isCancelled: () -> Bool) -> Int {
+        guard !isCancelled() else { return 0 }
         let fileManager = FileManager.default
         guard let contents = try? fileManager.contentsOfDirectory(
             at: url,
@@ -76,10 +105,11 @@ final class FolderMediaCountService {
         }
         var total = 0
         for item in contents {
+            guard !isCancelled() else { return 0 }
             let values = try? item.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
             if values?.isDirectory == true {
                 if values?.isPackage == true { continue }
-                total += countSubtree(at: item, into: &results)
+                total += countSubtree(at: item, into: &results, isCancelled: isCancelled)
             } else if ImageFile.allSupportedExtensions.contains(item.pathExtension.lowercased()) {
                 total += 1
             }

@@ -8,6 +8,8 @@ final class ImageEditorWindowController: NSWindowController {
     private let imageService: ImageServiceProtocol
 
     private let editingService = ImageEditingService()
+    private var previewTask: Task<Void, Never>?
+    private let previewService = ImageAdjustmentPreviewService()
     private var editedImage: NSImage
 
     // Undo/Redo 히스토리
@@ -342,6 +344,7 @@ final class ImageEditorWindowController: NSWindowController {
     // MARK: - Image Display
 
     private func displayImage(_ image: NSImage) {
+        previewTask?.cancel()
         imageView.image = image
         imageView.frame = NSRect(origin: .zero, size: image.size)
         fitImageToView()
@@ -383,6 +386,8 @@ final class ImageEditorWindowController: NSWindowController {
     }
 
     private func selectTool(_ tool: Tool) {
+        previewTask?.cancel()
+        if activeTool == .adjust && tool != .adjust { displayImage(editedImage) }
         // 이전 crop 해제
         if activeTool == .crop && tool != .crop {
             removeCropOverlay()
@@ -753,17 +758,20 @@ final class ImageEditorWindowController: NSWindowController {
         highlightsLabel.stringValue = String(format: "%.2f", highlightsSlider.doubleValue)
         shadowsLabel.stringValue = String(format: "%.2f", shadowsSlider.doubleValue)
 
-        // 실시간 미리보기
-        guard let preview = editingService.adjustImage(
-            editedImage,
-            brightness: Float(brightnessSlider.doubleValue),
-            contrast: Float(contrastSlider.doubleValue),
-            saturation: Float(saturationSlider.doubleValue),
-            highlights: Float(highlightsSlider.doubleValue),
-            shadows: Float(shadowsSlider.doubleValue)
-        ) else { return }
-        imageView.image = preview
-        imageView.frame = NSRect(origin: .zero, size: preview.size)
+        previewTask?.cancel()
+        let source = editedImage
+        let service = previewService
+        let adjustment = ImageAdjustment(brightness: Float(brightnessSlider.doubleValue),
+            contrast: Float(contrastSlider.doubleValue), saturation: Float(saturationSlider.doubleValue),
+            highlights: Float(highlightsSlider.doubleValue), shadows: Float(shadowsSlider.doubleValue))
+        previewTask = Task { [weak self] in
+            // 빠른 드래그 중 중간 값을 모두 렌더링하지 않는다.
+            do { try await Task.sleep(nanoseconds: 40_000_000) } catch { return }
+            guard let preview = await service.render(source, adjustment: adjustment),
+                  !Task.isCancelled, let self, self.activeTool == .adjust else { return }
+            self.imageView.image = preview
+            self.imageView.frame = NSRect(origin: .zero, size: preview.size)
+        }
     }
 
     @objc private func resetAdjust() {
@@ -958,6 +966,7 @@ final class ImageEditorWindowController: NSWindowController {
 
 extension ImageEditorWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
+        previewTask?.cancel()
         onComplete?()
     }
 

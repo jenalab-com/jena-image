@@ -212,6 +212,8 @@ final class BrowserViewController: NSViewController {
 
     private let collectionView = DoubleClickCollectionView()
     private let scrollView = NSScrollView()
+    private let folderLoadingIndicator = NSProgressIndicator()
+    private(set) var isFolderLoading = false
     private let emptyLabel = NSTextField(labelWithString: "이 폴더는 비어 있습니다")
     private let bookmarkEmptyLabel = NSTextField(labelWithString: "북마크가 비어 있어요")
 
@@ -247,11 +249,14 @@ final class BrowserViewController: NSViewController {
 
     private let imageService: ImageServiceProtocol
     private let thumbnailProvider: ThumbnailProvider
+    private let aspectRatioReader: (URL) -> CGFloat?
 
     /// `thumbnailProvider`의 기본값을 `.shared`로 두면 기본 인자가 비격리 문맥에서 평가돼 MainActor 경고가 난다.
     /// 그래서 nil을 받아 MainActor인 init 안에서 `.shared`로 푼다.
     init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil,
-         settings: AppSettings = .shared) {
+         settings: AppSettings = .shared,
+         aspectRatioReader: @escaping (URL) -> CGFloat? = ImageAspectRatioReader.aspectRatio) {
+        self.aspectRatioReader = aspectRatioReader
         self.settings = settings
         self.layoutMode = settings.browserLayoutMode
         self.imageService = imageService
@@ -299,8 +304,23 @@ final class BrowserViewController: NSViewController {
 
     // MARK: - Public
 
+    func setFolderLoading(_ loading: Bool) {
+        isFolderLoading = loading
+        emptyLabel.stringValue = loading ? "이미지를 찾는 중…" : "이 폴더는 비어 있습니다"
+        emptyLabel.isHidden = !contents.isEmpty || isCollectionMode
+        folderLoadingIndicator.isHidden = !loading || !contents.isEmpty
+        if loading && contents.isEmpty { folderLoadingIndicator.startAnimation(nil) }
+        else { folderLoadingIndicator.stopAnimation(nil) }
+    }
+
+    func showFolderLoadFailure() {
+        setFolderLoading(false)
+        emptyLabel.stringValue = "폴더를 읽을 수 없습니다"
+    }
+
     /// - Parameter recursiveRoot: 하위 폴더 포함 보기의 기준 폴더. 넘기면 각 셀에 기준 폴더 아래 상대 경로 줄이 붙는다.
     func display(folders: [URL], images: [URL], recursiveRoot: URL? = nil) {
+        setFolderLoading(false)
         isRestoringSelection = true
         defer { isRestoringSelection = false }
         isSimilarityMode = false
@@ -376,6 +396,7 @@ final class BrowserViewController: NSViewController {
     }
 
     private func displayCollection(_ files: [ImageFile]) {
+        setFolderLoading(false)
         isRestoringSelection = true
         defer { isRestoringSelection = false }
         cancelAllThumbnailRequests()
@@ -423,6 +444,15 @@ final class BrowserViewController: NSViewController {
         layoutMode = mode
         settings.browserLayoutMode = mode
         renameWorkItem?.cancel()
+        if mode == .grid {
+            aspectTask?.cancel()
+            aspectTask = nil
+            aspectGeneration += 1
+            aspectLayoutWork?.cancel()
+            aspectLayoutWork = nil
+        } else {
+            startReadingAspectRatios()
+        }
         relayoutPreservingScrollPosition()
     }
 
@@ -454,29 +484,28 @@ final class BrowserViewController: NSViewController {
         measuredURLs.removeAll()
         aspectRatios.removeAll(keepingCapacity: true)
         thumbnailAspectURLs.removeAll(keepingCapacity: true)
-        for file in imageFiles {
-            if let image = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: thumbnailMinPixelSize),
-               image.size.width > 0, image.size.height > 0 {
-                aspectRatios[file.url] = image.size.width / image.size.height
-                thumbnailAspectURLs.insert(file.url)
-            }
-        }
         applyItemSize()
         startReadingAspectRatios()
     }
 
     private func startReadingAspectRatios() {
-        guard aspectTask == nil else { return }
-        let urls = imageFiles.filter { !$0.isVideo && !measuredURLs.contains($0.url) }.map(\.url)
+        guard layoutMode == .masonry, aspectTask == nil else { return }
+        let urls = imageFiles.filter { !$0.isVideo && !measuredURLs.contains($0.url) && !thumbnailAspectURLs.contains($0.url) }.map(\.url)
         guard !urls.isEmpty else { return }
         let generation = aspectGeneration
+        let readRatio = aspectRatioReader
+        let cachedRatio = thumbnailProvider.cachedAspectRatioReader(minPixel: thumbnailMinPixelSize)
         aspectTask = Task.detached(priority: .userInitiated) { [weak self] in
-            var batch: [URL: CGFloat] = [:]
+            var batch: [URL: (ratio: CGFloat, fromThumbnail: Bool)] = [:]
             var measured: [URL] = []
             for (index, url) in urls.enumerated() {
                 guard !Task.isCancelled else { return }
-                if let ratio = autoreleasepool(invoking: { ImageAspectRatioReader.aspectRatio(at: url) }) {
-                    batch[url] = ratio
+                autoreleasepool {
+                    if let ratio = cachedRatio(url) {
+                        batch[url] = (ratio, true)
+                    } else if let ratio = readRatio(url) {
+                        batch[url] = (ratio, false)
+                    }
                 }
                 measured.append(url)
                 if measured.count == 64 || index == urls.count - 1 {
@@ -485,7 +514,9 @@ final class BrowserViewController: NSViewController {
                     await MainActor.run { [weak self] in
                         guard let self, self.aspectGeneration == generation else { return }
                         self.measuredURLs.formUnion(completed)
-                        for (url, ratio) in result { self.acceptAspectRatio(ratio, for: url) }
+                        for (url, value) in result {
+                            self.acceptAspectRatio(value.ratio, for: url, fromThumbnail: value.fromThumbnail)
+                        }
                     }
                     batch.removeAll(keepingCapacity: true)
                     measured.removeAll(keepingCapacity: true)
@@ -505,14 +536,14 @@ final class BrowserViewController: NSViewController {
         else if thumbnailAspectURLs.contains(url) { return }
         if let previous = aspectRatios[url], abs(previous - ratio) <= 0.001 { return }
         aspectRatios[url] = ratio
-        guard aspectLayoutWork == nil else { return }
+        guard layoutMode == .masonry, aspectLayoutWork == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.aspectLayoutWork = nil
             self.relayoutPreservingScrollPosition()
         }
         aspectLayoutWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
     private func relayoutPreservingScrollPosition() {
@@ -994,8 +1025,15 @@ final class BrowserViewController: NSViewController {
         emptyLabel.alignment = .center
         emptyLabel.isHidden = true
         view.addSubview(emptyLabel)
+        folderLoadingIndicator.style = .spinning
+        folderLoadingIndicator.controlSize = .small
+        folderLoadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        folderLoadingIndicator.isHidden = true
+        view.addSubview(folderLoadingIndicator)
 
         NSLayoutConstraint.activate([
+            folderLoadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            folderLoadingIndicator.bottomAnchor.constraint(equalTo: emptyLabel.topAnchor, constant: -12),
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
