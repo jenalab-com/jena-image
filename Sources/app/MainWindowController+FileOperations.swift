@@ -127,8 +127,10 @@ extension MainWindowController {
             relocateCategories(from: url, to: newURL)
             if contentMode == .viewer {
                 viewerVC.updateCurrentImage(oldURL: url, newURL: newURL)
+                needsFolderRefreshAfterViewerRename = true
+            } else if !browserVC.isBookmarkMode {
+                refreshCurrentFolder()
             }
-            if !browserVC.isBookmarkMode { refreshCurrentFolder() }
             let parentFolder = url.deletingLastPathComponent()
             sidebarVC.reloadFolder(at: parentFolder)
         case .failure(let error):

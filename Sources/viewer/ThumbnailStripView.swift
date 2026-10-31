@@ -8,13 +8,15 @@ final class ThumbnailStripView: NSView {
     private let scrollView = NSScrollView()
     private var images: [ImageFile] = []
     private var selectedIndex: Int = 0
+    private var aspectRatios: [URL: CGFloat] = [:]
+    private var heightUpdateScheduled = false
 
     private let thumbnailProvider: ThumbnailProvider
     private let imageService: ImageServiceProtocol
 
-    private static let thumbnailSize = CGSize(width: 80, height: 60)
-    /// 80pt 셀 × 레티나 2배. Provider가 220 단계로 올려 생성하므로 그리드와 공유된다.
-    private static let thumbnailMinPixel = 160
+    private static let thumbnailSize = CGSize(width: 120, height: 90)
+    /// 120pt 셀 × 레티나 2배. Provider가 330 단계로 올려 생성하므로 그리드와 공유된다.
+    private static let thumbnailMinPixel = 240
     private static let nameFont = NSFont.systemFont(ofSize: 10)
     private static let maxNameLines = 3
     /// 셀 좌우 여백(leading 4 + trailing 4)
@@ -44,7 +46,15 @@ final class ThumbnailStripView: NSView {
     func display(images: [ImageFile], selectedIndex: Int) {
         self.images = images
         self.selectedIndex = selectedIndex
+        aspectRatios = [:]
+        for file in images {
+            if let image = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: Self.thumbnailMinPixel),
+               image.size.width > 0, image.size.height > 0 {
+                aspectRatios[file.url] = image.size.width / image.size.height
+            }
+        }
         tableView.reloadData()
+        tableView.selectRowIndexes(images.indices.contains(selectedIndex) ? IndexSet(integer: selectedIndex) : [], byExtendingSelection: false)
         scrollToSelectedRow()
     }
 
@@ -57,6 +67,7 @@ final class ThumbnailStripView: NSView {
 
     func reloadThumbnail(at index: Int) {
         guard images.indices.contains(index) else { return }
+        aspectRatios.removeValue(forKey: images[index].url)
         tableView.reloadData(forRowIndexes: IndexSet(integer: index), columnIndexes: IndexSet(integer: 0))
     }
 
@@ -134,9 +145,10 @@ extension ThumbnailStripView: NSTableViewDelegate {
         cell.objectValue = file.url  // 재사용된 셀에 늦게 도착한 썸네일이 그려지지 않도록 완료 콜백이 비교하는 기준
 
         if let cached = thumbnailProvider.cachedThumbnail(for: file.url, minPixel: Self.thumbnailMinPixel) {
-            cell.imageView?.image = cached
+            applyThumbnail(cached, for: file.url, to: cell)
         } else {
             cell.imageView?.image = nil
+            updateImageHeight(cell, url: file.url)
             loadThumbnail(for: file, cell: cell)
         }
 
@@ -145,7 +157,7 @@ extension ThumbnailStripView: NSTableViewDelegate {
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         let name = images[row].nameWithoutExtension
-        return Self.rowVerticalPadding + Self.thumbnailSize.height + nameHeight(for: name)
+        return Self.rowVerticalPadding + imageHeight(for: images[row].url) + nameHeight(for: name)
     }
 
     /// 주어진 이름을 현재 셀 너비에서 그렸을 때의 텍스트 높이(최대 3줄, 그 이상은 잘림).
@@ -182,6 +194,11 @@ extension ThumbnailStripView: NSTableViewDelegate {
         let imageView = ThumbnailImageView()
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 6
+        imageView.layer?.masksToBounds = true
+        imageView.layer?.borderWidth = 0.5
+        imageView.layer?.borderColor = NSColor.gray.withAlphaComponent(0.35).cgColor
         cell.addSubview(imageView)
         cell.imageView = imageView
 
@@ -206,21 +223,50 @@ extension ThumbnailStripView: NSTableViewDelegate {
             imageView.topAnchor.constraint(equalTo: cell.topAnchor, constant: 4),
             imageView.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
             imageView.widthAnchor.constraint(equalToConstant: Self.thumbnailSize.width),
-            imageView.heightAnchor.constraint(equalToConstant: Self.thumbnailSize.height),
+
             textField.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 2),
             textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
             textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
         ])
 
+        let height = imageView.heightAnchor.constraint(equalToConstant: Self.thumbnailSize.height)
+        height.identifier = "thumbnailHeight"
+        height.isActive = true
         return cell
+    }
+
+    private func imageHeight(for url: URL) -> CGFloat {
+        Self.thumbnailSize.width / (aspectRatios[url] ?? (Self.thumbnailSize.width / Self.thumbnailSize.height))
+    }
+
+    private func updateImageHeight(_ cell: NSTableCellView, url: URL) {
+        cell.imageView?.constraints.first { $0.identifier == "thumbnailHeight" }?.constant = imageHeight(for: url)
+    }
+
+    private func applyThumbnail(_ image: NSImage, for url: URL, to cell: NSTableCellView) {
+        cell.imageView?.image = image
+        guard image.size.width > 0, image.size.height > 0 else { return }
+        let ratio = image.size.width / image.size.height
+        guard ratio.isFinite, ratio > 0 else { return }
+        let changed = aspectRatios[url] != ratio
+        aspectRatios[url] = ratio
+        updateImageHeight(cell, url: url)
+        guard changed, !heightUpdateScheduled else { return }
+        heightUpdateScheduled = true
+        // 셀을 만드는 도중의 캐시 적중도 있으므로 행 높이 갱신은 다음 실행으로 모은다.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.heightUpdateScheduled = false
+            self.tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<self.images.count))
+        }
     }
 
     private func loadThumbnail(for file: ImageFile, cell: NSTableCellView) {
         let url = file.url
-        thumbnailProvider.request(url, minPixel: Self.thumbnailMinPixel, priority: .visible) { [weak cell] result in
+        thumbnailProvider.request(url, minPixel: Self.thumbnailMinPixel, priority: .visible) { [weak self, weak cell] result in
             // 셀이 그 사이 다른 행에 재사용됐으면 버린다(그리드의 representedURL 비교와 같은 역할).
             guard let cell, cell.objectValue as? URL == url, case .image(let image) = result else { return }
-            cell.imageView?.image = image
+            self?.applyThumbnail(image, for: url, to: cell)
         }
     }
 }

@@ -97,6 +97,7 @@ final class ViewerViewController: NSViewController {
         view = NSView()
         setupSplitView()
         setupEditButton()
+        imageDisplayView.contextMenuProvider = { [weak self] in self?.makeContextMenu() }
     }
 
     override func viewDidLoad() {
@@ -131,6 +132,36 @@ final class ViewerViewController: NSViewController {
         }
     }
 
+    func makeContextMenu() -> NSMenu? {
+        guard currentImageURL != nil else { return nil }
+        let menu = NSMenu()
+        let rename = NSMenuItem(title: "이름 변경…", action: #selector(beginRenamingCurrentImage), keyEquivalent: "")
+        rename.target = self
+        menu.addItem(rename)
+        return menu
+    }
+
+    @objc func beginRenamingCurrentImage() {
+        guard let url = currentImageURL, let window = view.window else { return }
+        stopSlideshow()
+        let alert = NSAlert()
+        alert.messageText = "파일 이름 변경"
+        alert.informativeText = "확장자는 그대로 유지해요."
+        alert.addButton(withTitle: "변경")
+        alert.addButton(withTitle: "취소")
+        let field = NSTextField(string: url.deletingPathExtension().lastPathComponent)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            let stem = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !stem.isEmpty else { return }
+            let name = stem + (url.pathExtension.isEmpty ? "" : "." + url.pathExtension)
+            self.delegate?.viewer(self, didRequestRename: url, newName: name)
+        }
+    }
+
     func updateCurrentImage(oldURL: URL, newURL: URL) {
         guard let index = imageFiles.firstIndex(where: { $0.url == oldURL }),
               let newFile = ImageFile(url: newURL) else { return }
@@ -138,6 +169,7 @@ final class ViewerViewController: NSViewController {
         thumbnailStrip.display(images: imageFiles, selectedIndex: currentIndex)
         if index == currentIndex {
             view.window?.title = newFile.name
+            if imageDisplayView.isLoading { showImage(newFile) }
         }
     }
 
@@ -495,7 +527,7 @@ final class ViewerViewController: NSViewController {
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            thumbnailStrip.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+            thumbnailStrip.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
             thumbnailStrip.widthAnchor.constraint(lessThanOrEqualToConstant: 180),
         ])
     }

@@ -196,6 +196,7 @@ MainActor.assumeIsolated { runLibraryDesignTests(directory: temporary) }
 MainActor.assumeIsolated { runSimilarityTests(directory: temporary) }
 MainActor.assumeIsolated { runPerformanceTests(directory: temporary) }
 MainActor.assumeIsolated { runViewerLoadingTests(directory: temporary) }
+MainActor.assumeIsolated { runViewerSidebarTests(controller: controller, directory: temporary) }
 
 for url in controller.folderWatcher.watchedURLs { controller.folderWatcher.unwatch(url) }
 controller.window?.close()

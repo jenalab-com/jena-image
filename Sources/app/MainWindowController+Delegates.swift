@@ -342,6 +342,7 @@ extension MainWindowController: BrowserDelegate {
 
 extension MainWindowController: ViewerDelegate {
     func viewerDidRequestClose(_ viewer: ViewerViewController) {
+        defer { needsFolderRefreshAfterViewerRename = false }
         if browserVC.isSimilarityMode {
             switchToMode(.browser)
             refreshSimilarityResults()
@@ -366,6 +367,7 @@ extension MainWindowController: ViewerDelegate {
             // 뷰어에서 파일을 넘기는 동안 사이드바 선택이 파일에 머무르므로, 목록으로 돌아오면 폴더로 되돌린다.
             // (하위 폴더 포함 보기에서는 다른 폴더의 파일이 선택된 채 남아 더 어색하다) 델리게이트는 억제해 재로드를 막는다.
             sidebarVC.revealFolder(at: url)
+            if needsFolderRefreshAfterViewerRename { refreshAfterExternalChange() }
         }
     }
 
