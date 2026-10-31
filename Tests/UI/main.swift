@@ -194,6 +194,8 @@ MainActor.assumeIsolated { runAIImageUITests(controller: controller, directory: 
 MainActor.assumeIsolated { runMasonryUITests(directory: temporary) }
 MainActor.assumeIsolated { runLibraryDesignTests(directory: temporary) }
 MainActor.assumeIsolated { runSimilarityTests(directory: temporary) }
+MainActor.assumeIsolated { runPerformanceTests(directory: temporary) }
+MainActor.assumeIsolated { runViewerLoadingTests(directory: temporary) }
 
 for url in controller.folderWatcher.watchedURLs { controller.folderWatcher.unwatch(url) }
 controller.window?.close()

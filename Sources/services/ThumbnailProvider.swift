@@ -67,6 +67,16 @@ final class ThumbnailProvider {
         memoryCache.thumbnail(for: url, minPixelSize: minPixel)
     }
 
+    /// 전체 목록의 비율 복원은 워커에서 수행한다. 파일 스탬프 검증도 이 클로저 안에서만 한다.
+    func cachedAspectRatioReader(minPixel: Int) -> (URL) -> CGFloat? {
+        let cache = memoryCache
+        return { url in
+            guard let image = cache.thumbnail(for: url, minPixelSize: minPixel),
+                  image.size.width > 0, image.size.height > 0 else { return nil }
+            return image.size.width / image.size.height
+        }
+    }
+
     @discardableResult
     func request(_ url: URL, minPixel: Int, priority: ThumbnailPriority,
                  completion: @escaping (ThumbnailResult) -> Void) -> ThumbnailRequestToken? {
@@ -146,16 +156,21 @@ final class ThumbnailProvider {
         return scheduler.enqueue(priority: priority) { [weak self] isCancelled in
             let outcome = Self.produce(key: key, priority: priority, useQuickLook: useQL,
                                        failedKeys: failedSnapshot, diskStore: diskStore, generate: generate)
-            if isCancelled() { return }
-            Task { @MainActor [weak self] in
-                self?.finish(key: key, outcome: outcome)
+            if !isCancelled() {
+                Task { @MainActor [weak self] in
+                    self?.finish(key: key, outcome: outcome)
+                }
+            }
+            // 저장 큐가 밀려도 이번 이미지는 먼저 표시한다. 대기는 워커에만 한정한다.
+            if case .image(_, let stamp, let diskImage) = outcome, let diskImage {
+                diskStore?.storeAsync(diskImage, url: key.url, px: key.level, sourceStamp: stamp)
             }
         }
     }
 
     private enum Outcome {
         /// `sourceStamp`: 이미지를 만든(또는 디스크에서 읽은) 시점의 원본 mtime·size. 메모리 캐시가 변경 감지에 쓴다.
-        case image(NSImage, sourceStamp: String)
+        case image(NSImage, sourceStamp: String, diskImage: CGImage?)
         case failed(fileStamp: String)
         case notDownloaded
     }
@@ -171,27 +186,23 @@ final class ThumbnailProvider {
 
         // 디스크 캐시는 iCloud 비워진 파일에도 유효하다(원본 메타데이터만 읽는다).
         if let cg = diskStore?.lookup(url: url, minPx: key.level, levels: levels) {
-            return .image(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)), sourceStamp: source)
+            return .image(NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)), sourceStamp: source, diskImage: nil)
         }
 
         if isEvictedICloudItem(url) {
             if priority == .visible, useQuickLook, let img = quickLookThumbnail(url: url, level: key.level) {
                 // iCloud 썸네일은 네트워크 왕복(스파이크 0.7초)이라 디스크에도 남긴다. 비워진 파일도 mtime·size는
                 // 읽히므로 키가 만들어지고, 뒤에 원본이 내려와도 같은 그림이라 그대로 유효하다.
-                if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                    diskStore?.store(cg, url: url, px: key.level)
-                }
-                return .image(img, sourceStamp: source)
+                return .image(img, sourceStamp: source,
+                              diskImage: diskStore == nil ? nil : img.cgImage(forProposedRect: nil, context: nil, hints: nil))
             }
             return .notDownloaded
         }
 
         let pt = CGFloat(key.level) / 2  // 생성 시 레티나 2배
         if let img = generate(url, CGSize(width: pt, height: pt)) {
-            if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                diskStore?.store(cg, url: url, px: key.level)
-            }
-            return .image(img, sourceStamp: source)
+            return .image(img, sourceStamp: source,
+                          diskImage: diskStore == nil ? nil : img.cgImage(forProposedRect: nil, context: nil, hints: nil))
         }
         return .failed(fileStamp: stamp)
     }
@@ -201,7 +212,7 @@ final class ThumbnailProvider {
         // 결과도 이미 디코딩을 마친 것이라, 버리면 폴더를 다시 열 때 같은 비용을 두 번 낸다.
         let result: ThumbnailResult
         switch outcome {
-        case .image(let img, let source):
+        case .image(let img, let source, _):
             memoryCache.store(img, for: key.url, stamp: source)
             result = .image(img)
         case .failed(let stamp):

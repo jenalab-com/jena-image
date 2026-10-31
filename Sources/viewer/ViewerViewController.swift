@@ -38,10 +38,13 @@ final class ViewerViewController: NSViewController {
     private var imageFiles: [ImageFile] = []
     private var currentIndex: Int = 0
     private var loadTask: Task<Void, Never>?
+    private var loadingThumbnailToken: ThumbnailRequestToken?
+    private var loadGeneration = 0
     private var isShowingVideo = false
     private var slideshowTimer: Timer?
 
     private let imageService: ImageServiceProtocol
+    private let thumbnailProvider: ThumbnailProvider
 
     // 편집 윈도우
     private var editorWindowController: ImageEditorWindowController?
@@ -66,14 +69,18 @@ final class ViewerViewController: NSViewController {
         editorWindowController != nil
     }
 
-    init(imageService: ImageServiceProtocol = ImageService()) {
+    init(imageService: ImageServiceProtocol = ImageService(), thumbnailProvider: ThumbnailProvider? = nil) {
         self.imageService = imageService
-        self.thumbnailStrip = ThumbnailStripView(imageService: imageService)
+        let provider = thumbnailProvider ?? .shared
+        self.thumbnailProvider = provider
+        self.thumbnailStrip = ThumbnailStripView(imageService: imageService, thumbnailProvider: provider)
         super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit { loadTask?.cancel() }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -81,6 +88,9 @@ final class ViewerViewController: NSViewController {
         super.viewWillDisappear()
         // 뷰어를 벗어나면(브라우저 복귀·창 닫기 등) 슬라이드쇼 타이머를 반드시 정지
         stopSlideshow()
+        cancelImageLoading()
+        imageDisplayView.clearImage()
+        editButton.isEnabled = false
     }
 
     override func loadView() {
@@ -134,7 +144,7 @@ final class ViewerViewController: NSViewController {
     /// 외부에서 현재 이미지 파일이 변경된 경우 디스크에서 다시 읽어 갱신
     func reloadCurrentImage() {
         guard let file = currentFile, !file.isVideo else { return }
-        ThumbnailProvider.shared.invalidate(for: file.url)
+        thumbnailProvider.invalidate(for: file.url)
         thumbnailStrip.reloadThumbnail(at: currentIndex)
         showImage(file)
     }
@@ -243,7 +253,8 @@ final class ViewerViewController: NSViewController {
     }
 
     private func showVideo(_ file: ImageFile) {
-        loadTask?.cancel()
+        cancelImageLoading()
+        imageDisplayView.clearImage()
         switchContentView(toVideo: true)
         videoPlayerView.play(url: file.url)
         view.window?.title = file.name
@@ -253,22 +264,43 @@ final class ViewerViewController: NSViewController {
         switchContentView(toVideo: false)
         videoPlayerView.stop()
 
-        loadTask?.cancel()
-        loadTask = Task { [weak self] in
-            guard let self else { return }
-            let result = await self.imageService.loadImage(at: file.url)
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                switch result {
-                case .success(let image):
-                    self.imageDisplayView.display(image)
-                    self.view.window?.title = file.name
-                case .failure:
-                    self.imageDisplayView.displayError()
-                }
+        cancelImageLoading()
+        let generation = loadGeneration
+        imageDisplayView.displayLoading()
+        editButton.isEnabled = false
+        view.window?.title = file.name
+        // 작은 캐시도 즉시 활용하고, 없으면 기존 썸네일 파이프라인에서 비동기로 받는다.
+        loadingThumbnailToken = thumbnailProvider.request(file.url, minPixel: 1, priority: .visible) { [weak self] result in
+            guard let self, self.loadGeneration == generation, self.imageDisplayView.isLoading else { return }
+            self.loadingThumbnailToken = nil
+            if case .image(let thumbnail) = result {
+                self.imageDisplayView.displayLoadingPreview(thumbnail)
             }
         }
+        let service = imageService
+        loadTask = Task { @MainActor [weak self] in
+            let result = await service.loadImage(at: file.url)
+            guard !Task.isCancelled, let self, self.loadGeneration == generation else { return }
+            self.cancelLoadingThumbnail()
+            switch result {
+            case .success(let image):
+                self.imageDisplayView.display(image)
+                self.editButton.isEnabled = true
+            case .failure:
+                self.imageDisplayView.displayError()
+            }
+        }
+    }
+
+    private func cancelLoadingThumbnail() {
+        if let token = loadingThumbnailToken { thumbnailProvider.cancel(token) }
+        loadingThumbnailToken = nil
+    }
+
+    private func cancelImageLoading() {
+        loadGeneration += 1
+        loadTask?.cancel()
+        cancelLoadingThumbnail()
     }
 
     private func switchContentView(toVideo: Bool) {

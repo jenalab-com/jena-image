@@ -40,7 +40,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     // MARK: - Dependencies
 
-    let fileService: FileServiceProtocol = FileService()
+    let fileService: FileServiceProtocol
+    private let settings: AppSettings
     let imageService: ImageServiceProtocol = ImageService()
     let securityService = SecurityScopeService()
     let folderWatcher = FolderWatcher()
@@ -76,7 +77,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     var currentCategoryID: UUID?
     var lastCategoryID: UUID?
-    var folderLoadGeneration = 0
+    private var folderLoadTask: Task<Void, Never>?
+    var folderLoadGeneration = 0 {
+        didSet { folderLoadTask?.cancel() }
+    }
     var currentFolderURL: URL? { didSet { aiChatVC?.refreshDestination() } }
     var contentMode: ContentMode = .browser
     var activePanel: ActivePanel = .browser
@@ -118,7 +122,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // MARK: - Init
 
     init(categoryStore: CategoryStore = CategoryStore(), settings: AppSettings = .shared,
-         similarityService: ImageSimilarityService = ImageSimilarityService()) {
+         similarityService: ImageSimilarityService = ImageSimilarityService(),
+         fileService: FileServiceProtocol = FileService()) {
+        self.fileService = fileService
+        self.settings = settings
         self.categoryStore = categoryStore
         self.similarityService = similarityService
         browserVC = BrowserViewController(imageService: imageService, settings: settings)
@@ -151,7 +158,10 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         browserVC.onFindSimilarImage = { [weak self] url in self?.findSimilarImages(to: url) }
         similarityCloseObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: .main
-        ) { [weak self] _ in self?.clearSimilaritySearch() }
+        ) { [weak self] _ in
+            self?.folderLoadGeneration += 1
+            self?.clearSimilaritySearch()
+        }
         setupFolderWatcher()
         setupThumbnailSettings()
     }
@@ -160,6 +170,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     required init?(coder: NSCoder) { fatalError() }
 
     deinit {
+        folderLoadTask?.cancel()
         similarityTask?.cancel()
         if let observer = similarityCloseObserver { NotificationCenter.default.removeObserver(observer) }
     }
@@ -263,34 +274,57 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         let generation = folderLoadGeneration
         sidebarVC.setCategoryView(false)
         currentFolderURL = url
-        AppSettings.shared.addRecentFolder(url)
+        settings.addRecentFolder(url)
         syncWatchedFolders()
         switchToMode(.browser)
         browserVC.display(folders: [], images: [])
+        browserVC.setFolderLoading(true)
+        statusBar.showFolderLoading(foundCount: 0)
+        window?.title = "\(url.lastPathComponent) · 탐색 중…"
+        let recursive = settings.recursiveBrowsing
         updateToolbarState()
 
         // 디렉토리 열거를 백그라운드에서 수행해 대용량 폴더에서도 UI를 막지 않는다.
-        Task { @MainActor in
-            let result = await self.enumerateFolderContents(at: url)
+        folderLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var previewCount = 0
+            let result = await self.enumerateFolderContents(at: url) { [weak self] progress in
+                Task { @MainActor [weak self] in
+                    guard let self, self.folderLoadGeneration == generation,
+                          self.currentFolderURL == url, self.contentMode == .browser,
+                          self.browserVC.isFolderLoading else { return }
+                    if progress.previewURLs.count > previewCount {
+                        previewCount = progress.previewURLs.count
+                        let selected = Set(self.browserVC.selectedURLs())
+                        self.browserVC.display(folders: [], images: progress.previewURLs, recursiveRoot: url)
+                        self.browserVC.restoreSelection(urls: selected)
+                        self.browserVC.setFolderLoading(true)
+                    }
+                    self.statusBar.showFolderLoading(foundCount: progress.imageCount)
+                }
+            }
             // 열거 도중 다른 폴더로 전환했거나 뷰어로 빠졌으면 결과를 폐기 (stale 방지)
-            guard self.folderLoadGeneration == generation, self.currentFolderURL == url, self.contentMode == .browser else { return }
+            guard !Task.isCancelled, self.folderLoadGeneration == generation, self.currentFolderURL == url, self.contentMode == .browser else { return }
             switch result {
             case .success(let contents):
+                let selected = Set(self.browserVC.selectedURLs()).union(self.pendingSelectionURLs)
                 self.browserVC.display(
                     folders: contents.folders,
                     images: contents.images,
-                    recursiveRoot: AppSettings.shared.recursiveBrowsing ? url : nil
+                    recursiveRoot: recursive ? url : nil
                 )
                 self.window?.title = url.lastPathComponent
-                let pending = self.pendingSelectionURLs
                 self.pendingSelectionURLs = []
-                if !pending.isEmpty { self.browserVC.restoreSelection(urls: pending) }
+                if !selected.isEmpty { self.browserVC.restoreSelection(urls: selected) }
                 self.statusBar.update(
                     folderCount: contents.folders.count,
                     imageCount: contents.images.count,
                     selectionCount: self.browserVC.selectedURLs().count
                 )
             case .failure(let error):
+                self.browserVC.showFolderLoadFailure()
+                self.statusBar.update(folderCount: 0, imageCount: 0, selectionCount: 0)
+                self.window?.title = url.lastPathComponent
                 self.showError(error)
             }
         }
@@ -299,6 +333,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     func switchToMode(_ mode: ContentMode) {
         guard contentMode != mode else { return }
         contentMode = mode
+        if mode == .viewer { folderLoadGeneration += 1 }
 
         // NSSplitViewItem.viewController는 교체 불가 — item 자체를 교체
         let oldItem = splitViewController.splitViewItems[1]
@@ -421,7 +456,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         // 브라우저 모드: 디렉토리 열거를 백그라운드에서 수행.
         folderLoadGeneration += 1
         let generation = folderLoadGeneration
-        Task { @MainActor in
+        folderLoadTask = Task { @MainActor in
             let result = await self.enumerateFolderContents(at: url)
             guard self.folderLoadGeneration == generation,
                   self.currentFolderURL == url, self.contentMode == .browser,
@@ -518,17 +553,24 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     }
 
     /// `folderContents(at:)`를 백그라운드 스레드에서 수행한다 (재귀 열거는 특히 오래 걸릴 수 있음).
-    private func enumerateFolderContents(at url: URL) async -> Result<(folders: [URL], images: [URL]), FileServiceError> {
-        let sortKey = AppSettings.shared.sortKey
-        let ascending = AppSettings.shared.sortAscending
-        let recursive = AppSettings.shared.recursiveBrowsing
-        return await Task.detached(priority: .userInitiated) { [fileService] in
+    private func enumerateFolderContents(at url: URL,
+        progress: @escaping (FolderScanProgress) -> Void = { _ in }) async -> Result<(folders: [URL], images: [URL]), FileServiceError> {
+        let sortKey = settings.sortKey
+        let ascending = settings.sortAscending
+        let recursive = settings.recursiveBrowsing
+        let task = Task.detached(priority: .userInitiated) { [fileService] () -> Result<(folders: [URL], images: [URL]), FileServiceError> in
             if recursive {
-                return fileService.recursiveImages(at: url, sortKey: sortKey, ascending: ascending)
+                return fileService.recursiveImages(at: url, sortKey: sortKey, ascending: ascending,
+                                                   progress: progress, isCancelled: { Task.isCancelled })
                     .map { (folders: [], images: $0) }
             }
             return fileService.contentsOfFolder(at: url, sortKey: sortKey, ascending: ascending)
-        }.value
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     func showError(_ error: Error) {

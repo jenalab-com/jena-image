@@ -14,13 +14,18 @@ final class ThumbnailDiskStore: @unchecked Sendable {
     private let directory: URL
     private let lock = NSLock()  // _limitBytes·_usedBytes·gcScheduled·loggedWriteFailure 전용
     private let gcQueue = DispatchQueue(label: "com.jenalab.jenaimage.thumbnail-disk-gc", qos: .utility)
+    private let writeQueue: DispatchQueue
+    private let writeSlots = DispatchSemaphore(value: 16)
+    private var writeGeneration = 0
     private var _limitBytes: Int
     private var _usedBytes = 0
     private var gcScheduled = false
     private(set) var isAvailable = false
     private var loggedWriteFailure = false
 
-    init(directory: URL, limitBytes: Int) {
+    init(directory: URL, limitBytes: Int,
+         writeQueue: DispatchQueue = DispatchQueue(label: "com.jenalab.jenaimage.thumbnail-write", qos: .utility)) {
+        self.writeQueue = writeQueue
         self.directory = directory
         self._limitBytes = limitBytes
         do {
@@ -86,9 +91,26 @@ final class ThumbnailDiskStore: @unchecked Sendable {
         return nil
     }
 
+    /// 워커 전용. 화면 전달 뒤 호출한다. 큐가 밀리면 워커에 역압을 걸어 저장을 버리지 않고 메모리를 제한한다.
+    func storeAsync(_ image: CGImage, url: URL, px: Int, sourceStamp: String) {
+        lock.lock()
+        let generation = writeGeneration
+        lock.unlock()
+        writeSlots.wait()
+        writeQueue.async { [self] in
+            defer { writeSlots.signal() }
+            lock.lock()
+            let isCurrent = generation == writeGeneration
+            lock.unlock()
+            guard isCurrent else { return }
+            store(image, url: url, px: px, expectedStamp: sourceStamp)
+        }
+    }
+
     /// 인코드는 락 밖. 같은 키의 동시 저장은 Provider가 요청을 합치므로 일어나지 않는다.
-    func store(_ image: CGImage, url: URL, px: Int) {
+    func store(_ image: CGImage, url: URL, px: Int, expectedStamp: String? = nil) {
         guard isAvailable, let stamp = Self.sourceStamp(of: url) else { return }
+        if let expectedStamp, expectedStamp != "\(stamp.mtimeSec)|\(stamp.fileSize)" { return }
         let key = Self.key(path: url.path, mtimeSec: stamp.mtimeSec, fileSize: stamp.fileSize, px: px)
         let file = fileURL(forKey: key)
         guard !FileManager.default.fileExists(atPath: file.path) else { return }
@@ -119,6 +141,7 @@ final class ThumbnailDiskStore: @unchecked Sendable {
         let trash = directory.deletingLastPathComponent()
             .appendingPathComponent("thumbs-trash-\(UUID().uuidString)", isDirectory: true)
         lock.lock()
+        writeGeneration += 1
         let moved = (try? FileManager.default.moveItem(at: directory, to: trash)) != nil
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         _usedBytes = 0

@@ -32,6 +32,10 @@ final class StatusBarView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    func showFolderLoading(foundCount: Int) {
+        infoLabel.stringValue = foundCount == 0 ? "이미지를 찾는 중…" : "이미지 \(foundCount)개 발견 · 하위 폴더 탐색 중…"
+    }
+
     func update(folderCount: Int, imageCount: Int, selectionCount: Int) {
         var parts: [String] = []
 
