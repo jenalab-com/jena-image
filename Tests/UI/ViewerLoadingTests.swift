@@ -192,6 +192,12 @@ private func runViewerThumbnailLoadingTests(directory: URL) {
         check(viewer.currentImage == nil && !viewer.isShowingImage, "미리보기를 편집 가능한 원본으로 취급하지 않음")
         check(preview.imageScaling == .scaleProportionallyUpOrDown, "작은 이미지도 화면에 맞게 확대")
         checkEqual(preview.contentFilters.first?.name, "CIGaussianBlur", "썸네일에 블러 적용")
+        let opacity = preview.layer?.animation(forKey: ImageDisplayView.loadingOpacityAnimationKey) as? CAKeyframeAnimation
+        checkEqual(opacity?.values as? [Double], [0.25, 0.4, 0.55, 0.7, 0.85, 1], "미리보기 불투명도가 단계별 증가")
+        checkEqual(opacity?.duration, 1.5, "6개 지점을 0.3초 간격으로 연결")
+        checkEqual(opacity?.keyTimes, [0, 0.2, 0.4, 0.6, 0.8, 1], "0.3초마다 불투명도 단계 도달")
+        check(opacity?.autoreverses == true, "100% 도달 후 25%까지 역방향으로 이어진다")
+        check(opacity?.repeatCount == .infinity, "오래 기다려도 로딩 효과 반복")
         check(waitUntil {
             window.contentView?.layoutSubtreeIfNeeded()
             return preview.bounds.width > 500 && preview.bounds.height > 400
@@ -209,6 +215,19 @@ private func runViewerThumbnailLoadingTests(directory: URL) {
             } else { check(false, "미리보기 캡처 영역 생성") }
         }
         check(waitUntil { service.hasPending(urls[0]) }, "첫 원본 요청 시작")
+    }
+
+    runTest("미리보기 로딩 효과는 원본 표시와 실패 및 취소 시 제거된다") {
+        let target = ImageDisplayView(frame: NSRect(x: 0, y: 0, width: 500, height: 400))
+        let preview = descendants(target, of: NSImageView.self).first { $0.accessibilityLabel() == "불러오는 이미지 미리보기" }!
+        for finish in [{ target.display(thumbnails[0]) }, { target.displayError() }, { target.clearImage() }] {
+            target.displayLoading()
+            target.displayLoadingPreview(thumbnails[0])
+            check(preview.layer?.animation(forKey: ImageDisplayView.loadingOpacityAnimationKey) != nil, "새 로딩마다 효과 시작")
+            finish()
+            check(preview.layer?.animation(forKey: ImageDisplayView.loadingOpacityAnimationKey) == nil, "종료 후 효과 제거")
+            check(preview.isHidden && !target.isLoading, "로딩 상태 종료")
+        }
     }
 
     runTest("다음 파일은 자신의 썸네일로 바뀌며 원본 도착 후 블러 미리보기를 제거한다") {

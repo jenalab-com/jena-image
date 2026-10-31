@@ -5,12 +5,19 @@ import CoreImage
 final class ImageDisplayView: NSView {
     var onDoubleClick: (() -> Void)?
     var onSingleClick: (() -> Void)?
+    var contextMenuProvider: (() -> NSMenu?)?
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let menu = contextMenuProvider?() else { super.rightMouseDown(with: event); return }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
 
     private let scrollView = ZoomScrollView()
     private let clipView = CenteringClipView()
     private let imageView = NSImageView()
     private let canvas = LibrarySurfaceView(kind: .canvas)
     private let loadingPreview = NSImageView()
+    static let loadingOpacityAnimationKey = "loadingPreviewOpacity"
     private let loadingPanel = LibraryCardView()
     private let loadingIndicator = NSProgressIndicator()
     private let loadingLabel = NSTextField(labelWithString: "이미지를 불러오는 중…")
@@ -139,6 +146,15 @@ final class ImageDisplayView: NSView {
         guard isLoading else { return }
         loadingPreview.image = thumbnail
         loadingPreview.isHidden = false
+        // 0.3초마다 한 단계씩 선명해지는 주기를 반복해 긴 원본 로딩도 구분한다.
+        let opacity = CAKeyframeAnimation(keyPath: "opacity")
+        opacity.values = [0.25, 0.4, 0.55, 0.7, 0.85, 1.0]
+        opacity.keyTimes = [0, 0.2, 0.4, 0.6, 0.8, 1]
+        opacity.duration = 1.5
+        opacity.calculationMode = .linear
+        opacity.autoreverses = true
+        opacity.repeatCount = .infinity
+        loadingPreview.layer?.add(opacity, forKey: Self.loadingOpacityAnimationKey)
         loadingPanel.isHidden = true
         loadingIndicator.stopAnimation(nil)
     }
@@ -156,6 +172,7 @@ final class ImageDisplayView: NSView {
 
     private func finishLoading() {
         isLoading = false
+        loadingPreview.layer?.removeAnimation(forKey: Self.loadingOpacityAnimationKey)
         loadingPreview.image = nil
         loadingPreview.isHidden = true
         loadingIndicator.stopAnimation(nil)

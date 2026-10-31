@@ -103,6 +103,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // 일괄 내보내기 시트 보관
     var batchExportController: BatchExportWindowController?
 
+    var needsFolderRefreshAfterViewerRename = false
     var aiChatVC: AIChatViewController?
     var aiSplitItem: NSSplitViewItem?
 

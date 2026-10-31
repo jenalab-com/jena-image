@@ -254,6 +254,8 @@ extension MainWindowController {
             sidebarVC.beginRenamingSelectedItem()
         } else if contentMode == .browser {
             browserVC.beginRenamingSelectedItem()
+        } else if contentMode == .viewer {
+            viewerVC.beginRenamingCurrentImage()
         }
     }
 
@@ -396,7 +398,7 @@ extension MainWindowController: NSToolbarItemValidation {
         // 이름 변경: 사이드바(비루트) 또는 브라우저 선택
         case #selector(renameSelected(_:)):
             if isSidebarFocused { return sidebarVC.selectedItemIsNonRoot }
-            if isViewer { return false }
+            if isViewer { return viewerVC.currentImageURL != nil }
             return browserVC.hasSelection
 
         // 이미지 편집: 뷰어 모드 + 이미지 표시 중
