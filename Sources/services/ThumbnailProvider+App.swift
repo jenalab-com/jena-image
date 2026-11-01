@@ -20,7 +20,8 @@ extension ThumbnailProvider {
             if case .success(let img) = service.generateThumbnailSync(at: url, size: size) { return img }
             return nil
         }
-        provider.useQuickLookForEvicted = true  // Task 0 스파이크 결과(docs/devlog/2026-10-16-spike-icloud.md)
+        // 비워진 iCloud 파일: QuickLook은 원본을 내려받지 않고 썸네일을 주지만 ImageIO는 다운로드를 유발한다.
+        provider.useQuickLookForEvicted = true
         provider.scheduleDiskRecount()
         return provider
     }()

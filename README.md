@@ -27,7 +27,7 @@
 - **Image Compare** — Select 2–4 images and view them side by side in a separate window with synchronized zoom/pan; swap any pane from a bottom candidate strip
 - **Bookmarks** — Bookmark images from anywhere and collect them under a "Bookmarks" section in the sidebar; bookmarked images show a star badge in the grid. Remove, delete, or rename from the bookmark view; missing originals show a placeholder
 - **Categories** — Collect images from different folders into named categories without moving originals. Assign one or multiple categories from the grid context menu or image viewer, and switch between folder and category browsing using the sidebar header icons
-- **Similar Images** — Right-click an image to search within the current image list locally with Apple Vision Image Feature Print (revision 2). Browse up to 100 nearest matches and add selections to categories; saved features are reused until files or the model version change. No API key or separate model installation. [Model and usage](docs/image-similarity.md)
+- **Similar Images** — Right-click an image to search within the current image list locally with Apple Vision Image Feature Print (revision 2). Browse up to 100 nearest matches and add selections to categories; saved features are reused until files or the model version change. No API key or separate model installation.
 - **Image Editing** — Crop, resize, canvas size, and color adjustment (brightness/contrast/saturation/highlights/shadows) with undo/redo; EXIF orientation handling and print support
 - **Slideshow & QuickLook** — Auto-advancing slideshow and QuickLook preview
 - **Video Player** — Play MP4, MOV, M4V, AVI, MKV files inline with AVKit
@@ -37,7 +37,27 @@
 
 ## Screenshots
 
-> Coming soon
+<p align="center">
+  <img src="assets/01-browser.png" alt="Masonry browser with folder sidebar" width="900">
+</p>
+
+| Image Viewer | Image Info |
+|---|---|
+| <img src="assets/03-viewer.png" alt="Image viewer with thumbnail sidebar" width="440"> | <img src="assets/04-info.png" alt="Image info window" width="300"> |
+| **Image Compare** | **Categories** |
+| <img src="assets/05-compare.png" alt="Compare three images side by side" width="440"> | <img src="assets/06-categories.png" alt="Category browsing" width="440"> |
+| **Similar Images** | **AI Image Chat** |
+| <img src="assets/07-similar.png" alt="Similar image search results" width="440"> | <img src="assets/08-ai-chat.png" alt="AI image chat panel with a reference image" width="440"> |
+
+### Demo
+
+| Browse & View | Similar Images |
+|---|---|
+| <img src="assets/browse.gif" alt="Browsing, layout switching and viewer navigation" width="440"> | <img src="assets/similar.gif" alt="Finding similar images from the context menu" width="440"> |
+| **Compare with synced zoom** | **AI image generation** |
+| <img src="assets/compare.gif" alt="Comparing images with synchronized zoom" width="440"> | <img src="assets/ai.gif" alt="Generating an image from a reference with Codex (waiting time sped up)" width="440"> |
+
+The UI is shown in Korean. Demo photos are from [Unsplash](assets/CREDITS.md). The AI demo's waiting time is sped up; actual generation took about two minutes.
 
 ## Requirements
 
