@@ -58,6 +58,8 @@ final class CompareWindowController: NSWindowController {
 
         syncToggle.translatesAutoresizingMaskIntoConstraints = false
         syncToggle.state = .on
+        // 체크박스의 세로 hugging(250)이 칸의 낮춘 압축 저항(250)과 같으면 토글이 늘어나고 그리드가 접힌다.
+        syncToggle.setContentHuggingPriority(.required, for: .vertical)
         syncToggle.target = self
         syncToggle.action = #selector(toggleSync(_:))
         container.addSubview(syncToggle)
