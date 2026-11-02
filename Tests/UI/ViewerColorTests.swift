@@ -2,6 +2,41 @@ import AppKit
 
 @MainActor
 func runViewerColorTests(directory: URL) {
+    runTest("색상 패널 상태·콜백·값 행 스모크") {
+        let panel = ColorPalettePanel(frame: NSRect(x: 0, y: 0, width: 800, height: 150))
+        let window = NSWindow(contentRect: panel.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = panel
+        defer { window.close() }
+        let copyAll = descendants(panel, of: NSButton.self).first { $0.title == L10n.string(.colorCopyAllHex) }!
+        check(!copyAll.isEnabled, "초기 빈 상태에서 전체 복사 금지")
+        let color = RGB8(231, 111, 81)
+        panel.setState(.ready([ColorSwatch(color: color, ratio: 1, lab: ColorFormat.lab(color))]))
+        panel.layoutSubtreeIfNeeded()
+        check(copyAll.isEnabled, "결과가 있으면 복사 활성")
+        var copies = 0
+        panel.onCopyAllHex = { copies += 1 }
+        copyAll.performClick(nil)
+        checkEqual(copies, 1, "전체 복사는 소유자 콜백으로 전달")
+        var toggles = 0
+        panel.onMagnifierToggled = { _ in toggles += 1 }
+        panel.setMagnifierOn(true)
+        checkEqual(toggles, 0, "표시 변경은 사용자 콜백을 호출하지 않음")
+        panel.setPicked(color)
+        panel.setHover(nil)
+        check(descendants(panel, of: NSTextField.self).contains { $0.stringValue == ColorFormat.hex(color) }, "이미지를 벗어나면 마지막 선택색 유지")
+        let rows = descendants(panel, of: ColorValueRow.self)
+        check(rows.allSatisfy { $0.bounds.width > 0 && $0.bounds.height > 0 }, "값 행은 실제 배치 크기를 가짐")
+        var copied = ""
+        rows[0].onCopy = { copied = $0 }
+        descendants(rows[0], of: NSButton.self).first!.performClick(nil)
+        checkEqual(copied, ColorFormat.hex(color), "개별 행은 표기된 값을 전달")
+        panel.setState(.loading)
+        check(!copyAll.isEnabled, "로딩 중 이전 결과 복사 금지")
+        check(!descendants(panel, of: NSTextField.self).contains { $0.stringValue == ColorFormat.hex(color) }, "새 이미지 로딩은 선택색 초기화")
+        panel.setState(.empty)
+    }
+
     runTest("AppSettings.colorTolerance: 기본값·저장·범위 고정") {
         let suiteName = "jena-color-settings-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
