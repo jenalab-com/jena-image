@@ -2,6 +2,57 @@ import AppKit
 
 @MainActor
 func runViewerColorTests(directory: URL) {
+    runTest("⌥ 단독만 임시 돋보기를 켜고, 조합 키·창 비활성화·로딩 중에는 켜지 않는다") {
+        let (viewer, window, _) = makeViewer(files: ["a-200x100.png", "b-100x200.png"], directory: directory)
+        defer { window.close() }
+        let display = descendants(viewer.view, of: ImageDisplayView.self).first!
+        let color = descendants(viewer.view, of: NSButton.self).first { $0.toolTip == L10n.string(.colorButton) }!
+
+        viewer.showNext()
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        check(!display.isMagnifierActive, "원본 로딩 중에는 ⌥를 눌러도 켜지지 않음")
+        viewer.flagsChanged(with: flagsEvent([], window: window))
+        check(waitUntil { color.isEnabled }, "로딩 완료")
+
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        check(display.isMagnifierActive, "⌥ 단독 + 패널 닫힘 → 임시 돋보기 켜짐")
+        check(waitUntil { display.pixelSource != nil }, "원본 픽셀 소스가 준비됨(지연 래스터화)")
+        viewer.flagsChanged(with: flagsEvent([], window: window))
+        check(!display.isMagnifierActive, "⌥를 떼면 꺼짐")
+
+        viewer.flagsChanged(with: flagsEvent([.command, .option], window: window))
+        check(!display.isMagnifierActive, "⌘⌥ 조합에서는 켜지지 않음")
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        check(display.isMagnifierActive, "⌘를 떼고 ⌥ 단독이 되면 켜짐(설계: ⌥ 단독일 때)")
+
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        check(!display.isMagnifierActive, "창이 비활성화되면 ⌥ 상태 해제 — 해제 이벤트를 못 받아도 눌린 채 남지 않음")
+
+        for modifier in [NSEvent.ModifierFlags.shift, .control] {
+            viewer.flagsChanged(with: flagsEvent([.option, modifier], window: window))
+            check(!display.isMagnifierActive, "Shift/Control 조합에서는 임시 돋보기 비활성")
+        }
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        viewer.showPrevious()
+        check(!display.isMagnifierActive, "Option 유지 중 이미지 전환은 로딩 동안 비활성")
+        check(waitUntil { color.isEnabled && display.isMagnifierActive && display.pixelSource != nil }, "새 원본 준비 후 임시 돋보기 복귀")
+        viewer.flagsChanged(with: flagsEvent([], window: window))
+
+        // 토글이 이미 켜져 있으면 ⌥는 변화 없음 (끄지 않는다)
+        color.performClick(nil)
+        let panel = descendants(viewer.view, of: ColorPalettePanel.self).first!
+        descendants(panel, of: NSButton.self).first { $0.toolTip?.hasPrefix(L10n.string(.colorMagnifier)) == true }!.performClick(nil)
+        check(display.isMagnifierActive, "토글 ON")
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        viewer.flagsChanged(with: flagsEvent([], window: window))
+        check(display.isMagnifierActive, "⌥를 눌렀다 떼도 토글로 켠 돋보기는 유지")
+        viewer.flagsChanged(with: flagsEvent([.option], window: window))
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        check(display.isMagnifierActive, "창 비활성화는 임시 상태만 해제하고 토글은 유지")
+        viewer.viewWillDisappear()
+        check(!display.isMagnifierActive, "뷰어 이탈 시 모든 돋보기 상태 해제")
+    }
+
     runTest("이미지를 넘기면 이전 이미지의 늦은 추출 결과를 버린다") {
         let (viewer, window, _) = makeViewer(files: ["a-200x100.png", "b-100x200.png"], directory: directory)
         defer { window.close() }
@@ -509,4 +560,10 @@ private func makeViewer(files: [String], directory: URL) -> (viewer: ViewerViewC
     viewer.display(imageURL: urls[0], imageList: urls.compactMap { ImageFile(url: $0) })
     window.contentView?.layoutSubtreeIfNeeded()
     return (viewer, window, urls)
+}
+
+private func flagsEvent(_ flags: NSEvent.ModifierFlags, window: NSWindow) -> NSEvent {
+    NSEvent.keyEvent(with: .flagsChanged, location: .zero, modifierFlags: flags, timestamp: 0,
+                     windowNumber: window.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "",
+                     isARepeat: false, keyCode: 58)!
 }

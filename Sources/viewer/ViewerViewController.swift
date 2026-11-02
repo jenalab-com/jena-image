@@ -50,6 +50,8 @@ final class ViewerViewController: NSViewController {
     private var isColorPanelOpen = false
     private var isMagnifierToggleOn = false
     private var isOptionHeld = false
+    private var windowResignObserver: NSObjectProtocol?
+
     private var isOriginalReady = false
     /// 테스트에서 느린 계산을 흉내 낼 수 있도록 주입 가능. 백그라운드 큐에서 호출된다.
     var histogramBuilder: (CGImage, ColorJob) -> ColorHistogram? = { image, job in
@@ -101,12 +103,33 @@ final class ViewerViewController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    deinit { loadTask?.cancel(); colorJob?.cancel() }
+    deinit {
+        loadTask?.cancel()
+        colorJob?.cancel()
+        windowResignObserver.map(NotificationCenter.default.removeObserver)
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        windowResignObserver.map(NotificationCenter.default.removeObserver)
+        windowResignObserver = nil
+        guard let window = view.window else { return }
+        // ⌥를 누른 채 ⌘Tab 등으로 창을 벗어나면 flagsChanged 해제를 못 받는다. 비활성화 시 직접 푼다.
+        windowResignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isOptionHeld else { return }
+            self.isOptionHeld = false
+            self.updateMagnifierActive()
+        }
+    }
+
     override func viewWillDisappear() {
         super.viewWillDisappear()
+        windowResignObserver.map(NotificationCenter.default.removeObserver)
+        windowResignObserver = nil
         // 뷰어를 벗어나면(브라우저 복귀·창 닫기 등) 슬라이드쇼 타이머를 반드시 정지
         stopSlideshow()
         cancelImageLoading()
@@ -400,6 +423,18 @@ final class ViewerViewController: NSViewController {
     }
 
     // MARK: - Key Handling
+
+    // MARK: - Option Key (temporary magnifier)
+
+    override func flagsChanged(with event: NSEvent) {
+        let held = OptionKeyGate.isOptionAlone(event.modifierFlags)    // ⌘⌥ 같은 조합에서는 false
+        if held != isOptionHeld {
+            isOptionHeld = held
+            if held { ensureColorData() }        // 원본 픽셀 소스를 지연 준비(패널이 닫혀 있어도)
+            updateMagnifierActive()
+        }
+        super.flagsChanged(with: event)
+    }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {

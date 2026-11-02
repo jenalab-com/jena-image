@@ -16,7 +16,7 @@
 - Task 2의 최초 실패 테스트 실행 기록은 이번 점검에서 확인하지 못해 해당 체크는 남겨 둠.
 - Task 3 측정·상수 반영 완료. 512px / CIEDE2000 / 최소 비율 0.0005, 슬라이더 설정은 Task 7에서 **8...20 / 기본값 12** 적용 완료.
 - 측정 근거: `docs/devlog/2026-11-02-color-picker.md`, `test/색상추출_2026-11-02/benchmark.log`.
-- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11 추출 파이프라인 연결 및 검증 완료. Task 12~13은 미구현. 다음 구현은 **Task 12 Option 키 연결**.
+- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11 추출 파이프라인 연결 및 검증 완료. Task 12 Option 키 연결 및 자동 검증 완료. 다음 작업은 **Task 13 수동 검증·마무리**.
 - 아래 Task 7의 `2...40` 예시 등 초기 가정값보다 위 측정 결정을 우선한다.
 
 ## Global Constraints
@@ -2986,7 +2986,7 @@ git commit -m "feat: background color extraction with cancel, regroup on slider 
 - Consumes: `OptionKeyGate` (Task 5), `ensureColorData()`/`updateMagnifierActive()` (Task 10·11).
 - 규칙(설계 §3.4): ⌥ **단독**일 때만 임시로 켠다. 패널이 닫혀 있어도 동작(확대경+HEX 한 줄, 클릭 시 HEX 복사). 원본 로딩이 끝난 이미지에서만. 토글이 이미 켜져 있으면 ⌥는 변화 없음(켜기만 하고 끄지 않음 — `updateMagnifierActive`의 `toggled || isOptionHeld`가 보장). 창이 비활성화되면 ⌥ 상태를 풀어 "눌린 채 남는" 일을 막는다.
 
-- [ ] **Step 1: 실패하는 UI 테스트 작성**
+- [x] **Step 1: 실패하는 UI 테스트 작성**
 
 ```swift
 private func flagsEvent(_ flags: NSEvent.ModifierFlags, window: NSWindow) -> NSEvent {
@@ -3032,9 +3032,9 @@ private func flagsEvent(_ flags: NSEvent.ModifierFlags, window: NSWindow) -> NSE
     }
 ```
 
-- [ ] **Step 2: 실패 확인** — `make test-ui` → 새 테스트 실패(`flagsChanged`를 오버라이드하지 않아 `isMagnifierActive`가 안 켜짐).
+- [x] **Step 2: 실패 확인** — `make test-ui` → 새 테스트 실패(`flagsChanged`를 오버라이드하지 않아 `isMagnifierActive`가 안 켜짐).
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 (a) 프로퍼티와 창 비활성화 관찰.
 
@@ -3081,12 +3081,12 @@ private func flagsEvent(_ flags: NSEvent.ModifierFlags, window: NSWindow) -> NSE
 
 `setOriginalReady(_:)`는 이미 `updateMagnifierActive()`와 `ensureColorData()`를 부르므로, ⌥를 누른 채 이미지가 바뀌어도 로딩이 끝나면 자동으로 이어진다.
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `make build && make test && make test-ui`
 Expected: 모두 통과. `make test`는 순수 로직 35개, `make test-ui`는 기존 + 색상 UI 테스트 전부.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add Sources/viewer/ViewerViewController.swift Tests/UI/ViewerColorTests.swift
