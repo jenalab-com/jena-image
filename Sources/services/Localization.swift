@@ -119,6 +119,18 @@ enum L10nKey: String {
     case result
     case confirm
     case continueAction
+
+    // Color picker
+    case colorButton
+    case colorMagnifier
+    case colorRange
+    case colorCountFormat
+    case colorCopyAllHex
+    case colorCopied
+    case colorCursor
+    case colorExtracting
+    case colorNoColors
+    case colorCopyValue
 }
 
 /// 다국어 문자열 관리
@@ -225,6 +237,9 @@ enum L10n {
             .result: "결과:",
             .confirm: "확인",
             .continueAction: "계속",
+            .colorButton: "색상", .colorMagnifier: "돋보기", .colorRange: "범위", .colorCountFormat: "%d색",
+            .colorCopyAllHex: "HEX 전체 복사", .colorCopied: "복사됨", .colorCursor: "커서 위치 색",
+            .colorExtracting: "색을 추출하는 중…", .colorNoColors: "추출된 색이 없어요", .colorCopyValue: "복사",
         ],
         .english: [
             .appName: "JenaImage",
@@ -308,6 +323,9 @@ enum L10n {
             .result: "Result:",
             .confirm: "OK",
             .continueAction: "Continue",
+            .colorButton: "Colors", .colorMagnifier: "Magnifier", .colorRange: "Range", .colorCountFormat: "%d colors",
+            .colorCopyAllHex: "Copy all HEX", .colorCopied: "Copied", .colorCursor: "Color under cursor",
+            .colorExtracting: "Extracting colors…", .colorNoColors: "No colors found", .colorCopyValue: "Copy",
         ],
         .japanese: [
             .appName: "JenaImage",
@@ -391,6 +409,9 @@ enum L10n {
             .result: "結果:",
             .confirm: "OK",
             .continueAction: "続ける",
+            .colorButton: "カラー", .colorMagnifier: "拡大鏡", .colorRange: "範囲", .colorCountFormat: "%d色",
+            .colorCopyAllHex: "HEXをすべてコピー", .colorCopied: "コピーしました", .colorCursor: "カーソル位置の色",
+            .colorExtracting: "色を抽出中…", .colorNoColors: "色がありません", .colorCopyValue: "コピー",
         ],
         .chinese: [
             .appName: "JenaImage",
@@ -474,6 +495,9 @@ enum L10n {
             .result: "结果:",
             .confirm: "确定",
             .continueAction: "继续",
+            .colorButton: "颜色", .colorMagnifier: "放大镜", .colorRange: "范围", .colorCountFormat: "%d 种颜色",
+            .colorCopyAllHex: "复制全部 HEX", .colorCopied: "已复制", .colorCursor: "光标处颜色",
+            .colorExtracting: "正在提取颜色…", .colorNoColors: "没有可用颜色", .colorCopyValue: "复制",
         ],
     ]
 }

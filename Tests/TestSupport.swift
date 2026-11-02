@@ -31,3 +31,21 @@ func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) -> Bool {
     }
     return condition()
 }
+
+import CoreGraphics
+
+/// (x, y)는 위에서 아래로 0. 색은 sRGB 불투명 비트맵.
+func makeTestImage(width: Int, height: Int, _ color: (Int, Int) -> RGB8) -> CGImage {
+    var bytes = [UInt8](repeating: 255, count: width * height * 4)
+    for y in 0..<height {
+        for x in 0..<width {
+            let c = color(x, y), i = (y * width + x) * 4
+            bytes[i] = c.r; bytes[i + 1] = c.g; bytes[i + 2] = c.b
+        }
+    }
+    let provider = CGDataProvider(data: Data(bytes) as CFData)!
+    return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+                   space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                   provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+}

@@ -5,6 +5,11 @@ runAIImageGenerationTests()
 runSchedulerTests()
 runMasonryTests()
 runCategoryStoreTests()
+runColorFormatTests()
+runColorExtractionTests()
+runPixelMappingTests()
+runColorInteractionTests()
+runColorLayoutTests()
 runDiskStoreTests()
 MainActor.assumeIsolated { runProviderTests() }
 

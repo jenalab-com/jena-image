@@ -61,6 +61,12 @@ TEST_SOURCES = Sources/ai/AIConnectionService.swift \
                Sources/services/ThumbnailCache.swift \
                Sources/services/ThumbnailProvider.swift \
                Sources/services/ThumbnailDiskStore.swift \
+               Sources/models/ColorSwatch.swift \
+               Sources/services/ColorFormat.swift \
+               Sources/services/ColorExtractionService.swift \
+               Sources/viewer/PixelMapping.swift \
+               Sources/viewer/ColorInteraction.swift \
+               Sources/services/PixelSampler.swift \
                $(wildcard Tests/*.swift)
 
 test:

@@ -33,6 +33,7 @@ final class AppSettings {
         case thumbnailCheckerboard = "thumbnailCheckerboard"
         case canvasBackgroundColor = "canvasBackgroundColor"
         case canvasBackgroundOpacity = "canvasBackgroundOpacity"
+        case colorTolerance = "colorTolerance"
     }
 
     var aiModel: String {
@@ -333,6 +334,25 @@ final class AppSettings {
             return v > 0 ? v : 3.0
         }
         set { defaults.set(newValue, forKey: Key.slideshowInterval.rawValue) }
+    }
+
+    // MARK: - Color Picker
+
+    /// 색상 패널 ΔE 범위. Task 3 실측 결정(pro docs/devlog/2026-11-02-color-picker.md).
+    static let colorToleranceRange: ClosedRange<Double> = 8...20
+    static let defaultColorTolerance: Double = 12
+
+    var colorTolerance: Double {
+        get {
+            let value = defaults.object(forKey: Key.colorTolerance.rawValue) as? Double ?? Self.defaultColorTolerance
+            return Self.normalizedColorTolerance(value)
+        }
+        set { defaults.set(Self.normalizedColorTolerance(newValue), forKey: Key.colorTolerance.rawValue) }
+    }
+
+    private static func normalizedColorTolerance(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultColorTolerance }
+        return min(max(value, colorToleranceRange.lowerBound), colorToleranceRange.upperBound)
     }
 }
 

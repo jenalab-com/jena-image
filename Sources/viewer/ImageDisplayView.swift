@@ -162,6 +162,7 @@ final class ImageDisplayView: NSView {
     func clearImage() {
         finishLoading()
         removeCropOverlay()
+        pixelSource = nil
         originalImage = nil
         imageView.image = nil
         imageView.frame = .zero
@@ -181,6 +182,7 @@ final class ImageDisplayView: NSView {
 
     func display(_ image: NSImage) {
         finishLoading()
+        pixelSource = nil
         originalImage = image
         imageView.image = image
         imageView.frame = NSRect(origin: .zero, size: image.size)
@@ -324,6 +326,7 @@ final class ImageDisplayView: NSView {
 
     private func applyTransformedImage() {
         guard let original = originalImage else { return }
+        defer { if isMagnifierActive { refreshMagnifierAtMouse() } }
 
         if !isFlippedHorizontally && !isFlippedVertically && rotationAngle == 0 {
             imageView.image = original
@@ -333,20 +336,11 @@ final class ImageDisplayView: NSView {
         }
 
         let srcSize = original.size
-        let isRotated90 = (rotationAngle == 90 || rotationAngle == 270)
-        let dstSize = isRotated90
-            ? NSSize(width: srcSize.height, height: srcSize.width)
-            : srcSize
+        let (dstSize, transform) = PixelMapping.displayTransform(
+            sourceSize: srcSize, flipH: isFlippedHorizontally, flipV: isFlippedVertically, rotation: rotationAngle)
 
         let result = NSImage(size: dstSize)
         result.lockFocus()
-
-        let transform = NSAffineTransform()
-        transform.translateX(by: dstSize.width / 2, yBy: dstSize.height / 2)
-        transform.rotate(byDegrees: CGFloat(rotationAngle))
-        transform.scaleX(by: isFlippedHorizontally ? -1 : 1,
-                         yBy: isFlippedVertically ? -1 : 1)
-        transform.translateX(by: -srcSize.width / 2, yBy: -srcSize.height / 2)
         transform.concat()
 
         original.draw(in: NSRect(origin: .zero, size: srcSize),
@@ -377,6 +371,7 @@ final class ImageDisplayView: NSView {
             forName: NSView.boundsDidChangeNotification, object: clipView, queue: nil
         ) { [weak self] _ in
             self?.notifyTransformChanged()
+            if self?.isMagnifierActive == true { self?.refreshMagnifierAtMouse() }
         }
     }
 
@@ -404,6 +399,8 @@ final class ImageDisplayView: NSView {
         overlay.resetSelection()
         overlay.window?.makeFirstResponder(overlay)
         cropOverlay = overlay
+        cancelMagnifierGesture()
+        hideMagnifier()
 
         // 줌/스크롤 비활성화
         scrollView.allowsMagnification = false
@@ -419,6 +416,138 @@ final class ImageDisplayView: NSView {
         cropOverlay != nil
     }
 
+    // MARK: - Magnifier
+
+    /// 패널 토글 또는 ⌥로 켜진 돋보기. 꺼져 있으면 기존 마우스 동작이 그대로다(비교 화면도 이 상태).
+    var isMagnifierActive = false {
+        didSet {
+            guard oldValue != isMagnifierActive else { return }
+            updateTrackingAreas()
+            if isMagnifierActive { refreshMagnifierAtMouse() } else { hideMagnifier() }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    /// 원본 픽셀 소스. 화면에 그려진 결과가 아니라 여기서 읽는다. nil이면 돋보기는 동작하지 않는다.
+    var pixelSource: CGImage? {
+        didSet {
+            cancelMagnifierGesture()
+            if pixelSource != nil, isMagnifierActive { refreshMagnifierAtMouse() }
+            else if pixelSource == nil { hideMagnifier() }
+        }
+    }
+
+    var onColorHover: ((RGB8?) -> Void)?
+    var onColorPicked: ((RGB8) -> Void)?
+
+    private var magnifierOverlay: MagnifierOverlayView?
+    private var magnifierTrackingArea: NSTrackingArea?
+    private var gesture: ClickDragGesture?
+    private var gestureStartedInMagnifier = false
+    private var didPushPanCursor = false
+    private var showsMagnifierCursor = false
+
+    private var canMagnify: Bool { isMagnifierActive && pixelSource != nil && !isLoading && cropOverlay == nil && !isHiddenOrHasHiddenAncestor }
+
+    /// 창 좌표 → 원본 픽셀. 반전·회전·배율을 거꾸로 적용한다. 이미지 밖이면 nil.
+    func originalPixel(atWindowPoint windowPoint: CGPoint) -> PixelMapping.PixelCoord? {
+        guard let source = originalImage, let cg = pixelSource else { return nil }
+        let document = imageView.convert(windowPoint, from: nil)    // 배율·패닝은 clipView.bounds가 처리한다
+        return PixelMapping.originalPixel(documentPoint: document, sourceSize: source.size,
+                                          pixelWidth: cg.width, pixelHeight: cg.height,
+                                          flipH: isFlippedHorizontally, flipV: isFlippedVertically, rotation: rotationAngle)
+    }
+
+    /// 버튼처럼 이 뷰 위에 겹친 다른 뷰 아래에서는 추적 영역이 이벤트를 받아도 확대경을 띄우지 않는다.
+    private func isMouseOverSelf(_ windowPoint: CGPoint) -> Bool {
+        guard let content = window?.contentView else { return false }
+        let point = content.superview?.convert(windowPoint, from: nil) ?? windowPoint
+        guard let hit = content.hitTest(point) else { return false }
+        return hit === imageView || hit === clipView || hit === scrollView || hit === self
+    }
+
+    private func refreshMagnifier(atWindowPoint windowPoint: CGPoint) {
+        guard canMagnify, !didPushPanCursor, isMouseOverSelf(windowPoint) else { hideMagnifier(); return }
+        guard let cg = pixelSource, let px = originalPixel(atWindowPoint: windowPoint) else {
+            hideMagnifier(); return
+        }
+        let grid = PixelSampler.grid(in: cg, centerX: px.x, centerY: px.y, radius: MagnifierOverlayView.radius)
+        let overlay = ensureMagnifierOverlay()
+        overlay.show(at: overlay.convert(windowPoint, from: nil), grid: grid,
+                     flipH: isFlippedHorizontally, flipV: isFlippedVertically, rotation: rotationAngle)
+        onColorHover?(grid[grid.count / 2])
+        NSCursor.crosshair.set()
+        showsMagnifierCursor = true
+    }
+
+    private func refreshMagnifierAtMouse() {
+        guard let window else { return }
+        refreshMagnifier(atWindowPoint: window.mouseLocationOutsideOfEventStream)
+    }
+
+    private func hideMagnifier() {
+        magnifierOverlay?.hideLoupe()
+        if showsMagnifierCursor {
+            if NSCursor.current == NSCursor.crosshair { NSCursor.arrow.set() }
+            showsMagnifierCursor = false
+        }
+        onColorHover?(nil)
+    }
+
+    private func ensureMagnifierOverlay() -> MagnifierOverlayView {
+        if let overlay = magnifierOverlay { return overlay }
+        let overlay = MagnifierOverlayView(frame: scrollView.bounds)
+        overlay.autoresizingMask = [.width, .height]
+        scrollView.addSubview(overlay)
+        magnifierOverlay = overlay
+        return overlay
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let area = magnifierTrackingArea { removeTrackingArea(area) }
+        magnifierTrackingArea = nil
+        guard isMagnifierActive else { return }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        magnifierTrackingArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard isMagnifierActive else { return }
+        refreshMagnifier(atWindowPoint: event.locationInWindow)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        if isMagnifierActive { refreshMagnifier(atWindowPoint: event.locationInWindow) }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        if isMagnifierActive { hideMagnifier() }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if isMagnifierActive { refreshMagnifier(atWindowPoint: event.locationInWindow) }
+        else { super.cursorUpdate(with: event) }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            cancelMagnifierGesture()
+            hideMagnifier()
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    private func cancelMagnifierGesture() {
+        guard gestureStartedInMagnifier else { return }
+        gesture = nil
+        gestureStartedInMagnifier = false
+        isPanning = false
+        if didPushPanCursor { NSCursor.pop(); didPushPanCursor = false }
+    }
+
     // MARK: - Click-Drag Pan
 
     private var isPanning = false
@@ -427,6 +556,19 @@ final class ImageDisplayView: NSView {
     override func mouseDown(with event: NSEvent) {
         guard cropOverlay == nil else { return }
 
+        gestureStartedInMagnifier = canMagnify      // 누른 시점 상태로 이 제스처를 판단한다
+        didPushPanCursor = false
+
+        if gestureStartedInMagnifier {
+            // 연속 클릭으로 뷰어가 닫히지 않도록 더블클릭 닫기는 건너뛰고 클릭으로 처리한다.
+            onSingleClick?()
+            isPanning = true
+            panStart = event.locationInWindow
+            gesture = ClickDragGesture(start: event.locationInWindow)
+            return
+        }
+
+        // ── 돋보기 꺼짐: 기존 동작 그대로 ──
         if event.clickCount == 2 {
             onDoubleClick?()
             return
@@ -443,6 +585,16 @@ final class ImageDisplayView: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard cropOverlay == nil, isPanning else { return }
 
+        if gestureStartedInMagnifier {
+            gesture?.update(to: event.locationInWindow)
+            guard gesture?.hasExceededThreshold == true else { return }    // 3pt 이내는 패닝하지 않는다
+            if !didPushPanCursor {
+                didPushPanCursor = true
+                NSCursor.closedHand.push()
+                hideMagnifier()                                            // 패닝 중엔 확대경 숨김
+            }
+        }
+
         let current = event.locationInWindow
         let dx = current.x - panStart.x
         let dy = current.y - panStart.y
@@ -457,6 +609,29 @@ final class ImageDisplayView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         guard cropOverlay == nil else { return }
+
+        if gestureStartedInMagnifier {
+            gesture?.update(to: event.locationInWindow)
+            let wasClick = gesture?.isClick ?? false
+            gesture = nil
+            gestureStartedInMagnifier = false
+            isPanning = false
+            if didPushPanCursor { NSCursor.pop(); didPushPanCursor = false }
+            if wasClick {
+                if isMouseOverSelf(event.locationInWindow), let cg = pixelSource,
+                   let px = originalPixel(atWindowPoint: event.locationInWindow),
+                   let color = PixelSampler.color(in: cg, x: px.x, y: px.y) {
+                    if isMagnifierActive { refreshMagnifier(atWindowPoint: event.locationInWindow) }
+                    onColorPicked?(color)
+                    magnifierOverlay?.flashCopied()
+                }
+            } else {
+                refreshMagnifier(atWindowPoint: event.locationInWindow)    // 패닝이 끝나면 확대경 복귀
+            }
+            return
+        }
+
+        // ── 돋보기 꺼짐: 기존 동작 그대로 ──
         if isPanning {
             isPanning = false
             NSCursor.pop()
