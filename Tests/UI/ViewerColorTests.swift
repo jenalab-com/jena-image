@@ -2,6 +2,59 @@ import AppKit
 
 @MainActor
 func runViewerColorTests(directory: URL) {
+    for name in ["a-200x100.png", "b-100x200.png"] {
+        FileManager.default.createFile(atPath: directory.appendingPathComponent(name).path, contents: Data([0]))
+    }
+
+    runTest("색상 버튼: 편집 버튼 왼쪽, 로딩 중엔 비활성, 로딩이 끝나면 활성") {
+        let (viewer, window, _) = makeViewer(files: ["a-200x100.png", "b-100x200.png"], directory: directory)
+        defer { window.close() }
+        let buttons = descendants(viewer.view, of: NSButton.self)
+        guard let color = buttons.first(where: { $0.toolTip == L10n.string(.colorButton) }),
+              let edit = buttons.first(where: { $0.title == "편집" }) else { return check(false, "버튼 존재") }
+        check(color.frame.maxX <= edit.frame.minX, "색상 버튼은 편집 버튼의 왼쪽")
+        let bookmark = buttons.first { $0.accessibilityLabel() == "북마크" }
+        check(bookmark == nil || bookmark!.frame.maxX <= color.frame.minX, "북마크는 색상 버튼의 왼쪽")
+        check(waitUntil { edit.isEnabled }, "원본 로딩 후 편집 활성")
+        check(color.isEnabled, "색상 버튼도 같은 규칙으로 활성")
+        viewer.showNext()
+        check(!color.isEnabled && !edit.isEnabled, "다음 이미지 로딩 중에는 둘 다 비활성")
+        check(waitUntil { color.isEnabled }, "로딩이 끝나면 다시 활성")
+    }
+
+    runTest("패널을 열면 이미지 영역이 줄고, 닫으면 돋보기도 꺼지며, 이미지가 바뀌어도 열린 상태는 유지된다") {
+        let (viewer, window, _) = makeViewer(files: ["a-200x100.png", "b-100x200.png"], directory: directory)
+        defer { window.close() }
+        guard let color = descendants(viewer.view, of: NSButton.self).first(where: { $0.toolTip == L10n.string(.colorButton) }) else { return check(false, "색상 버튼 존재") }
+        let display = descendants(viewer.view, of: ImageDisplayView.self).first!
+        check(waitUntil { color.isEnabled }, "로딩")
+        let panelFree = display.frame.height
+
+        color.performClick(nil)
+        window.contentView?.layoutSubtreeIfNeeded()
+        let panel = descendants(viewer.view, of: ColorPalettePanel.self).first!
+        check(!panel.isHidden, "패널 열림")
+        check(display.frame.height < panelFree - 100, "패널 높이만큼 이미지 영역이 줄어듦(이미지를 가리지 않음)")
+        check(display.frame.minY >= panel.frame.maxY - 0.5, "이미지는 패널 위쪽에 놓임")
+
+        // 패널의 돋보기 토글을 켠다
+        let toggle = descendants(panel, of: NSButton.self).first { $0.toolTip?.hasPrefix(L10n.string(.colorMagnifier)) == true }!
+        toggle.performClick(nil)
+        check(display.isMagnifierActive, "토글 ON → 돋보기 활성")
+
+        viewer.showNext()
+        check(waitUntil { color.isEnabled }, "다음 이미지 로딩")
+        check(!panel.isHidden && display.isMagnifierActive, "이미지가 바뀌어도 패널·돋보기 유지")
+
+        color.performClick(nil)
+        window.contentView?.layoutSubtreeIfNeeded()
+        check(panel.isHidden, "닫힘")
+        checkEqual(display.frame.height, panelFree, "이미지 영역 복원")
+        check(!display.isMagnifierActive, "패널을 닫으면 돋보기도 꺼짐")
+        color.performClick(nil)
+        check(!display.isMagnifierActive && toggle.state == .off, "다시 열면 꺼진 상태로 시작")
+    }
+
     runTest("색상 패널 상태·콜백·값 행 스모크") {
         let panel = ColorPalettePanel(frame: NSRect(x: 0, y: 0, width: 800, height: 150))
         let window = NSWindow(contentRect: panel.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -350,4 +403,30 @@ private func makeDisplay() -> (window: NSWindow, display: ImageDisplayView, cent
     window.contentView?.layoutSubtreeIfNeeded()
     let center = display.convert(NSPoint(x: display.bounds.midX, y: display.bounds.midY), to: nil)
     return (window, display, center)
+}
+
+/// 파일 이름에 든 크기("w-100x50.png")로 이미지를 즉시 돌려주는 서비스.
+private final class SizedImageService: ImageServiceProtocol {
+    func loadImage(at url: URL) async -> Result<NSImage, ImageServiceError> {
+        let parts = url.deletingPathExtension().lastPathComponent.split(separator: "-").last?.split(separator: "x").compactMap { Int($0) } ?? [20, 10]
+        let cg = makeTestImage(width: parts[0], height: parts[1]) { x, y in RGB8(UInt8(x % 256), UInt8(y % 256), 50) }
+        return .success(NSImage(cgImage: cg, size: NSSize(width: parts[0], height: parts[1])))
+    }
+    func generateThumbnail(at url: URL, size: CGSize) async -> Result<NSImage, ImageServiceError> { .failure(.thumbnailFailed(url)) }
+    func exportImage(_ image: NSImage, to url: URL, format: ImageFormat, quality: Float) -> Result<Void, ImageServiceError> { .failure(.exportFailed("test")) }
+}
+
+@MainActor
+private func makeViewer(files: [String], directory: URL) -> (viewer: ViewerViewController, window: NSWindow, urls: [URL]) {
+    let viewer = ViewerViewController(imageService: SizedImageService())
+    let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 820, height: 640), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentViewController = viewer
+    window.setContentSize(NSSize(width: 820, height: 640))
+    NSApp.setActivationPolicy(.accessory)
+    window.orderFront(nil)
+    let urls = files.map { directory.appendingPathComponent($0) }
+    viewer.display(imageURL: urls[0], imageList: urls.compactMap { ImageFile(url: $0) })
+    window.contentView?.layoutSubtreeIfNeeded()
+    return (viewer, window, urls)
 }

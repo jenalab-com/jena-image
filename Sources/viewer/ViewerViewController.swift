@@ -42,6 +42,16 @@ final class ViewerViewController: NSViewController {
     private var loadGeneration = 0
     private var isShowingVideo = false
     private var slideshowTimer: Timer?
+    private let colorButton = NSButton(title: "", target: nil, action: nil)
+    private let colorPanel = ColorPalettePanel()
+    private var imageBottomToContainer: NSLayoutConstraint!
+    private var imageBottomToPanel: NSLayoutConstraint!
+    /// 사용자가 연 상태. 동영상으로 넘어가 잠시 숨겨져도 유지된다.
+    private var isColorPanelOpen = false
+    private var isMagnifierToggleOn = false
+    private var isOptionHeld = false
+    private var isOriginalReady = false
+
 
     private let imageService: ImageServiceProtocol
     private let thumbnailProvider: ThumbnailProvider
@@ -90,7 +100,9 @@ final class ViewerViewController: NSViewController {
         stopSlideshow()
         cancelImageLoading()
         imageDisplayView.clearImage()
-        editButton.isEnabled = false
+        closeColorPanel()
+        isOptionHeld = false
+        setOriginalReady(false)
     }
 
     override func loadView() {
@@ -110,6 +122,11 @@ final class ViewerViewController: NSViewController {
         imageDisplayView.onDoubleClick = { [weak self] in
             guard let self else { return }
             self.delegate?.viewerDidRequestClose(self)
+        }
+
+        colorPanel.onMagnifierToggled = { [weak self] on in
+            self?.isMagnifierToggleOn = on
+            self?.updateMagnifierActive()
         }
 
         videoPlayerView.onDoubleClick = { [weak self] in
@@ -287,6 +304,7 @@ final class ViewerViewController: NSViewController {
     private func showVideo(_ file: ImageFile) {
         cancelImageLoading()
         imageDisplayView.clearImage()
+        setOriginalReady(false)
         switchContentView(toVideo: true)
         videoPlayerView.play(url: file.url)
         view.window?.title = file.name
@@ -299,7 +317,7 @@ final class ViewerViewController: NSViewController {
         cancelImageLoading()
         let generation = loadGeneration
         imageDisplayView.displayLoading()
-        editButton.isEnabled = false
+        setOriginalReady(false)
         view.window?.title = file.name
         // 작은 캐시도 즉시 활용하고, 없으면 기존 썸네일 파이프라인에서 비동기로 받는다.
         loadingThumbnailToken = thumbnailProvider.request(file.url, minPixel: 1, priority: .visible) { [weak self] result in
@@ -317,9 +335,10 @@ final class ViewerViewController: NSViewController {
             switch result {
             case .success(let image):
                 self.imageDisplayView.display(image)
-                self.editButton.isEnabled = true
+                self.setOriginalReady(true)
             case .failure:
                 self.imageDisplayView.displayError()
+                self.colorPanel.setState(.empty)
             }
         }
     }
@@ -342,6 +361,10 @@ final class ViewerViewController: NSViewController {
         imageDisplayView.isHidden = toVideo
         videoPlayerView.isHidden = !toVideo
         editButton.isHidden = toVideo
+        colorButton.isHidden = toVideo
+        applyColorPanelVisibility()
+        updateMagnifierActive()
+
         bookmarkButton.isHidden = toVideo
         categoryButton.isHidden = toVideo
 
@@ -403,6 +426,57 @@ final class ViewerViewController: NSViewController {
         showMedia(at: newIndex)
     }
 
+    // MARK: - Color Panel
+
+    /// 원본 로딩이 끝났을 때만 색상 기능을 켠다(썸네일 미리보기로 뽑으면 저해상도 값이 나온다). 편집 버튼과 같은 규칙.
+    private func setOriginalReady(_ ready: Bool) {
+        isOriginalReady = ready
+        editButton.isEnabled = ready
+        colorButton.isEnabled = ready
+        if !ready { imageDisplayView.pixelSource = nil }
+        if isColorPanelOpen && !ready { colorPanel.setState(.loading) }
+        updateMagnifierActive()
+    }
+
+    @objc private func colorButtonTapped() {
+        if isColorPanelOpen { closeColorPanel() } else { openColorPanel() }
+    }
+
+    private func openColorPanel() {
+        guard isOriginalReady, !isShowingVideo else { colorButton.state = .off; return }
+        isColorPanelOpen = true
+        colorButton.state = .on
+        colorPanel.setTolerance(AppSettings.shared.colorTolerance)
+        colorPanel.setMagnifierOn(false)             // 패널을 연다고 돋보기가 켜지지 않는다
+        isMagnifierToggleOn = false
+        colorPanel.setState(.loading)
+        applyColorPanelVisibility()
+        updateMagnifierActive()
+    }
+
+    private func closeColorPanel() {
+        isColorPanelOpen = false
+        isMagnifierToggleOn = false
+        colorButton.state = .off
+        colorPanel.setMagnifierOn(false)
+        applyColorPanelVisibility()
+        updateMagnifierActive()
+    }
+
+    private func applyColorPanelVisibility() {
+        let visible = isColorPanelOpen && !isShowingVideo
+        colorPanel.isHidden = !visible
+        // 둘을 동시에 켜지 않도록 끄는 쪽을 먼저 처리한다.
+        if visible { imageBottomToContainer.isActive = false; imageBottomToPanel.isActive = true }
+        else { imageBottomToPanel.isActive = false; imageBottomToContainer.isActive = true }
+    }
+
+    /// 돋보기 = (패널이 열려 있고 토글이 켜짐) 또는 ⌥ 단독. 원본 로딩이 끝난 이미지에서만.
+    private func updateMagnifierActive() {
+        let toggled = isColorPanelOpen && isMagnifierToggleOn
+        imageDisplayView.isMagnifierActive = isOriginalReady && !isShowingVideo && (toggled || isOptionHeld)
+    }
+
     // MARK: - Bottom Buttons
 
     private var isThumbnailVisible = true
@@ -444,6 +518,18 @@ final class ViewerViewController: NSViewController {
         contentContainer.addSubview(editButton)
         contentContainer.addSubview(thumbnailToggleButton)
         contentContainer.addSubview(bookmarkButton)
+        colorButton.translatesAutoresizingMaskIntoConstraints = false
+        colorButton.bezelStyle = .rounded
+        colorButton.controlSize = .small
+        colorButton.image = NSImage(systemSymbolName: "eyedropper", accessibilityDescription: L10n.string(.colorButton))
+        colorButton.toolTip = L10n.string(.colorButton)
+        colorButton.setButtonType(.pushOnPushOff)
+        colorButton.refusesFirstResponder = true
+        colorButton.isEnabled = false
+        colorButton.target = self
+        colorButton.action = #selector(colorButtonTapped)
+        contentContainer.addSubview(colorButton)
+
 
         NSLayoutConstraint.activate([
             thumbnailToggleButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
@@ -455,7 +541,9 @@ final class ViewerViewController: NSViewController {
             categoryButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
             categoryButton.trailingAnchor.constraint(equalTo: bookmarkButton.leadingAnchor, constant: -6),
             bookmarkButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
-            bookmarkButton.trailingAnchor.constraint(equalTo: editButton.leadingAnchor, constant: -6),
+            bookmarkButton.trailingAnchor.constraint(equalTo: colorButton.leadingAnchor, constant: -6),
+            colorButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -8),
+            colorButton.trailingAnchor.constraint(equalTo: editButton.leadingAnchor, constant: -6),
         ])
     }
 
@@ -508,13 +596,26 @@ final class ViewerViewController: NSViewController {
 
         NSLayoutConstraint.activate([
             imageDisplayView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            imageDisplayView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
             imageDisplayView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
             imageDisplayView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
             videoPlayerView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
             videoPlayerView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
             videoPlayerView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
             videoPlayerView.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+        ])
+
+        imageBottomToContainer = imageDisplayView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
+        imageBottomToPanel = imageDisplayView.bottomAnchor.constraint(equalTo: colorPanel.topAnchor)
+        imageBottomToContainer.isActive = true
+
+        // 색상 패널: 이미지 아래, 하단 버튼 줄(약 40pt) 위. 열리면 이미지 영역이 그만큼 줄어든다.
+        colorPanel.translatesAutoresizingMaskIntoConstraints = false
+        colorPanel.isHidden = true
+        contentContainer.addSubview(colorPanel)
+        NSLayoutConstraint.activate([
+            colorPanel.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            colorPanel.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor),
+            colorPanel.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -40),
         ])
 
         splitView.addSubview(contentContainer)

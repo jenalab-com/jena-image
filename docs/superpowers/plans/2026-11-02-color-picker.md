@@ -16,7 +16,7 @@
 - Task 2의 최초 실패 테스트 실행 기록은 이번 점검에서 확인하지 못해 해당 체크는 남겨 둠.
 - Task 3 측정·상수 반영 완료. 512px / CIEDE2000 / 최소 비율 0.0005, 슬라이더 설정은 Task 7에서 **8...20 / 기본값 12** 적용 완료.
 - 측정 근거: `docs/devlog/2026-11-02-color-picker.md`, `test/색상추출_2026-11-02/benchmark.log`.
-- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10~13은 미구현. 다음 구현은 **Task 10 뷰어 연결**.
+- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11~13은 미구현. 다음 구현은 **Task 11 추출 파이프라인 연결**.
 - 아래 Task 7의 `2...40` 예시 등 초기 가정값보다 위 측정 결정을 우선한다.
 
 ## Global Constraints
@@ -2509,7 +2509,7 @@ git commit -m "feat: ColorPalettePanel with chips, info popover and cursor color
 
 규칙(설계 §3.1·§3.4): 활성 조건은 편집 버튼과 동일(동영상이면 숨김, 원본 로딩 끝나야 활성). 패널을 닫으면 돋보기도 꺼진다. 패널이 열린 채 이미지가 바뀌어도 패널과 돋보기 토글은 유지된다.
 
-- [ ] **Step 1: 실패하는 UI 테스트 작성**
+- [x] **Step 1: 실패하는 UI 테스트 작성**
 
 `ViewerLoadingTests.swift`의 지연 서비스는 `private`이라 재사용할 수 없으므로, 이 파일에 즉시 응답하는 서비스를 둔다(이미지 크기로 이미지를 구분).
 
@@ -2600,9 +2600,9 @@ private func makeViewer(files: [String], directory: URL) -> (viewer: ViewerViewC
     }
 ```
 
-- [ ] **Step 2: 실패 확인** — `make test-ui` → 색상 버튼을 못 찾아 `check` 실패.
+- [x] **Step 2: 실패 확인** — `make test-ui` → 색상 버튼을 못 찾아 `check` 실패.
 
-- [ ] **Step 3: ViewerViewController 수정**
+- [x] **Step 3: ViewerViewController 수정**
 
 (a) 프로퍼티 — `// 하단 버튼` 블록에 추가하고, `private var slideshowTimer` 아래에 상태를 둔다.
 
@@ -2757,12 +2757,12 @@ private func makeViewer(files: [String], directory: URL) -> (viewer: ViewerViewC
     }
 ```
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `make build && make test-ui`
 Expected: 새 UI 테스트 2개 + 기존 테스트 통과. 기존 `ViewerLoadingTests`가 `editButton` 활성 시점을 검사하므로 그 테스트가 그대로 통과해야 한다(회귀 확인 지점).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add Sources/viewer/ViewerViewController.swift Tests/UI/ViewerColorTests.swift
