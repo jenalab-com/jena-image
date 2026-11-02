@@ -16,7 +16,7 @@
 - Task 2의 최초 실패 테스트 실행 기록은 이번 점검에서 확인하지 못해 해당 체크는 남겨 둠.
 - Task 3 측정·상수 반영 완료. 512px / CIEDE2000 / 최소 비율 0.0005, 슬라이더 설정은 Task 7에서 **8...20 / 기본값 12** 적용 완료.
 - 측정 근거: `docs/devlog/2026-11-02-color-picker.md`, `test/색상추출_2026-11-02/benchmark.log`.
-- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11 추출 파이프라인 연결 및 검증 완료. Task 12 Option 키 연결 및 자동 검증 완료. 다음 작업은 **Task 13 수동 검증·마무리**.
+- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11 추출 파이프라인 연결 및 검증 완료. Task 12 Option 키 연결 및 자동 검증 완료. Task 13 자동 검증·문서 정리 완료, **수동 14항목은 대기**(devlog 항목별 표 참조).
 - 아래 Task 7의 `2...40` 예시 등 초기 가정값보다 위 측정 결정을 우선한다.
 
 ## Global Constraints
@@ -3102,7 +3102,7 @@ git commit -m "feat: temporary magnifier while holding option alone"
 - Modify: `README.md` (기능 목록이 있으면 한 줄)
 - Modify: `~/Documents/project/source/skills/global/projects.md` jena-image 줄 (현 단계·갱신일)
 
-- [ ] **Step 1: 전체 자동 검증**
+- [x] **Step 1: 전체 자동 검증**
 
 ```bash
 make build && make test && make test-ui
@@ -3126,7 +3126,7 @@ Expected: 경고·에러 0, `all tests passed`, `all category UI tests passed`.
 13. **비교 화면**: 비교 창에서 돋보기·색상 기능이 전혀 나타나지 않고 더블클릭 닫기 등 기존 동작 그대로.
 14. **투명 PNG·흑백 이미지**: 투명 영역이 검정 칩으로 나오지 않음.
 
-- [ ] **Step 3: devlog 마무리**
+- [x] **Step 3: devlog 마무리**
 
 `docs/devlog/2026-11-02-color-picker.md`의 측정 섹션 아래에 이어 쓴다.
 
@@ -3155,11 +3155,11 @@ Expected: 경고·에러 0, `all tests passed`, `all category UI tests passed`.
 - 이후: 팔레트 파일 내보내기(.ase), ICC CMYK, AI 컬러 시스템(`[ColorSwatch]` 입력).
 ```
 
-- [ ] **Step 4: README·현황판**
+- [x] **Step 4: README·현황판**
 
 `README.md`에 기능 목록이 있으면 "색상 추출·돋보기(⌥)" 한 줄을 추가한다. `projects.md`의 jena-image 줄 '현 단계'를 "색상 추출·돋보기 구현 완료 · 다음: 릴리스 또는 팔레트 내보내기", 갱신일을 작업일로 바꾼다.
 
-- [ ] **Step 5: 커밋** (`Co-Authored-By` 줄 없이)
+- [x] **Step 5: 커밋** (`Co-Authored-By` 줄 없이)
 
 ```bash
 git add docs README.md
