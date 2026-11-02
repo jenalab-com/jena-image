@@ -36,19 +36,19 @@ extension MainWindowController: NSToolbarDelegate {
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         if contentMode == .browser {
             let showsBack = browserVC.isSimilarityMode || browserVC.isSearchMode
-            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
+            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.checkerboard, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
         }
         return [.toggleSidebar, ToolbarID.back, .flexibleSpace,
                 ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-                .flexibleSpace, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
+                .flexibleSpace, ToolbarID.checkerboard, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
          ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
          ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
-         ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share, ToolbarID.search]
+         ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share, ToolbarID.search, ToolbarID.checkerboard]
     }
 
     func toolbar(
@@ -140,6 +140,17 @@ extension MainWindowController: NSToolbarDelegate {
 
         case ToolbarID.search:
             return makeSearchToolbarItem()
+
+        case ToolbarID.checkerboard:
+            // 투명 영역 바탕 토글. 켜면 체크무늬, 끄면 흰색. 설정값은 AppSettings에 남아 다음 실행에도 유지.
+            let check = NSButton(checkboxWithTitle: "투명 체크무늬", target: self, action: #selector(toggleCheckerboard(_:)))
+            check.controlSize = .small
+            check.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            check.state = AppSettings.shared.showsTransparencyCheckerboard ? .on : .off
+            check.setAccessibilityLabel("투명 영역을 체크무늬로 표시")
+            item.view = check
+            item.label = "투명 체크무늬"
+            item.toolTip = "이미지의 투명한 부분을 체크무늬로 표시합니다. 끄면 흰색으로 보입니다."
 
         case ToolbarID.share:
             // 시스템 공유 버튼. 대상은 delegate의 items(for:)가 매번 제공하고, 비어 있으면 자동 비활성.

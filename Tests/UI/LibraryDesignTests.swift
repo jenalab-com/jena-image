@@ -32,7 +32,23 @@ func runLibraryDesignTests(directory: URL) {
         window.toolbar?.items.first { $0.itemIdentifier == MainWindowController.ToolbarID.layout }?.view as? NSSegmentedControl
     }
 
+    runTest("투명 체크무늬 설정이 꺼져 있으면(기본) 투명 부분은 흰색이다") {
+        let thumbnail = ThumbnailImageView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
+        thumbnail.image = NSImage(size: thumbnail.bounds.size, flipped: false) { _ in true }
+        let rendered = NSImage(size: thumbnail.bounds.size, flipped: false) { rect in
+            thumbnail.draw(rect)
+            return true
+        }
+        let bitmap = NSBitmapImageRep(data: rendered.tiffRepresentation!)!
+        let a = bitmap.colorAt(x: 2, y: 2)!.usingColorSpace(.deviceRGB)!
+        let b = bitmap.colorAt(x: 10, y: 2)!.usingColorSpace(.deviceRGB)!
+        check(a.redComponent > 0.98 && b.redComponent > 0.98 && abs(a.redComponent - b.redComponent) < 0.01, "기본은 체크무늬 없이 흰색")
+    }
+
     runTest("썸네일의 투명 부분은 체크무늬이고 불투명 이미지 색은 유지된다") {
+        let previous = AppSettings.shared.showsTransparencyCheckerboard
+        AppSettings.shared.showsTransparencyCheckerboard = true
+        defer { AppSettings.shared.showsTransparencyCheckerboard = previous }
         let thumbnail = ThumbnailImageView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
         thumbnail.imageScaling = .scaleNone
         thumbnail.image = NSImage(size: thumbnail.bounds.size, flipped: false) { _ in

@@ -20,7 +20,7 @@
 
 - **Folder Sidebar** — Register folders and browse the folder tree with hierarchical navigation; media count shown per folder
 - **Recursive Browsing** — Toggle in the sidebar header to show every image under the selected folder and all its subfolders as one flat grid
-- **Masonry / Grid Browser** — Switch between original-ratio masonry and uniform grid cards using the toolbar; the last choice is saved. Rounded cards sit on a muted translucent canvas beside a brighter frosted sidebar, with adjustable thumbnail size, filenames, folder navigation, and video play badges
+- **Grid / Masonry Browser** — Uniform grid cards by default (reading order stays obvious); switch to original-ratio masonry from the toolbar and the last choice is saved. Rounded cards sit on a light gray canvas whose color and opacity you can set in Preferences, beside a brighter sidebar, with adjustable thumbnail size, an optional transparency checkerboard toggle, filenames, folder navigation, and video play badges
 - **Fast Thumbnails** — Visible cells load first in parallel with a skeleton placeholder; thumbnails persist in an on-disk HEIC cache (configurable 500 MB–8 GB) so they appear instantly on relaunch. Evicted iCloud Drive files are never downloaded just to make a thumbnail
 - **Image Viewer** — In-panel viewer with zoom, rotate, flip (horizontal/vertical), and thumbnail strip navigation; sidebar syncs to current file
 - **Image Info** — `⌘I` shows file size, dimensions, DPI, color space, format, and EXIF camera/GPS data

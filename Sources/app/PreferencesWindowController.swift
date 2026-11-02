@@ -127,9 +127,38 @@ final class PreferencesWindowController: NSWindowController {
         restartLabel.font = .systemFont(ofSize: 11)
         restartLabel.textColor = .secondaryLabelColor
 
+        // 앱 배경 — 색과 불투명도. 바꾸는 즉시 목록·뷰어·상태바 바탕에 반영된다.
+        let canvasLabel = makeLabel("앱 배경")
+        canvasColorWell.translatesAutoresizingMaskIntoConstraints = false
+        canvasColorWell.target = self
+        canvasColorWell.action = #selector(canvasColorChanged(_:))
+        canvasOpacitySlider.translatesAutoresizingMaskIntoConstraints = false
+        canvasOpacitySlider.minValue = 0
+        canvasOpacitySlider.maxValue = 100
+        canvasOpacitySlider.target = self
+        canvasOpacitySlider.action = #selector(canvasOpacityChanged(_:))
+        canvasOpacityLabel.translatesAutoresizingMaskIntoConstraints = false
+        canvasOpacityLabel.font = .systemFont(ofSize: 11)
+        canvasOpacityLabel.textColor = .secondaryLabelColor
+        let canvasResetButton = NSButton(title: "기본값", target: self, action: #selector(resetCanvasBackground(_:)))
+        canvasResetButton.translatesAutoresizingMaskIntoConstraints = false
+        canvasResetButton.controlSize = .small
+        canvasResetButton.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let canvasHint = NSTextField(wrappingLabelWithString: "불투명도를 낮추면 데스크톱 배경이 비칩니다. 기본은 옅은 회색, 불투명 100%입니다.")
+        canvasHint.translatesAutoresizingMaskIntoConstraints = false
+        canvasHint.font = .systemFont(ofSize: 11)
+        canvasHint.textColor = .secondaryLabelColor
+        syncCanvasControls()
+
         container.addSubview(langLabel)
         container.addSubview(langPopup)
         container.addSubview(restartLabel)
+        container.addSubview(canvasLabel)
+        container.addSubview(canvasColorWell)
+        container.addSubview(canvasOpacitySlider)
+        container.addSubview(canvasOpacityLabel)
+        container.addSubview(canvasResetButton)
+        container.addSubview(canvasHint)
 
         NSLayoutConstraint.activate([
             langLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 24),
@@ -142,9 +171,61 @@ final class PreferencesWindowController: NSWindowController {
             restartLabel.topAnchor.constraint(equalTo: langLabel.bottomAnchor, constant: 8),
             restartLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
             restartLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
+
+            canvasLabel.topAnchor.constraint(equalTo: restartLabel.bottomAnchor, constant: 24),
+            canvasLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 24),
+
+            canvasColorWell.centerYAnchor.constraint(equalTo: canvasLabel.centerYAnchor),
+            canvasColorWell.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
+            canvasColorWell.widthAnchor.constraint(equalToConstant: 44),
+            canvasColorWell.heightAnchor.constraint(equalToConstant: 24),
+
+            canvasOpacitySlider.centerYAnchor.constraint(equalTo: canvasLabel.centerYAnchor),
+            canvasOpacitySlider.leadingAnchor.constraint(equalTo: canvasColorWell.trailingAnchor, constant: 12),
+            canvasOpacitySlider.widthAnchor.constraint(equalToConstant: 140),
+
+            canvasOpacityLabel.centerYAnchor.constraint(equalTo: canvasLabel.centerYAnchor),
+            canvasOpacityLabel.leadingAnchor.constraint(equalTo: canvasOpacitySlider.trailingAnchor, constant: 8),
+            canvasOpacityLabel.widthAnchor.constraint(equalToConstant: 44),
+
+            canvasResetButton.centerYAnchor.constraint(equalTo: canvasLabel.centerYAnchor),
+            canvasResetButton.leadingAnchor.constraint(equalTo: canvasOpacityLabel.trailingAnchor, constant: 8),
+
+            canvasHint.topAnchor.constraint(equalTo: canvasLabel.bottomAnchor, constant: 8),
+            canvasHint.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 130),
+            canvasHint.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -24),
         ])
 
         return container
+    }
+
+    // MARK: - 앱 배경
+
+    private let canvasColorWell = NSColorWell()
+    private let canvasOpacitySlider = NSSlider()
+    private let canvasOpacityLabel = NSTextField(labelWithString: "")
+
+    private func syncCanvasControls() {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        canvasColorWell.color = settings.canvasBackgroundColor ?? AppSettings.defaultCanvasColor(dark: dark)
+        let percent = Int((settings.canvasBackgroundOpacity * 100).rounded())
+        canvasOpacitySlider.integerValue = percent
+        canvasOpacityLabel.stringValue = "\(percent)%"
+    }
+
+    @objc private func canvasColorChanged(_ sender: NSColorWell) {
+        settings.canvasBackgroundColor = sender.color
+    }
+
+    @objc private func canvasOpacityChanged(_ sender: NSSlider) {
+        settings.canvasBackgroundOpacity = Double(sender.integerValue) / 100
+        canvasOpacityLabel.stringValue = "\(sender.integerValue)%"
+    }
+
+    @objc private func resetCanvasBackground(_ sender: Any?) {
+        settings.canvasBackgroundColor = nil
+        settings.canvasBackgroundOpacity = 1
+        syncCanvasControls()
     }
 
     // MARK: - Viewer Tab

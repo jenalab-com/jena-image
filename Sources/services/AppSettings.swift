@@ -30,6 +30,9 @@ final class AppSettings {
         case recentFolders = "recentFolderPaths"
         case batchExportResize = "batchExportResize"
         case batchExportLongEdge = "batchExportLongEdge"
+        case thumbnailCheckerboard = "thumbnailCheckerboard"
+        case canvasBackgroundColor = "canvasBackgroundColor"
+        case canvasBackgroundOpacity = "canvasBackgroundOpacity"
     }
 
     var aiModel: String {
@@ -105,6 +108,50 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: Key.defaultExportQuality.rawValue) }
     }
 
+    // MARK: - Appearance
+
+    /// 썸네일의 투명 영역에 체크무늬를 그릴지. 기본 꺼짐(흰색) — 체크무늬가 눈에 피로하다는 피드백.
+    var showsTransparencyCheckerboard: Bool {
+        get { defaults.bool(forKey: Key.thumbnailCheckerboard.rawValue) }
+        set {
+            defaults.set(newValue, forKey: Key.thumbnailCheckerboard.rawValue)
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 목록·뷰어·상태바 바탕색. nil이면 모양(라이트/다크)에 맞는 옅은 회색 기본값.
+    var canvasBackgroundColor: NSColor? {
+        get {
+            guard let data = defaults.data(forKey: Key.canvasBackgroundColor.rawValue) else { return nil }
+            return try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSColor.self, from: data)
+        }
+        set {
+            if let color = newValue, let data = try? NSKeyedArchiver.archivedData(withRootObject: color, requiringSecureCoding: true) {
+                defaults.set(data, forKey: Key.canvasBackgroundColor.rawValue)
+            } else {
+                defaults.removeObject(forKey: Key.canvasBackgroundColor.rawValue)
+            }
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 바탕색 불투명도 0~1. 1이면 바탕색만, 낮출수록 뒤의 블러(데스크톱 비침)가 섞인다. 기본 1.
+    var canvasBackgroundOpacity: Double {
+        get {
+            if defaults.object(forKey: Key.canvasBackgroundOpacity.rawValue) == nil { return 1 }
+            return min(max(defaults.double(forKey: Key.canvasBackgroundOpacity.rawValue), 0), 1)
+        }
+        set {
+            defaults.set(min(max(newValue, 0), 1), forKey: Key.canvasBackgroundOpacity.rawValue)
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        }
+    }
+
+    /// 모양에 맞는 기본 바탕색(옅은 회색).
+    static func defaultCanvasColor(dark: Bool) -> NSColor {
+        NSColor(white: dark ? 0.17 : 0.955, alpha: 1)
+    }
+
     // MARK: - Batch Export
 
     /// 일괄 내보내기 "긴 변 기준 축소" 체크 상태. 기본 꺼짐.
@@ -161,7 +208,8 @@ final class AppSettings {
     // MARK: - Browser Sort
 
     var browserLayoutMode: BrowserLayoutMode {
-        get { BrowserLayoutMode(rawValue: defaults.string(forKey: Key.browserLayout.rawValue) ?? "") ?? .masonry }
+        // 기본은 일반 격자. Masonry는 높이가 제각각이라 순서를 따라가기 어렵다는 피드백(2026-11-02)으로 기본값을 바꿨다.
+        get { BrowserLayoutMode(rawValue: defaults.string(forKey: Key.browserLayout.rawValue) ?? "") ?? .grid }
         set { defaults.set(newValue.rawValue, forKey: Key.browserLayout.rawValue) }
     }
 

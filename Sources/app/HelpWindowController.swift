@@ -67,6 +67,9 @@ final class HelpWindowController: NSWindowController {
         // 브라우저
         result.append(h2("브라우저"))
         result.append(item("썸네일 크기", detail: "하단 상태바의 슬라이더로 썸네일 크기를 조절합니다."))
+        result.append(item("보기 방식", detail: "툴바에서 일반 격자(같은 크기, 순서대로)와 Masonry(원본 비율) 중 고릅니다. 기본은 일반 격자입니다."))
+        result.append(item("투명 체크무늬", detail: "툴바의 '투명 체크무늬'를 켜면 이미지의 투명한 부분이 체크무늬로, 끄면 흰색으로 보입니다. 기본은 꺼짐입니다."))
+        result.append(item("앱 배경", detail: "설정 → 일반에서 목록·뷰어 바탕의 색과 불투명도를 정합니다. 기본은 옅은 회색이며, 불투명도를 낮추면 데스크톱이 비칩니다."))
         result.append(item("이미지/영상 열기", detail: "파일을 더블클릭하면 뷰어 모드로 전환됩니다. 영상 파일은 재생 배지가 표시됩니다."))
         result.append(item("다른 앱으로 열기", detail: "파일을 우클릭한 뒤 '다른 앱으로 열기'에서 시스템에 등록된 호환 앱을 선택합니다. 맨 위의 '기본 앱으로 열기'는 macOS 기본 앱으로 엽니다."))
         result.append(item("폴더 열기", detail: "폴더를 더블클릭하면 해당 폴더로 이동합니다."))

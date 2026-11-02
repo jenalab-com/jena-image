@@ -1,11 +1,18 @@
 import AppKit
 
-/// 불투명한 흰색 사이드바와 네이티브 블러 캔버스.
+/// 불투명한 흰색 사이드바와, 설정 색·불투명도를 따르는 캔버스 바탕.
+///
+/// 캔버스는 예전엔 데스크톱이 비치는 블러였는데, 배경 색이 이미지 감상에 섞여 든다는 피드백(2026-11-02)으로
+/// 기본을 옅은 회색 불투명으로 바꿨다. 설정에서 색과 불투명도를 바꿀 수 있고, 불투명도를 낮추면 블러가 다시 비친다.
 final class LibrarySurfaceView: NSView {
     enum Kind { case sidebar, canvas }
     let effect = NSVisualEffectView()
+    private let tint = NSView()
+    private let kind: Kind
+    private var observer: NSObjectProtocol?
 
     init(kind: Kind) {
+        self.kind = kind
         super.init(frame: .zero)
         wantsLayer = true
         effect.material = kind == .sidebar ? .sidebar : .underWindowBackground
@@ -16,14 +23,39 @@ final class LibrarySurfaceView: NSView {
             effect.isHidden = true
             appearance = NSAppearance(named: .aqua)
             layer?.backgroundColor = NSColor.white.cgColor
+        } else {
+            tint.wantsLayer = true
+            addSubview(tint)
+            applyCanvasAppearance()
+            observer = NotificationCenter.default.addObserver(
+                forName: .settingsChanged, object: nil, queue: .main
+            ) { [weak self] _ in self?.applyCanvasAppearance() }
         }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+
     override func layout() {
         super.layout()
         effect.frame = bounds
+        tint.frame = bounds
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        if kind == .canvas { applyCanvasAppearance() }
+    }
+
+    private func applyCanvasAppearance() {
+        let settings = AppSettings.shared
+        let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let color = settings.canvasBackgroundColor ?? AppSettings.defaultCanvasColor(dark: dark)
+        let opacity = settings.canvasBackgroundOpacity
+        // 완전 불투명이면 블러를 아예 꺼서 데스크톱 비침과 그 비용을 없앤다.
+        effect.isHidden = opacity >= 0.999
+        tint.layer?.backgroundColor = color.withAlphaComponent(opacity).cgColor
     }
 }
 

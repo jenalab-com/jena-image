@@ -36,6 +36,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let layout = NSToolbarItem.Identifier("browserLayout")
         static let share = NSToolbarItem.Identifier("share")
         static let search = NSToolbarItem.Identifier("search")
+        static let checkerboard = NSToolbarItem.Identifier("checkerboard")
     }
 
     // MARK: - Dependencies

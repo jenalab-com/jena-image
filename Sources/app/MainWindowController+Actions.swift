@@ -9,6 +9,10 @@ extension MainWindowController {
         browserVC.setLayoutMode(sender.selectedSegment == 0 ? .masonry : .grid)
     }
 
+    @objc func toggleCheckerboard(_ sender: NSButton) {
+        AppSettings.shared.showsTransparencyCheckerboard = sender.state == .on
+    }
+
     @objc func toolbarBack(_ sender: Any?) {
         if contentMode == .viewer {
             viewerDidRequestClose(viewerVC)

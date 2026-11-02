@@ -7,6 +7,8 @@ func runMasonryUITests(directory: URL) {
     let suite = "jena-masonry-settings-\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
+    // 기본 보기 방식이 일반 격자로 바뀌었으므로(2026-11-02), 이 스위트는 masonry를 명시해 검증한다.
+    defaults.set(BrowserLayoutMode.masonry.rawValue, forKey: "browserLayout")
     let sizes = [CGSize(width: 240, height: 360), CGSize(width: 400, height: 220),
                  CGSize(width: 300, height: 300), CGSize(width: 240, height: 460),
                  CGSize(width: 420, height: 260), CGSize(width: 260, height: 340),
