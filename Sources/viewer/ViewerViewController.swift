@@ -51,6 +51,17 @@ final class ViewerViewController: NSViewController {
     private var isMagnifierToggleOn = false
     private var isOptionHeld = false
     private var isOriginalReady = false
+    /// 테스트에서 느린 계산을 흉내 낼 수 있도록 주입 가능. 백그라운드 큐에서 호출된다.
+    var histogramBuilder: (CGImage, ColorJob) -> ColorHistogram? = { image, job in
+        ColorExtractionService.buildHistogram(from: image, longSide: ColorExtractionService.downscaleLongSide,
+                                              isCancelled: { job.isCancelled })
+    }
+    private(set) var currentSwatches: [ColorSwatch] = []
+    private var colorHistogram: ColorHistogram?
+    private var colorJob: ColorJob?
+    private var regroupToken = 0
+    private var colorJobWantsHistogram = false
+
 
 
     private let imageService: ImageServiceProtocol
@@ -90,7 +101,7 @@ final class ViewerViewController: NSViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    deinit { loadTask?.cancel() }
+    deinit { loadTask?.cancel(); colorJob?.cancel() }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -122,6 +133,20 @@ final class ViewerViewController: NSViewController {
         imageDisplayView.onDoubleClick = { [weak self] in
             guard let self else { return }
             self.delegate?.viewerDidRequestClose(self)
+        }
+
+        colorPanel.onToleranceChanged = { [weak self] value in
+            AppSettings.shared.colorTolerance = value
+            self?.regroupColors()
+        }
+        colorPanel.onCopyAllHex = { [weak self] in
+            guard let self else { return }
+            ColorClipboard.copy(ColorFormat.hexList(self.currentSwatches))
+        }
+        imageDisplayView.onColorHover = { [weak self] color in self?.colorPanel.setHover(color) }
+        imageDisplayView.onColorPicked = { [weak self] color in
+            ColorClipboard.copy(ColorFormat.hex(color))     // 클릭 = HEX 즉시 복사
+            self?.colorPanel.setPicked(color)               // 패널의 "커서 위치 색"에 남긴다
         }
 
         colorPanel.onMagnifierToggled = { [weak self] on in
@@ -350,6 +375,7 @@ final class ViewerViewController: NSViewController {
 
     private func cancelImageLoading() {
         loadGeneration += 1
+        cancelColorWork()
         loadTask?.cancel()
         cancelLoadingThumbnail()
     }
@@ -429,6 +455,69 @@ final class ViewerViewController: NSViewController {
     // MARK: - Color Panel
 
     /// 원본 로딩이 끝났을 때만 색상 기능을 켠다(썸네일 미리보기로 뽑으면 저해상도 값이 나온다). 편집 버튼과 같은 규칙.
+    private func cancelColorWork() {
+        colorJob?.cancel()
+        colorJob = nil
+        colorHistogram = nil
+        regroupToken += 1          // 진행 중인 묶기 결과도 버린다
+        currentSwatches = []
+        imageDisplayView.pixelSource = nil
+    }
+
+    /// 패널이 열렸거나 ⌥가 눌려 있고 원본이 준비됐을 때 필요한 데이터(원본 픽셀 소스, 히스토그램)를 만든다.
+    private func ensureColorData() {
+        guard isOriginalReady, !isShowingVideo, let image = imageDisplayView.currentImage,
+              isColorPanelOpen || isOptionHeld else { return }
+        let wantsHistogram = isColorPanelOpen
+        let hasPixels = imageDisplayView.pixelSource != nil
+        if hasPixels && (!wantsHistogram || colorHistogram != nil) {
+            if wantsHistogram { regroupColors() }
+            return
+        }
+        // 같은 이미지에서 이미 진행 중인 작업은 재사용한다.
+        if colorJob != nil && (colorJobWantsHistogram || !wantsHistogram) { return }
+
+        colorJob?.cancel()
+        let job = ColorJob()
+        colorJob = job
+        colorJobWantsHistogram = wantsHistogram
+        let generation = loadGeneration
+        let existing = imageDisplayView.pixelSource
+        let build = histogramBuilder
+        let box = UncheckedBox(image)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let cg = existing ?? PixelSampler.rasterize(box.value)
+            let histogram: ColorHistogram? = (wantsHistogram && !job.isCancelled) ? cg.flatMap { build($0, job) } : nil
+            DispatchQueue.main.async {
+                // 이미지가 바뀌었거나(loadGeneration) 작업이 취소됐으면 결과를 버린다.
+                guard let self, !job.isCancelled, self.loadGeneration == generation else { return }
+                self.colorJob = nil
+                self.imageDisplayView.pixelSource = cg
+                if wantsHistogram {
+                    self.colorHistogram = histogram
+                    if histogram == nil { self.colorPanel.setState(.empty) } else { self.regroupColors() }
+                }
+            }
+        }
+    }
+
+    /// 히스토그램을 다시 만들지 않고 묶기만 다시 돈다. 가장 최근 요청만 반영한다.
+    private func regroupColors() {
+        guard isColorPanelOpen, let histogram = colorHistogram else { return }
+        regroupToken += 1
+        let token = regroupToken
+        let generation = loadGeneration
+        let tolerance = AppSettings.shared.colorTolerance
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            let swatches = ColorExtractionService.group(histogram, tolerance: tolerance)
+            DispatchQueue.main.async {
+                guard let self, self.isColorPanelOpen, self.regroupToken == token, self.loadGeneration == generation else { return }
+                self.currentSwatches = swatches
+                self.colorPanel.setState(swatches.isEmpty ? .empty : .ready(swatches))
+            }
+        }
+    }
+
     private func setOriginalReady(_ ready: Bool) {
         isOriginalReady = ready
         editButton.isEnabled = ready
@@ -436,6 +525,7 @@ final class ViewerViewController: NSViewController {
         if !ready { imageDisplayView.pixelSource = nil }
         if isColorPanelOpen && !ready { colorPanel.setState(.loading) }
         updateMagnifierActive()
+        if ready { ensureColorData() }
     }
 
     @objc private func colorButtonTapped() {
@@ -452,9 +542,11 @@ final class ViewerViewController: NSViewController {
         colorPanel.setState(.loading)
         applyColorPanelVisibility()
         updateMagnifierActive()
+        ensureColorData()
     }
 
     private func closeColorPanel() {
+        regroupToken += 1
         isColorPanelOpen = false
         isMagnifierToggleOn = false
         colorButton.state = .off
@@ -632,6 +724,12 @@ final class ViewerViewController: NSViewController {
             thumbnailStrip.widthAnchor.constraint(lessThanOrEqualToConstant: 180),
         ])
     }
+}
+
+/// NSImage처럼 Sendable이 아닌 값을 백그라운드 큐로 넘기기 위한 상자. 읽기만 한다.
+private final class UncheckedBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
 }
 
 // MARK: - Array Safe Subscript

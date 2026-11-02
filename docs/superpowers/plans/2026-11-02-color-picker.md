@@ -16,7 +16,7 @@
 - Task 2의 최초 실패 테스트 실행 기록은 이번 점검에서 확인하지 못해 해당 체크는 남겨 둠.
 - Task 3 측정·상수 반영 완료. 512px / CIEDE2000 / 최소 비율 0.0005, 슬라이더 설정은 Task 7에서 **8...20 / 기본값 12** 적용 완료.
 - 측정 근거: `docs/devlog/2026-11-02-color-picker.md`, `test/색상추출_2026-11-02/benchmark.log`.
-- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11~13은 미구현. 다음 구현은 **Task 11 추출 파이프라인 연결**.
+- Task 1~8 구현·검증 완료. Task 3~8은 이번 Git 인계에서 묶음 커밋하며 공개 저장소에는 Task 1~8 소스·테스트를 함께 반영한다. Task 9는 후속 구현·빌드·UI 스모크 검증 완료. Task 10 뷰어 버튼·패널 연결 및 검증 완료. Task 11 추출 파이프라인 연결 및 검증 완료. Task 12~13은 미구현. 다음 구현은 **Task 12 Option 키 연결**.
 - 아래 Task 7의 `2...40` 예시 등 초기 가정값보다 위 측정 결정을 우선한다.
 
 ## Global Constraints
@@ -2782,7 +2782,7 @@ git commit -m "feat: color button, bottom drawer layout and enable rules in view
 - Produces: 테스트 주입점 `var histogramBuilder: (CGImage, ColorJob) -> ColorHistogram?` 와 읽기 전용 `private(set) var currentSwatches: [ColorSwatch]`.
 - 흐름: 이미지 로딩 완료 후 패널이 열려 있거나 ⌥가 눌려 있으면 → 백그라운드에서 `PixelSampler.rasterize`(필요 시) + 히스토그램 → 메인에서 `loadGeneration`과 `ColorJob.isCancelled`로 낡은 결과 폐기 → `imageDisplayView.pixelSource` 설정 + `regroupColors()`. 슬라이더는 `colorHistogram`을 재사용해 묶기만 다시 돈다(최신 요청만 반영).
 
-- [ ] **Step 1: 실패하는 UI 테스트 작성**
+- [x] **Step 1: 실패하는 UI 테스트 작성**
 
 ```swift
     runTest("이미지를 넘기면 이전 이미지의 늦은 추출 결과를 버린다") {
@@ -2843,9 +2843,9 @@ git commit -m "feat: color button, bottom drawer layout and enable rules in view
 
 (첫 테스트의 `viewer.histogramBuilder`는 백그라운드 큐에서 호출되므로 클로저 안에서 UI를 만지지 않는다. `builds`는 한 번만 증가하므로 데이터 경쟁이 사실상 없지만, 불안하면 `lock`으로 감싼다.)
 
-- [ ] **Step 2: 실패 확인** — `make test-ui` → `has no member 'histogramBuilder'`.
+- [x] **Step 2: 실패 확인** — `make test-ui` → `has no member 'histogramBuilder'`.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 (a) 프로퍼티(Task 10에서 만든 블록 아래).
 
@@ -2962,12 +2962,12 @@ private final class UncheckedBox<T>: @unchecked Sendable {
 
 (f) `regroupColors()` 최초 호출 보장: `ensureColorData()`의 `wantsHistogram` 분기가 끝나면 `regroupColors()`를 부르므로 패널을 연 직후에는 `.loading` → 결과 순서로 표시된다. 패널이 열려 있고 이미지가 바뀌면 `showImage`의 `setOriginalReady(false)`가 `.loading`으로 비우고, 로딩이 끝나면 `setOriginalReady(true)` → `ensureColorData()`가 다시 추출한다.
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `make build && make test-ui`
 Expected: 새 UI 테스트 2개 통과. `이전 이미지의 늦은 추출 결과` 테스트가 불안정하면(타이밍) `waitUntil` 시간을 늘리되, **`cancelImageLoading()`에서 `cancelColorWork()`를 부르는지**부터 확인한다 — 이것이 핵심이다.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add Sources/viewer/ViewerViewController.swift Tests/UI/ViewerColorTests.swift

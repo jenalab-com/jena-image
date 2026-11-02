@@ -2,6 +2,86 @@ import AppKit
 
 @MainActor
 func runViewerColorTests(directory: URL) {
+    runTest("이미지를 넘기면 이전 이미지의 늦은 추출 결과를 버린다") {
+        let (viewer, window, _) = makeViewer(files: ["a-200x100.png", "b-100x200.png"], directory: directory)
+        defer { window.close() }
+        let gate = DispatchSemaphore(value: 0)
+        let lock = NSLock(); var started: [Int] = []
+        // 너비로 이미지를 구분: 200 = A, 100 = B. A의 계산은 게이트가 열릴 때까지 붙잡아 둔다.
+        viewer.histogramBuilder = { image, job in
+            lock.lock(); started.append(image.width); lock.unlock()
+            if image.width == 200 { gate.wait() }
+            let color = image.width == 200 ? RGB8(255, 0, 0) : RGB8(0, 0, 255)
+            let lab = ColorFormat.lab(color)
+            return ColorHistogram(bins: [.init(count: 10, topColor: color, topCount: 10, lab: lab)], totalPixels: 10)
+        }
+        let color = descendants(viewer.view, of: NSButton.self).first { $0.toolTip == L10n.string(.colorButton) }!
+        check(waitUntil { color.isEnabled }, "A 로딩")
+        color.performClick(nil)                                   // 패널 열기 → A 추출 시작(게이트에서 대기)
+        check(waitUntil { lock.lock(); defer { lock.unlock() }; return started.contains(200) }, "A 계산 시작")
+
+        viewer.showNext()                                         // B로 전환: A 작업 취소
+        check(waitUntil(timeout: 3) { color.isEnabled && viewer.currentSwatches.map { $0.color } == [RGB8(0, 0, 255)] }, "B 결과가 표시됨")
+        gate.signal()                                             // 이제서야 A 계산이 끝남
+        _ = waitUntil(timeout: 0.5) { false }
+        checkEqual(viewer.currentSwatches.map { $0.color }, [RGB8(0, 0, 255)], "늦게 끝난 A 결과가 B를 덮지 않음")
+    }
+
+    runTest("슬라이더는 히스토그램을 다시 만들지 않고 묶기만 다시 돈다 / HEX 전체 복사") {
+        let (viewer, window, _) = makeViewer(files: ["a-200x100.png"], directory: directory)
+        defer { window.close() }
+        let buildLock = NSLock()
+        var builds = 0
+        let previousTolerance = AppSettings.shared.colorTolerance
+        AppSettings.shared.colorTolerance = AppSettings.colorToleranceRange.lowerBound
+        defer { AppSettings.shared.colorTolerance = previousTolerance }
+        viewer.histogramBuilder = { _, _ in
+            buildLock.lock(); builds += 1; buildLock.unlock()
+            let reds = [RGB8(255, 0, 0), RGB8(180, 0, 0)], blue = RGB8(0, 0, 255)
+            let bins = ([reds[0], reds[1], blue]).enumerated().map { i, c in
+                ColorHistogram.Bin(count: 500 - i * 100, topColor: c, topCount: 500 - i * 100, lab: ColorFormat.lab(c)) }
+            return ColorHistogram(bins: bins, totalPixels: 1200)
+        }
+        let color = descendants(viewer.view, of: NSButton.self).first { $0.toolTip == L10n.string(.colorButton) }!
+        check(waitUntil { color.isEnabled }, "로딩")
+        color.performClick(nil)
+        check(waitUntil { viewer.currentSwatches.count == 3 }, "처음엔 3칩 (기본 허용 범위): \(viewer.currentSwatches.count)")
+
+        let panel = descendants(viewer.view, of: ColorPalettePanel.self).first!
+        let slider = descendants(panel, of: NSSlider.self).first!
+        slider.doubleValue = AppSettings.colorToleranceRange.upperBound
+        slider.performClick(nil)
+        check(waitUntil { viewer.currentSwatches.count < 3 }, "허용 범위를 키우면 칩이 줄어듦")
+        buildLock.lock(); let buildCount = builds; buildLock.unlock()
+        checkEqual(buildCount, 1, "히스토그램은 이미지당 한 번만")
+        checkEqual(AppSettings.shared.colorTolerance, AppSettings.colorToleranceRange.upperBound, "슬라이더 값이 저장됨")
+
+        color.performClick(nil)
+        color.performClick(nil)
+        let copyAll = descendants(panel, of: NSButton.self).first { $0.title == L10n.string(.colorCopyAllHex) }!
+        check(waitUntil { copyAll.isEnabled }, "패널 재열기 시 캐시로 결과 복원")
+        buildLock.lock(); let reopenedBuilds = builds; buildLock.unlock()
+        checkEqual(reopenedBuilds, 1, "재열기도 히스토그램 재사용")
+        let clipboard = NSPasteboard.general
+        let savedItems = (clipboard.pasteboardItems ?? []).map { item -> NSPasteboardItem in
+            let saved = NSPasteboardItem()
+            for type in item.types { if let data = item.data(forType: type) { saved.setData(data, forType: type) } }
+            return saved
+        }
+        defer { clipboard.clearContents(); clipboard.writeObjects(savedItems) }
+        copyAll.performClick(nil)
+        checkEqual(NSPasteboard.general.string(forType: .string), ColorFormat.hexList(viewer.currentSwatches), "HEX 전체 복사 = 비율 순 공백 구분")
+        let display = descendants(viewer.view, of: ImageDisplayView.self).first!
+        check(display.pixelSource != nil, "원본 픽셀 소스 준비")
+        let picked = RGB8(12, 34, 56)
+        panel.setMagnifierOn(true)
+        display.onColorHover?(picked)
+        display.onColorPicked?(picked)
+        display.onColorHover?(nil)
+        checkEqual(clipboard.string(forType: .string), ColorFormat.hex(picked), "돋보기 선택은 HEX 복사")
+        check(descendants(panel, of: NSTextField.self).contains { $0.stringValue == ColorFormat.hex(picked) }, "커서 이탈 후 선택색 유지")
+    }
+
     for name in ["a-200x100.png", "b-100x200.png"] {
         FileManager.default.createFile(atPath: directory.appendingPathComponent(name).path, contents: Data([0]))
     }
