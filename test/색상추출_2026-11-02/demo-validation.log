@@ -1,0 +1,6 @@
+HEX #D1D5D8 #8B9DB5 #3D4B7A #25304E #7C909B #000000 #475077 #5E5F71
+Sea & Coast/coast-11.jpg 2400x2400 load=0.063s histogram=0.056s tolerance=8 chips=19 group=0.005s / tolerance=12 chips=8 group=0.002s / tolerance=20 chips=4 group=0.001s
+HEX #282828 #F8F8F8 #919191 #505050 #BABABA
+City/city-16.jpg 2400x2400 load=0.002s histogram=0.026s tolerance=8 chips=6 group=0.000s / tolerance=12 chips=5 group=0.000s / tolerance=20 chips=3 group=0.000s
+HEX #C2C2C2 #4D4726 #1F2113 #0A0A0A #95A0A6 #48575E #74777F #807955
+Landscapes/landscape-11.jpg 2400x1800 load=0.001s histogram=0.027s tolerance=8 chips=15 group=0.002s / tolerance=12 chips=8 group=0.001s / tolerance=20 chips=5 group=0.001s
