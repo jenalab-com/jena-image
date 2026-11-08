@@ -80,13 +80,3 @@ final class LibraryCardView: NSView {
         needsDisplay = true
     }
 }
-
-final class LibrarySidebarRowView: NSTableRowView {
-    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
-
-    override func drawSelection(in dirtyRect: NSRect) {
-        guard selectionHighlightStyle != .none else { return }
-        NSColor.labelColor.withAlphaComponent(0.08).setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 6, dy: 2), xRadius: 6, yRadius: 6).fill()
-    }
-}

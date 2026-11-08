@@ -45,16 +45,21 @@ private final class ClickAwareOutlineView: NSOutlineView {
     var onClickSelectedRow: ((Int) -> Void)?
     var onDoubleClickRow: ((Int) -> Bool)?
 
+    /// 펼침 삼각형은 감추고 셀 오른쪽 화살표(`SidebarItemCellView.chevronButton`)로 대신한다.
+    override func frameOfOutlineCell(atRow row: Int) -> NSRect { .zero }
+
     override func mouseDown(with event: NSEvent) {
         let clickPoint = convert(event.locationInWindow, from: nil)
         let clickedRow = row(at: clickPoint)
         if event.clickCount == 2, clickedRow >= 0, onDoubleClickRow?(clickedRow) == true { return }
         let wasSelected = clickedRow >= 0 && selectedRowIndexes.contains(clickedRow)
         let isSingleClick = event.clickCount == 1
+        // 셀 안의 버튼(펼침 화살표)을 눌렀다면 버튼이 직접 처리한다 — 선택 행 토글이 겹쳐 두 번 접히지 않게.
+        let hitButton = superview.map { hitTest($0.convert(event.locationInWindow, from: nil)) is NSButton } ?? false
 
         super.mouseDown(with: event)
 
-        if isSingleClick && wasSelected && clickedRow >= 0 {
+        if isSingleClick && wasSelected && clickedRow >= 0 && !hitButton {
             onClickSelectedRow?(clickedRow)
         }
     }
@@ -67,13 +72,15 @@ final class SidebarViewController: NSViewController {
 
     private let outlineView = ClickAwareOutlineView()
     private let scrollView = NSScrollView()
-    private let addButton = NSButton()
-    private let showFilesToggle = NSButton()
-    private let reloadButton = NSButton()
-    private let addRootFolderButton = NSButton()
-    private let recursiveToggle = NSButton()
-    private let folderModeButton = NSButton()
-    private let categoryModeButton = NSButton()
+    private let addButton = SidebarIconButton(symbol: "plus", label: "새 폴더")
+    private let showFilesToggle = SidebarIconButton(symbol: "photo.on.rectangle", label: "파일 표시", toggle: true)
+    private let reloadButton = SidebarIconButton(symbol: "arrow.clockwise", label: "새로고침")
+    private let addRootFolderButton = SidebarIconButton(symbol: "folder.badge.plus", label: "폴더 추가")
+    private let recursiveToggle = SidebarIconButton(symbol: "square.stack.3d.down.right", label: "하위 폴더 이미지 포함", toggle: true)
+    private let folderModeButton = SidebarIconButton(kind: .segment, symbol: "folder", label: "폴더로 보기", toggle: true)
+    private let categoryModeButton = SidebarIconButton(kind: .segment, symbol: "tag", label: "카테고리 보기", toggle: true)
+    private let headerDivider = SidebarDivider()
+    private let footerDivider = SidebarDivider()
     private let categoryEmptyLabel = NSTextField(labelWithString: "카테고리가 없습니다.\n+ 버튼으로 추가하세요.")
     private(set) var isCategoryView = false
     var onSelectCategory: ((UUID) -> Void)?
@@ -104,7 +111,7 @@ final class SidebarViewController: NSViewController {
         setupContextMenu()
         categoryEmptyLabel.translatesAutoresizingMaskIntoConstraints = false
         categoryEmptyLabel.font = .systemFont(ofSize: 12)
-        categoryEmptyLabel.textColor = .secondaryLabelColor
+        categoryEmptyLabel.textColor = SidebarStyle.tertiaryText
         categoryEmptyLabel.alignment = .center
         categoryEmptyLabel.isHidden = true
         view.addSubview(categoryEmptyLabel)
@@ -171,12 +178,10 @@ final class SidebarViewController: NSViewController {
     private func updateViewModeAppearance() {
         folderModeButton.state = isCategoryView ? .off : .on
         categoryModeButton.state = isCategoryView ? .on : .off
-        folderModeButton.contentTintColor = isCategoryView ? nil : .controlAccentColor
-        categoryModeButton.contentTintColor = isCategoryView ? .controlAccentColor : nil
         recursiveToggle.isHidden = isCategoryView
         showFilesToggle.isHidden = isCategoryView
-        addRootFolderButton.image = NSImage(systemSymbolName: isCategoryView ? "plus" : "folder.badge.plus",
-                                           accessibilityDescription: isCategoryView ? "카테고리 추가" : "폴더 추가")
+        addRootFolderButton.setSymbol(isCategoryView ? "plus" : "folder.badge.plus",
+                                      label: isCategoryView ? "카테고리 추가" : "폴더 추가")
         addRootFolderButton.toolTip = isCategoryView ? "카테고리 추가" : "사이드바에 폴더 추가"
         addButton.toolTip = isCategoryView ? "카테고리 추가" : "선택한 폴더에 새 폴더 만들기"
         reloadButton.toolTip = isCategoryView ? "카테고리 목록 새로고침" : "폴더 목록 새로고침 (⌘⇧R)"
@@ -317,7 +322,6 @@ final class SidebarViewController: NSViewController {
     /// 켜짐 상태는 강조색으로 표시해 한눈에 모드를 알 수 있게 한다.
     private func updateRecursiveToggleAppearance() {
         let on = recursiveToggle.state == .on
-        recursiveToggle.contentTintColor = on ? .controlAccentColor : nil
         recursiveToggle.toolTip = on
             ? "하위 폴더 이미지 포함 보기: 켜짐 (클릭하면 끔)"
             : "하위 폴더 이미지 포함 보기: 꺼짐 (클릭하면 켬)"
@@ -434,6 +438,7 @@ final class SidebarViewController: NSViewController {
         }
 
         // 편집 모드 전환
+        (cellView as? SidebarItemCellView)?.isEditingName = true
         textField.stringValue = ""
         textField.placeholderString = "폴더 이름"
         textField.isEditable = true
@@ -600,6 +605,7 @@ final class SidebarViewController: NSViewController {
               let textField = cellView.textField else { return }
 
         isRenameHandled = false
+        (cellView as? SidebarItemCellView)?.isEditingName = true
         textField.isEditable = true
         textField.isBordered = true
         textField.isBezeled = true
@@ -634,144 +640,128 @@ final class SidebarViewController: NSViewController {
         textField.isBezeled = false
         textField.drawsBackground = false
         textField.delegate = nil
+        (textField.superview as? SidebarItemCellView)?.isEditingName = false
         renamingFileExtension = nil
     }
 
     // MARK: - Setup
 
-    /// 폴더 리스트 상단 바 — 왼쪽에 [폴더 추가], 오른쪽에 [하위 폴더 포함 토글][새로고침] 순으로 둔다.
+    /// 상단 — [로고 JenaImage] 아래에 [폴더|카테고리 전환] …… [폴더 추가][하위 폴더 포함][새로고침], 그 밑에 구분선.
     private func setupHeaderBar() {
-        let title = NSTextField(labelWithString: "라이브러리")
-        title.font = .systemFont(ofSize: 14, weight: .semibold)
-        title.textColor = .labelColor
+        let logo = NSImageView(image: SidebarStyle.logoImage)
+        logo.translatesAutoresizingMaskIntoConstraints = false
+        logo.imageScaling = .scaleProportionallyUpOrDown
+        logo.setAccessibilityLabel("JenaImage")
+        view.addSubview(logo)
+
+        let title = NSTextField(labelWithString: "JenaImage")
+        title.font = .systemFont(ofSize: 15, weight: .bold)
+        title.textColor = SidebarStyle.ink
         title.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(title)
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
-            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-        ])
-        addRootFolderButton.translatesAutoresizingMaskIntoConstraints = false
-        addRootFolderButton.bezelStyle = .smallSquare
-        addRootFolderButton.isBordered = false
-        addRootFolderButton.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "폴더 추가")
+
         addRootFolderButton.toolTip = "사이드바에 폴더 추가"
         addRootFolderButton.target = self
         addRootFolderButton.action = #selector(addFolderFromMenu(_:))
-        view.addSubview(addRootFolderButton)
 
-        reloadButton.translatesAutoresizingMaskIntoConstraints = false
-        reloadButton.bezelStyle = .smallSquare
-        reloadButton.isBordered = false
-        reloadButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "새로고침")
         reloadButton.toolTip = "폴더 목록 새로고침 (⌘⇧R)"
         reloadButton.target = self
         reloadButton.action = #selector(reloadTapped(_:))
-        view.addSubview(reloadButton)
 
-        recursiveToggle.translatesAutoresizingMaskIntoConstraints = false
-        recursiveToggle.bezelStyle = .smallSquare
-        recursiveToggle.isBordered = false
-        recursiveToggle.setButtonType(.toggle)
-        recursiveToggle.image = NSImage(
-            systemSymbolName: "square.stack.3d.down.right",
-            accessibilityDescription: "하위 폴더 이미지 포함"
-        )
         recursiveToggle.state = AppSettings.shared.recursiveBrowsing ? .on : .off
         recursiveToggle.target = self
         recursiveToggle.action = #selector(recursiveTapped(_:))
-        view.addSubview(recursiveToggle)
         updateRecursiveToggleAppearance()
 
-        for (button, symbol, title, action) in [
-            (folderModeButton, "folder", "폴더로 보기", #selector(folderModeTapped(_:))),
-            (categoryModeButton, "tag", "카테고리 보기", #selector(categoryModeTapped(_:))),
-        ] {
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.bezelStyle = .smallSquare
-            button.isBordered = false
-            button.setButtonType(.toggle)
-            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
-            button.toolTip = title
-            button.target = self
-            button.action = action
-            view.addSubview(button)
-            NSLayoutConstraint.activate([
-                button.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
-                button.widthAnchor.constraint(equalToConstant: 24),
-                button.heightAnchor.constraint(equalToConstant: 24),
-            ])
-        }
+        folderModeButton.toolTip = "폴더로 보기"
+        folderModeButton.target = self
+        folderModeButton.action = #selector(folderModeTapped(_:))
+        categoryModeButton.toolTip = "카테고리 보기"
+        categoryModeButton.target = self
+        categoryModeButton.action = #selector(categoryModeTapped(_:))
+        let modeTrack = SidebarSegmentTrack(buttons: [folderModeButton, categoryModeButton])
+        view.addSubview(modeTrack)
+        // 스택에 두면 카테고리 보기에서 숨긴 버튼 자리가 비지 않고 오른쪽으로 모인다.
+        let tools = NSStackView(views: [addRootFolderButton, recursiveToggle, reloadButton])
+        tools.translatesAutoresizingMaskIntoConstraints = false
+        tools.spacing = 2
+        tools.detachesHiddenViews = true
+        view.addSubview(tools)
+        view.addSubview(headerDivider)
 
         NSLayoutConstraint.activate([
-            folderModeButton.leadingAnchor.constraint(equalTo: addRootFolderButton.trailingAnchor, constant: 6),
-            categoryModeButton.leadingAnchor.constraint(equalTo: folderModeButton.trailingAnchor, constant: 2),
-            categoryModeButton.trailingAnchor.constraint(lessThanOrEqualTo: recursiveToggle.leadingAnchor, constant: -4),
-            reloadButton.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
-            reloadButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            reloadButton.widthAnchor.constraint(equalToConstant: 24),
-            reloadButton.heightAnchor.constraint(equalToConstant: 24),
+            logo.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            logo.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            logo.widthAnchor.constraint(equalToConstant: 30),
+            logo.heightAnchor.constraint(equalToConstant: 30),
+            title.leadingAnchor.constraint(equalTo: logo.trailingAnchor, constant: 8),
+            title.centerYAnchor.constraint(equalTo: logo.centerYAnchor),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -14),
 
-            addRootFolderButton.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
-            addRootFolderButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            addRootFolderButton.widthAnchor.constraint(equalToConstant: 24),
-            addRootFolderButton.heightAnchor.constraint(equalToConstant: 24),
+            modeTrack.topAnchor.constraint(equalTo: logo.bottomAnchor, constant: 16),
+            modeTrack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            modeTrack.heightAnchor.constraint(equalToConstant: 28),
 
-            recursiveToggle.centerYAnchor.constraint(equalTo: reloadButton.centerYAnchor),
-            recursiveToggle.trailingAnchor.constraint(equalTo: reloadButton.leadingAnchor, constant: -2),
-            recursiveToggle.widthAnchor.constraint(equalToConstant: 24),
-            recursiveToggle.heightAnchor.constraint(equalToConstant: 24),
+            tools.centerYAnchor.constraint(equalTo: modeTrack.centerYAnchor),
+            tools.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            tools.leadingAnchor.constraint(greaterThanOrEqualTo: modeTrack.trailingAnchor, constant: 8),
+
+            headerDivider.topAnchor.constraint(equalTo: modeTrack.bottomAnchor, constant: 14),
+            headerDivider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            headerDivider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
         ])
+        for button in [addRootFolderButton, recursiveToggle, reloadButton] {
+            NSLayoutConstraint.activate([
+                button.widthAnchor.constraint(equalToConstant: 28),
+                button.heightAnchor.constraint(equalToConstant: 28),
+            ])
+        }
     }
 
     private func setupScrollView() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
         scrollView.documentView = outlineView
         view.addSubview(scrollView)
 
-        // scrollView는 상단 바 아래에 붙인다 (상단 바 자체가 트래픽 라이트 여백을 확보)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: reloadButton.bottomAnchor, constant: 10),
+            scrollView.topAnchor.constraint(equalTo: headerDivider.bottomAnchor, constant: 4),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
     }
 
+    /// 하단 — 구분선 아래 [새 폴더] …… [파일 표시 토글]
     private func setupAddButton() {
-        addButton.translatesAutoresizingMaskIntoConstraints = false
-        addButton.bezelStyle = .smallSquare
-        addButton.isBordered = false
-        addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "새 폴더")
         addButton.toolTip = "선택한 폴더에 새 폴더 만들기"
         addButton.target = self
         addButton.action = #selector(createNewSubfolder(_:))
         view.addSubview(addButton)
+        view.addSubview(footerDivider)
 
-        // 폴더만/파일까지 토글
-        showFilesToggle.translatesAutoresizingMaskIntoConstraints = false
-        showFilesToggle.bezelStyle = .smallSquare
-        showFilesToggle.isBordered = false
-        showFilesToggle.setButtonType(.toggle)
-        showFilesToggle.image = NSImage(systemSymbolName: "doc", accessibilityDescription: "파일 표시")
-        showFilesToggle.toolTip = "파일 표시/숨기기"
+        showFilesToggle.toolTip = "사이드바에 이미지 파일 표시/숨기기"
         showFilesToggle.state = .on
         showFilesToggle.target = self
         showFilesToggle.action = #selector(toggleShowFiles(_:))
         view.addSubview(showFilesToggle)
 
         NSLayoutConstraint.activate([
-            // 스크롤 콘텐츠와 하단 바 사이 여백 + 하단 바 자체의 상하좌우 패딩 확보
-            scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor, constant: -8),
+            scrollView.bottomAnchor.constraint(equalTo: footerDivider.topAnchor, constant: -4),
+            footerDivider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            footerDivider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            footerDivider.bottomAnchor.constraint(equalTo: addButton.topAnchor, constant: -8),
+
             addButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
-            addButton.widthAnchor.constraint(equalToConstant: 24),
-            addButton.heightAnchor.constraint(equalToConstant: 24),
+            addButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            addButton.widthAnchor.constraint(equalToConstant: 28),
+            addButton.heightAnchor.constraint(equalToConstant: 28),
 
             showFilesToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            showFilesToggle.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
-            showFilesToggle.widthAnchor.constraint(equalToConstant: 24),
-            showFilesToggle.heightAnchor.constraint(equalToConstant: 24),
+            showFilesToggle.centerYAnchor.constraint(equalTo: addButton.centerYAnchor),
+            showFilesToggle.widthAnchor.constraint(equalToConstant: 28),
+            showFilesToggle.heightAnchor.constraint(equalToConstant: 28),
         ])
     }
 
@@ -831,9 +821,10 @@ final class SidebarViewController: NSViewController {
         outlineView.delegate = self
         outlineView.backgroundColor = .clear
         outlineView.rowSizeStyle = .custom
-        outlineView.rowHeight = 28
+        outlineView.rowHeight = SidebarStyle.rowHeight
         outlineView.intercellSpacing = NSSize(width: 0, height: 2)
-        outlineView.indentationPerLevel = 12
+        outlineView.indentationPerLevel = SidebarStyle.indent
+        outlineView.focusRingType = .none
         // source-list 스타일 적용 (macOS 11 이하 호환을 위해 style 설정 후 deprecated API 폴백)
         if #available(macOS 12.0, *) {
             outlineView.style = .sourceList
@@ -1050,6 +1041,25 @@ extension SidebarViewController: NSOutlineViewDelegate {
         LibrarySidebarRowView()
     }
 
+    /// 행이 붙을 때 조상 폴더들의 실제 셀 위치로 가이드 선 좌표를 정한다(소스 리스트의 단계별 들여쓰기가 일정하지 않아 계산 대신 측정).
+    func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        guard let rowView = rowView as? LibrarySidebarRowView else { return }
+        var xs: [CGFloat] = []
+        var ancestor = outlineView.parent(forItem: outlineView.item(atRow: row))
+        while let node = ancestor as? FolderNode {
+            let ancestorRow = outlineView.row(forItem: node)
+            if ancestorRow >= 0 {
+                xs.append(outlineView.frameOfCell(atColumn: 0, row: ancestorRow).minX + SidebarStyle.iconCenterOffset)
+            }
+            ancestor = outlineView.parent(forItem: node)
+        }
+        rowView.guideXs = xs
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        item is SidebarGroup ? SidebarStyle.groupRowHeight : SidebarStyle.rowHeight
+    }
+
     /// 그룹 헤더 판별 — SidebarGroup만 true
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
         return item is SidebarGroup
@@ -1061,77 +1071,101 @@ extension SidebarViewController: NSOutlineViewDelegate {
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-        // 그룹 헤더 셀 (시스템 source-list 그룹 행 스타일)
+        // 그룹 헤더 셀 — "폴더  3"
         if let group = item as? SidebarGroup {
             let id = NSUserInterfaceItemIdentifier("GroupCell")
-            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
-                ?? makeGroupCell(identifier: id)
-            cell.textField?.stringValue = group.title
+            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? SidebarGroupCellView
+                ?? SidebarGroupCellView(identifier: id)
+            let count: Int? = group === foldersGroup ? rootNodes.count
+                : group === categoriesGroup ? categoryRows.count : nil
+            cell.configure(title: group.title, count: count)
             return cell
         }
 
-        // 북마크 행 셀
+        // 북마크 행 셀 — 폴더 모양에 별 배지
         if item is SidebarBookmarksRow {
-            let id = NSUserInterfaceItemIdentifier("BookmarksCell")
-            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
-                ?? createSidebarCell(identifier: id)
+            let cell = itemCell(identifier: "BookmarksCell")
+            cell.role = .special
+            cell.iconColor = nil
             cell.textField?.stringValue = "북마크"
-            let starImage = NSImage(systemSymbolName: "star.fill", accessibilityDescription: "북마크")
-            cell.imageView?.image = starImage
-            cell.imageView?.contentTintColor = .controlAccentColor
-            let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
-            countLabel?.stringValue = ""
+            cell.imageView?.image = FolderGlyph.image(badge: "star.fill")
+            cell.count = ""
+            cell.isExpandable = false
             return cell
         }
 
+        // 카테고리 행 셀 — 폴더 모양에 태그 배지
         if let row = item as? SidebarCategoryRow {
-            let id = NSUserInterfaceItemIdentifier("CategoryCell")
-            let cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
-                ?? createSidebarCell(identifier: id)
+            let cell = itemCell(identifier: "CategoryCell")
+            cell.role = .special
+            cell.iconColor = nil
             cell.textField?.stringValue = row.category.name
-            cell.imageView?.image = NSImage(systemSymbolName: "tag.fill", accessibilityDescription: row.category.name)
-            cell.imageView?.contentTintColor = .controlAccentColor
-            (cell.viewWithTag(Self.countLabelTag) as? NSTextField)?.stringValue = "\(row.category.paths.count)"
+            cell.imageView?.image = FolderGlyph.image(badge: "tag.fill")
+            cell.count = "\(row.category.paths.count)"
+            cell.isExpandable = false
             return cell
         }
 
         // 폴더 셀
         if let node = item as? FolderNode {
             let isRoot = rootNodes.contains(where: { $0.url == node.url })
-            let identifier = NSUserInterfaceItemIdentifier(isRoot ? "RootFolderCell" : "FolderCell")
-            let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
-                ?? createSidebarCell(identifier: identifier)
-
+            let cell = itemCell(identifier: isRoot ? "RootFolderCell" : "FolderCell")
+            cell.role = isRoot ? .root : .folder
             cell.textField?.stringValue = node.name
-            cell.imageView?.image = NSImage(systemSymbolName: "folder.fill", accessibilityDescription: node.name)
-            cell.imageView?.contentTintColor = FolderColorService.shared.color(for: node.url)
+            cell.imageView?.image = FolderGlyph.image()
+            // 기본색은 모노톤으로 두고, 사용자가 고른 색만 아이콘에 입힌다.
+            cell.iconColor = FolderColorService.shared.colorIndex(for: node.url) == 0
+                ? nil : FolderColorService.shared.color(for: node.url)
 
             // 하위 폴더까지 합친 미디어 파일 총계. 아직 안 세었으면 비워 두고, 계산이 끝나면 onUpdate로 다시 채운다.
-            node.loadChildren()   // 펼침 삼각형 판단(빈 폴더는 삼각형 없음)을 위해 직속 내용은 미리 읽는다
-            let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
-            countLabel?.stringValue = Self.countText(for: node.url)
+            node.loadChildren()   // 펼침 화살표 판단(빈 폴더는 화살표 없음)을 위해 직속 내용은 미리 읽는다
+            cell.count = Self.countText(for: node.url)
+            cell.isExpandable = self.outlineView(outlineView, isItemExpandable: node)
+            cell.isExpanded = outlineView.isItemExpanded(node)
             return cell
         }
 
         // 이미지 셀
         if let imageFile = item as? ImageFile {
-            let identifier = NSUserInterfaceItemIdentifier("ImageCell")
-            let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
-                ?? createSidebarCell(identifier: identifier)
-
+            let cell = itemCell(identifier: "ImageCell")
+            cell.role = .file
+            cell.iconColor = nil
             cell.textField?.stringValue = imageFile.name
-            cell.imageView?.image = NSImage(
-                systemSymbolName: "photo",
-                accessibilityDescription: imageFile.name
-            )
-            cell.imageView?.contentTintColor = .secondaryLabelColor
-            // 이미지 셀에서는 개수 레이블 숨김
-            let countLabel = cell.viewWithTag(Self.countLabelTag) as? NSTextField
-            countLabel?.stringValue = ""
+            cell.imageView?.image = SidebarStyle.symbol("photo", size: 13)
+            cell.count = ""
+            cell.isExpandable = false
             return cell
         }
 
         return nil
+    }
+
+    private func itemCell(identifier: String) -> SidebarItemCellView {
+        let id = NSUserInterfaceItemIdentifier(identifier)
+        if let cell = outlineView.makeView(withIdentifier: id, owner: self) as? SidebarItemCellView { return cell }
+        let cell = SidebarItemCellView(identifier: id)
+        cell.chevronButton.target = self
+        cell.chevronButton.action = #selector(chevronTapped(_:))
+        return cell
+    }
+
+    @objc private func chevronTapped(_ sender: NSButton) {
+        let row = outlineView.row(for: sender)
+        guard row >= 0, let node = outlineView.item(atRow: row) as? FolderNode else { return }
+        if outlineView.isItemExpanded(node) {
+            outlineView.collapseItem(node)
+        } else {
+            outlineView.expandItem(node)
+        }
+    }
+
+    /// 펼침/접힘이 바뀐 폴더 행의 화살표 방향만 갱신한다.
+    private func updateChevron(for node: FolderNode) {
+        let row = outlineView.row(forItem: node)
+        guard row >= 0,
+              let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? SidebarItemCellView else { return }
+        cell.isExpandable = outlineView(outlineView, isItemExpandable: node)
+        cell.isExpanded = outlineView.isItemExpanded(node)
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -1171,80 +1205,16 @@ extension SidebarViewController: NSOutlineViewDelegate {
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         guard let node = notification.userInfo?["NSObject"] as? FolderNode else { return }
+        updateChevron(for: node)
         delegate?.sidebar(self, didExpandFolder: node.url)
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
         guard let node = notification.userInfo?["NSObject"] as? FolderNode else { return }
+        updateChevron(for: node)
         delegate?.sidebar(self, didCollapseFolder: node.url)
     }
 
-    private static let countLabelTag = 100
-
-    /// 그룹 헤더 전용 셀 생성 — 시스템 secondaryLabel 색상의 작은 레이블
-    private func makeGroupCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
-        let cell = NSTableCellView()
-        cell.identifier = identifier
-
-        let label = NSTextField(labelWithString: "")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
-        cell.addSubview(label)
-        cell.textField = label
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
-            label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
-            label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        ])
-
-        return cell
-    }
-
-    private func createSidebarCell(identifier: NSUserInterfaceItemIdentifier) -> NSTableCellView {
-        let cell = NSTableCellView()
-        cell.identifier = identifier
-
-        let imageView = NSImageView()
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        cell.addSubview(imageView)
-        cell.imageView = imageView
-
-        let textField = NSTextField(labelWithString: "")
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        textField.lineBreakMode = .byTruncatingTail
-        textField.font = .systemFont(ofSize: 12)
-        cell.addSubview(textField)
-        cell.textField = textField
-
-        // 미디어 개수 레이블 (폴더 셀에서 사용)
-        let countLabel = NSTextField(labelWithString: "")
-        countLabel.translatesAutoresizingMaskIntoConstraints = false
-        countLabel.font = .systemFont(ofSize: 10)
-        countLabel.textColor = .tertiaryLabelColor
-        countLabel.alignment = .right
-        countLabel.lineBreakMode = .byClipping
-        countLabel.tag = Self.countLabelTag
-        countLabel.setContentHuggingPriority(.required, for: .horizontal)
-        countLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        cell.addSubview(countLabel)
-
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
-            imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            imageView.widthAnchor.constraint(equalToConstant: 16),
-            imageView.heightAnchor.constraint(equalToConstant: 16),
-            textField.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 4),
-            textField.trailingAnchor.constraint(lessThanOrEqualTo: countLabel.leadingAnchor, constant: -4),
-            textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            countLabel.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-            countLabel.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        ])
-
-        return cell
-    }
 }
 
 // MARK: - NSTextFieldDelegate (Inline Rename)
@@ -1401,9 +1371,8 @@ extension SidebarViewController {
         guard visible.length > 0 else { return }
         for row in visible.location..<(visible.location + visible.length) {
             guard let node = outlineView.item(atRow: row) as? FolderNode,
-                  let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView,
-                  let label = cell.viewWithTag(Self.countLabelTag) as? NSTextField else { continue }
-            label.stringValue = Self.countText(for: node.url)
+                  let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? SidebarItemCellView else { continue }
+            cell.count = Self.countText(for: node.url)
         }
     }
 

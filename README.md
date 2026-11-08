@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Resources/JenaImage-geometric-j-v10.png" alt="JenaImage" width="200">
+  <img src="Resources/JenaImage-geometric-j-v11.png" alt="JenaImage" width="200">
 </p>
 
 <h1 align="center">JenaImage</h1>
