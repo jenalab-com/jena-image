@@ -23,6 +23,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     enum ToolbarID {
         static let toolbar = NSToolbar.Identifier("MainToolbar")
+        static let sidebar = NSToolbarItem.Identifier("sidebarToggle")
         static let back = NSToolbarItem.Identifier("back")
         static let zoomIn = NSToolbarItem.Identifier("zoomIn")
         static let zoomOut = NSToolbarItem.Identifier("zoomOut")
@@ -590,16 +591,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         }
         syncFitModeSelection()
         for item in toolbar.items {
-            switch item.itemIdentifier {
-            case ToolbarID.back:
-                item.isEnabled = contentMode == .viewer || browserVC.isSimilarityMode || browserVC.isSearchMode
-            case ToolbarID.sort:
-                item.isEnabled = !browserVC.isSimilarityMode
-            case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize,
-                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
-                item.isEnabled = contentMode == .viewer
-            default: break
-            }
+            item.validate()
         }
     }
 

@@ -4,7 +4,7 @@ import AppKit
 
 extension MainWindowController {
 
-    @objc func changeBrowserLayout(_ sender: NSSegmentedControl) {
+    @objc func changeBrowserLayout(_ sender: HeaderSegmentGroup) {
         guard contentMode == .browser else { return }
         browserVC.setLayoutMode(sender.selectedSegment == 0 ? .masonry : .grid)
     }
@@ -56,7 +56,7 @@ extension MainWindowController {
         let current = AppSettings.shared.viewerFitMode
         for spec in Self.fitItems {
             guard let item = toolbar.items.first(where: { $0.itemIdentifier == spec.id }) else { continue }
-            item.image = Self.fitSymbol(spec.symbol, label: spec.label, selected: current == spec.mode)
+            (item.view as? NSButton)?.state = current == spec.mode ? .on : .off
         }
     }
 }
@@ -331,12 +331,7 @@ extension MainWindowController {
 extension MainWindowController: NSToolbarItemValidation {
 
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
-        if item.itemIdentifier == ToolbarID.compare {
-            let imageCount = browserVC.selectedURLs()
-                .compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
-            return imageCount >= 2
-        }
-        return true
+        isToolbarItemEnabled(item.itemIdentifier)
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

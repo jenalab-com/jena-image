@@ -2,7 +2,7 @@ import AppKit
 
 // MARK: - 공유 (macOS Share Sheet)
 
-extension MainWindowController: NSSharingServicePickerToolbarItemDelegate, NSSharingServicePickerDelegate {
+extension MainWindowController: NSSharingServicePickerDelegate {
 
     /// 공유할 수 있는 선택 항목 — 실제로 존재하는 파일(이미지·영상)만. 폴더와 깨진 북마크는 제외한다.
     func shareableURLs() -> [URL] {
@@ -14,6 +14,16 @@ extension MainWindowController: NSSharingServicePickerToolbarItemDelegate, NSSha
     /// 파일 메뉴 "공유…" — 선택 항목을 Share Sheet로 보낸다.
     @objc func shareSelected(_ sender: Any?) {
         share(urls: shareableURLs())
+    }
+
+    /// 툴바 공유 버튼 — 피커를 버튼 아래에 띄운다.
+    @objc func shareFromToolbar(_ sender: NSButton) {
+        let urls = shareableURLs()
+        guard !urls.isEmpty else { return }
+        let picker = NSSharingServicePicker(items: urls.map { $0 as NSURL })
+        picker.delegate = self
+        sharingPicker = picker
+        picker.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
 
     /// 공유 피커를 선택 항목(브라우저 셀 또는 뷰어 화면) 옆에 띄운다.
@@ -37,13 +47,6 @@ extension MainWindowController: NSSharingServicePickerToolbarItemDelegate, NSSha
         picker.delegate = self
         sharingPicker = picker
         picker.show(relativeTo: anchorRect, of: anchorView, preferredEdge: .minY)
-    }
-
-    // MARK: NSSharingServicePickerToolbarItemDelegate
-
-    /// 툴바 공유 버튼은 이 목록이 비어 있으면 자동으로 비활성화된다.
-    func items(for pickerToolbarItem: NSSharingServicePickerToolbarItem) -> [Any] {
-        shareableURLs().map { $0 as NSURL }
     }
 
     // MARK: NSSharingServicePickerDelegate

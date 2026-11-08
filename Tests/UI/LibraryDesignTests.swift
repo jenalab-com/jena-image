@@ -28,8 +28,8 @@ func runLibraryDesignTests(directory: URL) {
     let collection = descendants(browser.view, of: NSCollectionView.self).first!
     let layout = collection.collectionViewLayout as! MasonryLayout
 
-    func layoutControl() -> NSSegmentedControl? {
-        window.toolbar?.items.first { $0.itemIdentifier == MainWindowController.ToolbarID.layout }?.view as? NSSegmentedControl
+    func layoutControl() -> HeaderSegmentGroup? {
+        window.toolbar?.items.first { $0.itemIdentifier == MainWindowController.ToolbarID.layout }?.view as? HeaderSegmentGroup
     }
 
     runTest("투명 체크무늬 설정이 꺼져 있으면(기본) 투명 부분은 흰색이다") {

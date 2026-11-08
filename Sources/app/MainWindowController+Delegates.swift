@@ -3,29 +3,6 @@ import AppKit
 // MARK: - NSToolbarDelegate
 
 extension MainWindowController: NSToolbarDelegate {
-    /// 툴바는 SF Symbol 이미지에 자기 크기 설정을 다시 입혀서 SymbolConfiguration이 먹지 않는다.
-    /// 화살표 심볼은 글리프가 상자를 꽉 채워 돋보기보다 커 보이므로, 작은 포인트로 고정 비트맵에 그려 넣는다.
-    /// `selected`면 강조색으로 칠해 "켜진 모드"를 보인다(템플릿이 아니므로 툴바가 색을 덮지 않는다).
-    static func fitSymbol(_ name: String, label: String, selected: Bool = false) -> NSImage? {
-        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
-        guard let glyph = NSImage(systemSymbolName: name, accessibilityDescription: label)?
-            .withSymbolConfiguration(config) else { return nil }
-        let box = NSSize(width: 16, height: 15)  // 돋보기 심볼과 같은 상자
-        let image = NSImage(size: box, flipped: false) { rect in
-            let g = glyph.size
-            let origin = NSPoint(x: (rect.width - g.width) / 2, y: (rect.height - g.height) / 2)
-            glyph.draw(in: NSRect(origin: origin, size: g))
-            if selected {
-                NSColor.controlAccentColor.set()
-                rect.fill(using: .sourceAtop)
-            }
-            return true
-        }
-        image.isTemplate = !selected
-        image.accessibilityDescription = label
-        return image
-    }
-
     /// 맞춤 셋의 (식별자, 심볼, 라벨, 툴팁, 모드)
     static let fitItems: [(id: NSToolbarItem.Identifier, symbol: String, label: String, tip: String, mode: AppSettings.ViewerFitMode)] = [
         (ToolbarID.zoomFit, "arrow.up.left.and.arrow.down.right", "맞춤", "화면에 맞춤", .window),
@@ -34,21 +11,59 @@ extension MainWindowController: NSToolbarDelegate {
     ]
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        // 사이드바 토글은 항상 맨 왼쪽(제목보다 앞) — 내비게이션 항목으로 둔다.
         if contentMode == .browser {
             let showsBack = browserVC.isSimilarityMode || browserVC.isSearchMode
-            return [.toggleSidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.checkerboard, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
+            return [ToolbarID.sidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.checkerboard, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
         }
-        return [.toggleSidebar, ToolbarID.back, .flexibleSpace,
+        return [ToolbarID.sidebar, ToolbarID.back, .flexibleSpace,
                 ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
                 .flexibleSpace, ToolbarID.checkerboard, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
+        [ToolbarID.sidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
          ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
          ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
          ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share, ToolbarID.search, ToolbarID.checkerboard]
+    }
+
+    /// 툴바 항목의 활성 규칙 한곳 — 모드 전환(updateToolbarState)과 주기적 검사(HeaderToolbarItem.validate)가 함께 쓴다.
+    func isToolbarItemEnabled(_ identifier: NSToolbarItem.Identifier) -> Bool {
+        switch identifier {
+        case ToolbarID.back:
+            return contentMode == .viewer || browserVC.isSimilarityMode || browserVC.isSearchMode
+        case ToolbarID.sort:
+            return !browserVC.isSimilarityMode
+        case ToolbarID.zoomIn, ToolbarID.zoomOut, ToolbarID.zoomActualSize,
+             ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
+            return contentMode == .viewer
+        case ToolbarID.compare:
+            let imageCount = browserVC.selectedURLs()
+                .compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
+            return imageCount >= 2
+        case ToolbarID.share:
+            return !shareableURLs().isEmpty
+        default:
+            return true
+        }
+    }
+
+    /// 같은 규격(HeaderButton)의 버튼을 담은 툴바 항목.
+    private func headerItem(_ identifier: NSToolbarItem.Identifier, label: String, tip: String,
+                            symbol: String? = nil, title: String? = nil, toggle: Bool = false,
+                            action: Selector) -> HeaderToolbarItem {
+        let item = HeaderToolbarItem(itemIdentifier: identifier)
+        let button = HeaderButton(symbol: symbol, title: title, label: label, toggle: toggle)
+        button.toolTip = tip
+        button.target = self
+        button.action = action
+        item.view = button
+        item.label = label
+        item.toolTip = tip
+        item.enabledRule = { [weak self] in self?.isToolbarItemEnabled(identifier) ?? true }
+        return item
     }
 
     func toolbar(
@@ -56,21 +71,19 @@ extension MainWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-
         switch itemIdentifier {
+        case ToolbarID.sidebar:
+            let item = headerItem(itemIdentifier, label: "사이드바", tip: "사이드바 보기/숨기기 (⌥⌘S)",
+                                  symbol: "sidebar.left", action: #selector(toggleSidebar(_:)))
+            item.isNavigational = true
+            return item
+
         case ToolbarID.layout:
-            let control = NSSegmentedControl()
-            control.segmentCount = 2
-            control.trackingMode = .selectOne
-            control.segmentStyle = .rounded
-            control.controlSize = .small
-            control.setImage(NSImage(systemSymbolName: "rectangle.grid.1x2", accessibilityDescription: "Masonry"), forSegment: 0)
-            control.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: "일반 격자"), forSegment: 1)
-            control.setToolTip("Masonry — 원본 비율로 보기", forSegment: 0)
-            control.setToolTip("일반 격자 — 같은 크기로 보기", forSegment: 1)
-            control.setWidth(30, forSegment: 0)
-            control.setWidth(30, forSegment: 1)
+            let item = HeaderToolbarItem(itemIdentifier: itemIdentifier)
+            let control = HeaderSegmentGroup(symbols: [
+                ("rectangle.grid.1x2", "Masonry", "Masonry — 원본 비율로 보기"),
+                ("square.grid.2x2", "일반 격자", "일반 격자 — 같은 크기로 보기"),
+            ])
             control.selectedSegment = browserVC.layoutMode == .masonry ? 0 : 1
             control.setAccessibilityLabel("이미지 목록 레이아웃")
             control.target = self
@@ -79,106 +92,76 @@ extension MainWindowController: NSToolbarDelegate {
             item.label = "보기 방식"
             item.toolTip = "Masonry / 일반 격자"
             item.visibilityPriority = .high
+            return item
 
         case ToolbarID.back:
+            let item = headerItem(itemIdentifier, label: "뒤로",
+                                  tip: contentMode == .browser ? "검색 전 목록으로 돌아가기" : "목록으로 돌아가기",
+                                  symbol: "chevron.left", action: #selector(toolbarBack(_:)))
             item.isNavigational = true
-            item.label = "뒤로"
-            item.toolTip = contentMode == .browser ? "검색 전 목록으로 돌아가기" : "목록으로 돌아가기"
-            item.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "뒤로")
-            item.action = #selector(toolbarBack(_:))
-            item.target = self
-            item.isEnabled = false
+            return item
 
         case ToolbarID.zoomIn:
-            item.label = "확대"
-            item.toolTip = "확대"
-            item.image = NSImage(systemSymbolName: "plus.magnifyingglass", accessibilityDescription: "확대")
-            item.action = #selector(zoomIn(_:))
-            item.target = self
-            item.isEnabled = false
+            return headerItem(itemIdentifier, label: "확대", tip: "확대",
+                              symbol: "plus.magnifyingglass", action: #selector(zoomIn(_:)))
 
         case ToolbarID.zoomOut:
-            item.label = "축소"
-            item.toolTip = "축소"
-            item.image = NSImage(systemSymbolName: "minus.magnifyingglass", accessibilityDescription: "축소")
-            item.action = #selector(zoomOut(_:))
-            item.target = self
-            item.isEnabled = false
+            return headerItem(itemIdentifier, label: "축소", tip: "축소",
+                              symbol: "minus.magnifyingglass", action: #selector(zoomOut(_:)))
 
         case ToolbarID.zoomActualSize:
-            item.label = "원본 크기"
-            item.toolTip = "원본 크기(100%)"
-            item.image = NSImage(systemSymbolName: "1.magnifyingglass", accessibilityDescription: "원본 크기")
-            item.action = #selector(zoomActualSize(_:))
-            item.target = self
-            item.isEnabled = false
+            return headerItem(itemIdentifier, label: "원본 크기", tip: "원본 크기(100%)",
+                              symbol: "1.magnifyingglass", action: #selector(zoomActualSize(_:)))
 
         case ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth:
-            // 돋보기 셋과 같은 모양의 나란한 버튼. 켜진 모드는 강조색 심볼로 표시(syncFitModeSelection이 갱신).
+            // 셋 중 켜진 맞춤 모드만 눌린 상태로 보인다(syncFitModeSelection이 갱신).
             guard let spec = Self.fitItems.first(where: { $0.id == itemIdentifier }) else { return nil }
             let selectors: [NSToolbarItem.Identifier: Selector] = [
                 ToolbarID.zoomFit: #selector(zoomFit(_:)),
                 ToolbarID.zoomFitHeight: #selector(zoomFitHeight(_:)),
                 ToolbarID.zoomFitWidth: #selector(zoomFitWidth(_:)),
             ]
-            item.label = spec.label
-            item.toolTip = spec.tip
-            item.image = Self.fitSymbol(spec.symbol, label: spec.label,
-                                        selected: AppSettings.shared.viewerFitMode == spec.mode)
-            item.action = selectors[itemIdentifier]
-            item.target = self
-            item.isEnabled = false
+            let item = headerItem(itemIdentifier, label: spec.label, tip: spec.tip,
+                                  symbol: spec.symbol, action: selectors[itemIdentifier]!)
+            (item.view as? NSButton)?.state = AppSettings.shared.viewerFitMode == spec.mode ? .on : .off
+            return item
 
         case ToolbarID.sort:
-            let menuItem = NSMenuToolbarItem(itemIdentifier: itemIdentifier)
-            menuItem.label = "정렬"
-            menuItem.toolTip = "정렬 기준"
-            menuItem.image = NSImage(systemSymbolName: "arrow.up.arrow.down", accessibilityDescription: "정렬")
-            menuItem.menu = sortMenu
-            menuItem.showsIndicator = true
-            return menuItem
+            return headerItem(itemIdentifier, label: "정렬", tip: "정렬 기준",
+                              symbol: "arrow.up.arrow.down", action: #selector(showSortMenu(_:)))
 
         case ToolbarID.search:
             return makeSearchToolbarItem()
 
         case ToolbarID.checkerboard:
             // 투명 영역 바탕 토글. 켜면 체크무늬, 끄면 흰색. 설정값은 AppSettings에 남아 다음 실행에도 유지.
-            let check = NSButton(checkboxWithTitle: "투명 체크무늬", target: self, action: #selector(toggleCheckerboard(_:)))
-            check.controlSize = .small
-            check.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            check.state = AppSettings.shared.showsTransparencyCheckerboard ? .on : .off
-            check.setAccessibilityLabel("투명 영역을 체크무늬로 표시")
-            item.view = check
-            item.label = "투명 체크무늬"
-            item.toolTip = "이미지의 투명한 부분을 체크무늬로 표시합니다. 끄면 흰색으로 보입니다."
+            let item = headerItem(itemIdentifier, label: "투명 체크무늬",
+                                  tip: "이미지의 투명한 부분을 체크무늬로 표시합니다. 끄면 흰색으로 보입니다.",
+                                  symbol: "checkerboard.rectangle", toggle: true, action: #selector(toggleCheckerboard(_:)))
+            (item.view as? NSButton)?.state = AppSettings.shared.showsTransparencyCheckerboard ? .on : .off
+            item.view?.setAccessibilityLabel("투명 영역을 체크무늬로 표시")
+            return item
 
         case ToolbarID.share:
-            // 시스템 공유 버튼. 대상은 delegate의 items(for:)가 매번 제공하고, 비어 있으면 자동 비활성.
-            let shareItem = NSSharingServicePickerToolbarItem(itemIdentifier: itemIdentifier)
-            shareItem.label = "공유"
-            shareItem.toolTip = "선택한 파일 공유"
-            shareItem.delegate = self
-            return shareItem
+            return headerItem(itemIdentifier, label: "공유", tip: "선택한 파일 공유",
+                              symbol: "square.and.arrow.up", action: #selector(shareFromToolbar(_:)))
 
         case ToolbarID.ai:
-            item.label = "AI 모드"
-            item.toolTip = "AI 이미지 생성"
-            let button = NSButton(title: "AI", target: self, action: #selector(showAIMode(_:)))
-            button.setAccessibilityLabel("AI 모드")
-            item.view = button
+            return headerItem(itemIdentifier, label: "AI 모드", tip: "AI 이미지 생성",
+                              title: "AI", action: #selector(showAIMode(_:)))
 
         case ToolbarID.compare:
-            item.label = "비교"
-            item.toolTip = "선택한 이미지 비교"
-            item.image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "비교")
-            item.action = #selector(compareSelected(_:))
-            item.target = self
+            return headerItem(itemIdentifier, label: "비교", tip: "선택한 이미지 비교",
+                              symbol: "rectangle.split.2x1", action: #selector(compareSelected(_:)))
 
         default:
             return nil
         }
+    }
 
-        return item
+    /// 정렬 버튼 — 버튼 바로 아래에 정렬 메뉴를 띄운다.
+    @objc func showSortMenu(_ sender: NSButton) {
+        sortMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
     }
 }
 
