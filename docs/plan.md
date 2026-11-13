@@ -105,15 +105,17 @@
 
 ## v2.0 후보 — P2P 이미지 공유 ❌
 
-### 31. 읽기 전용 로컬 네트워크 공유 ❌
-- 사용자가 선택한 폴더의 직속 이미지를 같은 네트워크의 다른 Mac과 직접 공유
-- 사이드바 `네트워크 공유` 섹션에서 공유 폴더 발견·썸네일 탐색·선택 원본 다운로드
-- 중계서버 없음, 원격 업로드·수정·삭제 없음
-- 인터넷 직접 연결·인증·암호화는 별도 후속 단계
-- 상세는 [p2p-sharing-design.md](p2p-sharing-design.md)
+### 31. 인터넷 P2P 읽기 전용 공유 ❌ (설계 v2 완료)
+- 폴더 공유를 켠 Mac이 개인 서버, 다른 사용자는 중앙 서버 없이 DHT로 찾아 직접 접속해 보고 가져오기만(1:N)
+- 기본 비공개 채널(초대 코드), 공개 채널은 옵션(표시 이름 필수). 화면에 IP 미표시. 공유 폴더 밖은 구조적으로 접근 불가(경로 대신 불투명 ID)
+- 발견=Mainline DHT, 접근=UPnP/NAT-PMP/IPv6 포트 개방, 전송=읽기 전용 HTTP(manifest·thumb·file). 전부 직접 구현(외부 의존성 없음)
+- 2026-11-13 기술 검증: UPnP 포트 개방 → 외부 도달 확인, 공개 DHT ping·get_peers·token 확인
+- 상세는 [p2p-internet-sharing-design.md](p2p-internet-sharing-design.md). v1 로컬 설계는 [p2p-sharing-design.md](p2p-sharing-design.md)
+- 후속: 도달 불가 사용자를 위한 유료 중계 = "서버 링크 공유"(차후)
 
 ## 다음 후보 (우선순위 제안)
 
-1. 카테고리 필터(26)
+1. 인터넷 P2P 공유(31) — Phase 0 스파이크(DHT announce/get_peers·UPnP)부터
+2. 카테고리 필터(26)
 2. 장기 과제 — [editor-roadmap.md](editor-roadmap.md) Phase 1(비파괴 편집 기반)부터
 

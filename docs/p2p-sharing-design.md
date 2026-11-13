@@ -1,4 +1,6 @@
-# JenaImage P2P 이미지 공유 설계
+# JenaImage P2P 이미지 공유 설계 (v1 · 로컬 네트워크)
+
+> **대체됨(2026-11-13):** 인터넷 너머 1:N·DHT 발견·직접 전송으로 범위가 바뀌어 [p2p-internet-sharing-design.md](p2p-internet-sharing-design.md)(v2)가 현행이다. 이 문서는 화면·정보 모델·읽기 전용 원칙의 출처로만 남긴다.
 
 > 상태: 제안(구현 전) · 작성일: 2026-10-26 · 대상: macOS 14+
 >
