@@ -1,0 +1,89 @@
+swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers Sources/ai/AIConnectionService.swift Sources/ai/AIImageGenerationService.swift Sources/services/ThumbnailScheduler.swift Sources/models/BrowserLayoutMode.swift Sources/browser/MasonryLayout.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/services/ImageAspectRatioReader.swift Sources/models/ImageCategory.swift Sources/services/CategoryStore.swift Sources/services/ThumbnailCache.swift Sources/services/ThumbnailProvider.swift Sources/services/ThumbnailDiskStore.swift Sources/models/ColorSwatch.swift Sources/services/ColorFormat.swift Sources/services/ColorExtractionService.swift Sources/viewer/PixelMapping.swift Sources/viewer/ColorInteraction.swift Sources/services/PixelSampler.swift Tests/AIConnectionTests.swift Tests/AIImageGenerationTests.swift Tests/CategoryStoreTests.swift Tests/ColorExtractionTests.swift Tests/ColorFormatTests.swift Tests/ColorInteractionTests.swift Tests/MasonryTests.swift Tests/PixelMappingTests.swift Tests/TestSupport.swift Tests/ThumbnailDiskStoreTests.swift Tests/ThumbnailProviderTests.swift Tests/ThumbnailSchedulerTests.swift Tests/main.swift -o .build/tests
+Tests/ColorInteractionTests.swift:49:25: error: cannot find type 'HoverGrace' in scope
+ 47 |     private(set) var pending: [(id: Int, work: () -> Void, cancelled: Bool)] = []
+ 48 |     private var nextID = 0
+ 49 |     lazy var scheduler: HoverGrace.Scheduler = { [unowned self] _, work in
+    |                         `- error: cannot find type 'HoverGrace' in scope
+ 50 |         let id = self.nextID; self.nextID += 1
+ 51 |         self.pending.append((id, work, false))
+
+Tests/ColorInteractionTests.swift:60:46: error: cannot find 'HoverGrace' in scope
+ 58 | func runColorLayoutTests() {
+ 59 |     runTest("HoverGrace: 칩에서 정보창으로 옮겨가도 닫히지 않는다") {
+ 60 |         let clock = FakeClock(); let grace = HoverGrace(delay: 0.12, schedule: clock.scheduler)
+    |                                              `- error: cannot find 'HoverGrace' in scope
+ 61 |         var closed = 0; grace.onClose = { closed += 1 }
+ 62 |         grace.enter()        // 칩 위
+
+Tests/ColorInteractionTests.swift:73:46: error: cannot find 'HoverGrace' in scope
+ 71 |
+ 72 |     runTest("HoverGrace: 둘 다 벗어나면 유예 뒤 정확히 한 번 닫힌다") {
+ 73 |         let clock = FakeClock(); let grace = HoverGrace(delay: 0.12, schedule: clock.scheduler)
+    |                                              `- error: cannot find 'HoverGrace' in scope
+ 74 |         var closed = 0; grace.onClose = { closed += 1 }
+ 75 |         grace.enter(); grace.exit()
+
+Tests/ColorInteractionTests.swift:84:46: error: cannot find 'HoverGrace' in scope
+ 82 |
+ 83 |     runTest("HoverGrace: 옆 칩으로 바로 이동(exit 직후 enter)하면 닫히지 않는다") {
+ 84 |         let clock = FakeClock(); let grace = HoverGrace(delay: 0.12, schedule: clock.scheduler)
+    |                                              `- error: cannot find 'HoverGrace' in scope
+ 85 |         var closed = 0; grace.onClose = { closed += 1 }
+ 86 |         grace.enter(); grace.exit(); grace.enter(); grace.exit(); grace.enter()
+
+Tests/ColorInteractionTests.swift:94:22: error: cannot find 'MagnifierPlacement' in scope
+ 92 |         let bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+ 93 |         let size = CGSize(width: 110, height: 134)
+ 94 |         let normal = MagnifierPlacement.frame(cursor: CGPoint(x: 300, y: 400), size: size, bounds: bounds)
+    |                      `- error: cannot find 'MagnifierPlacement' in scope
+ 95 |         checkEqual(normal, CGRect(x: 318, y: 400 - 18 - 134, width: 110, height: 134), "오른쪽 아래")
+ 96 |
+
+Tests/ColorInteractionTests.swift:97:25: error: cannot find 'MagnifierPlacement' in scope
+ 95 |         checkEqual(normal, CGRect(x: 318, y: 400 - 18 - 134, width: 110, height: 134), "오른쪽 아래")
+ 96 |
+ 97 |         let nearRight = MagnifierPlacement.frame(cursor: CGPoint(x: 780, y: 400), size: size, bounds: bounds)
+    |                         `- error: cannot find 'MagnifierPlacement' in scope
+ 98 |         check(nearRight.maxX <= 780 - 18 + 0.001, "오른쪽 끝 근처: 커서 왼쪽으로 뒤집힘 \(nearRight)")
+ 99 |         let nearBottom = MagnifierPlacement.frame(cursor: CGPoint(x: 300, y: 30), size: size, bounds: bounds)
+
+Tests/ColorInteractionTests.swift:99:26: error: cannot find 'MagnifierPlacement' in scope
+ 97 |         let nearRight = MagnifierPlacement.frame(cursor: CGPoint(x: 780, y: 400), size: size, bounds: bounds)
+ 98 |         check(nearRight.maxX <= 780 - 18 + 0.001, "오른쪽 끝 근처: 커서 왼쪽으로 뒤집힘 \(nearRight)")
+ 99 |         let nearBottom = MagnifierPlacement.frame(cursor: CGPoint(x: 300, y: 30), size: size, bounds: bounds)
+    |                          `- error: cannot find 'MagnifierPlacement' in scope
+100 |         check(nearBottom.minY >= 30 + 18 - 0.001, "아래 끝 근처: 커서 위쪽으로 뒤집힘 \(nearBottom)")
+101 |         let corner = MagnifierPlacement.frame(cursor: CGPoint(x: 790, y: 5), size: size, bounds: bounds)
+
+Tests/ColorInteractionTests.swift:101:22: error: cannot find 'MagnifierPlacement' in scope
+ 99 |         let nearBottom = MagnifierPlacement.frame(cursor: CGPoint(x: 300, y: 30), size: size, bounds: bounds)
+100 |         check(nearBottom.minY >= 30 + 18 - 0.001, "아래 끝 근처: 커서 위쪽으로 뒤집힘 \(nearBottom)")
+101 |         let corner = MagnifierPlacement.frame(cursor: CGPoint(x: 790, y: 5), size: size, bounds: bounds)
+    |                      `- error: cannot find 'MagnifierPlacement' in scope
+102 |         check(bounds.contains(corner), "모서리: 양쪽 다 뒤집혀도 bounds 안 \(corner)")
+103 |     }
+
+Tests/ColorInteractionTests.swift:107:17: error: cannot find 'ChipFlowLayout' in scope
+105 |     runTest("ChipFlowLayout: 폭을 넘으면 줄바꿈한다") {
+106 |         // 폭 300, 칩 40×60, 간격 8 → 한 줄 6개
+107 |         let r = ChipFlowLayout.frames(count: 13, itemSize: CGSize(width: 40, height: 60), spacing: 8, width: 300)
+    |                 `- error: cannot find 'ChipFlowLayout' in scope
+108 |         checkEqual(r.frames.count, 13, "개수")
+109 |         checkEqual(r.frames[5], CGRect(x: 5 * 48, y: 0, width: 40, height: 60), "첫 줄 마지막")
+
+Tests/ColorInteractionTests.swift:112:20: error: cannot find 'ChipFlowLayout' in scope
+110 |         checkEqual(r.frames[6], CGRect(x: 0, y: 68, width: 40, height: 60), "둘째 줄 처음")
+111 |         checkEqual(r.height, 3 * 60 + 2 * 8, "세 줄 높이")
+112 |         checkEqual(ChipFlowLayout.frames(count: 0, itemSize: CGSize(width: 40, height: 60), spacing: 8, width: 300).height, 0, "빈 목록")
+    |                    `- error: cannot find 'ChipFlowLayout' in scope
+113 |         let narrow = ChipFlowLayout.frames(count: 3, itemSize: CGSize(width: 40, height: 60), spacing: 8, width: 10)
+114 |         checkEqual(narrow.frames[2].minX, 0, "너무 좁아도 한 줄에 최소 1개")
+
+Tests/ColorInteractionTests.swift:113:22: error: cannot find 'ChipFlowLayout' in scope
+111 |         checkEqual(r.height, 3 * 60 + 2 * 8, "세 줄 높이")
+112 |         checkEqual(ChipFlowLayout.frames(count: 0, itemSize: CGSize(width: 40, height: 60), spacing: 8, width: 300).height, 0, "빈 목록")
+113 |         let narrow = ChipFlowLayout.frames(count: 3, itemSize: CGSize(width: 40, height: 60), spacing: 8, width: 10)
+    |                      `- error: cannot find 'ChipFlowLayout' in scope
+114 |         checkEqual(narrow.frames[2].minX, 0, "너무 좁아도 한 줄에 최소 1개")
+115 |     }
+make: *** [test] Error 1

@@ -1,0 +1,37 @@
+[
+  {
+    "file": "/tmp/color-bench/samples/illust.jpg",
+    "bytes": 528184,
+    "sha256": "50cc23deb880f9707d7b540414ec6c9e338a7dd07a0727fc9a0a841ff791b46e"
+  },
+  {
+    "file": "/tmp/color-bench/samples/big.jpg",
+    "bytes": 3218454,
+    "sha256": "bce2bf0afbba861b1f795d21a873446f037e8e8c915ea6f17789dce55f399c99"
+  },
+  {
+    "file": "/tmp/color-bench/samples/photo.jpg",
+    "bytes": 869092,
+    "sha256": "3207d5eec529399d72c7527ea069bcf4466e08e576e2d3f6bd2a135a7c5749ad"
+  },
+  {
+    "file": "/tmp/color-bench/samples/mono.jpg",
+    "bytes": 503690,
+    "sha256": "9cae80e01898f52f015ed8b32ce443e703507f1ad14ca80447fe52d3518c928b"
+  },
+  {
+    "file": "/tmp/color-bench/samples/render.png",
+    "bytes": 1760642,
+    "sha256": "8b5a970e31c9413bbc558cfd0a748cd5925b71c44724ef58f0bda7bcc2baac7e"
+  },
+  {
+    "file": "/tmp/color-bench/samples/photo2.jpg",
+    "bytes": 635853,
+    "sha256": "2ee9f21d10f320220cdb003f5c159bd3a4f65121f76b45f5653e8036d41a3526"
+  },
+  {
+    "file": "/Volumes/Backup/Project/jena/source/jena-image-pro/Resources/JenaImage-rectangle-j-v9.png",
+    "bytes": 1267209,
+    "sha256": "71208b28721b25660826f859f93622f8d162dbb66bc334ddb605c93040893365"
+  }
+]

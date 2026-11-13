@@ -1,0 +1,441 @@
+== big.jpg  5760x7680
+  side 512: 전처리    80.2 ms  bins  2293  상위6 기준(512)과 일치 6/6  #24283B #A89E8F #FEFEFC #DBC4AA #514F53 #AE6F5D
+  side 384: 전처리     6.1 ms  bins  2116  상위6 기준(512)과 일치 3/6  #24283B #A89E8F #FEFEFC #DCC5AB #302E32 #AF705E
+  side 256: 전처리     3.8 ms  bins  1856  상위6 기준(512)과 일치 4/6  #1F2433 #A89E8F #FEFEFC #DBC4AA #AE6F5D #302E32
+  side 192: 전처리     2.8 ms  bins  1676  상위6 기준(512)과 일치 2/6  #1F2433 #A89E8F #FEFEFC #DCC5AB #302E32 #AF705F
+  side 128: 전처리     2.1 ms  bins  1331  상위6 기준(512)과 일치 3/6  #1F2433 #A89E8F #FEFEFC #DBC4AA #47444C #AF705E
+  CIE76    tol    4 min 0.0005: 칩 102  묶기 중앙값   1.41 ms
+  CIE76    tol    4 min 0.0010: 칩  56  묶기 중앙값   0.78 ms
+  CIE76    tol    4 min 0.0020: 칩  28  묶기 중앙값   0.39 ms
+  CIE76    tol    6 min 0.0005: 칩  52  묶기 중앙값   0.70 ms
+  CIE76    tol    6 min 0.0010: 칩  34  묶기 중앙값   0.48 ms
+  CIE76    tol    6 min 0.0020: 칩  21  묶기 중앙값   0.29 ms
+  CIE76    tol    8 min 0.0005: 칩  33  묶기 중앙값   0.45 ms
+  CIE76    tol    8 min 0.0010: 칩  24  묶기 중앙값   0.33 ms
+  CIE76    tol    8 min 0.0020: 칩  13  묶기 중앙값   0.19 ms
+  CIE76    tol   10 min 0.0005: 칩  25  묶기 중앙값   0.35 ms
+  CIE76    tol   10 min 0.0010: 칩  18  묶기 중앙값   0.24 ms
+  CIE76    tol   10 min 0.0020: 칩  11  묶기 중앙값   0.14 ms
+  CIE76    tol   12 min 0.0005: 칩  19  묶기 중앙값   0.25 ms
+  CIE76    tol   12 min 0.0010: 칩  17  묶기 중앙값   0.23 ms
+  CIE76    tol   12 min 0.0020: 칩  10  묶기 중앙값   0.14 ms
+  CIE76    tol   16 min 0.0005: 칩  12  묶기 중앙값   0.17 ms
+  CIE76    tol   16 min 0.0010: 칩  11  묶기 중앙값   0.15 ms
+  CIE76    tol   16 min 0.0020: 칩   7  묶기 중앙값   0.10 ms
+  CIE76    tol   20 min 0.0005: 칩   9  묶기 중앙값   0.12 ms
+  CIE76    tol   20 min 0.0010: 칩   8  묶기 중앙값   0.12 ms
+  CIE76    tol   20 min 0.0020: 칩   5  묶기 중앙값   0.08 ms
+  CIE76    tol   24 min 0.0005: 칩   8  묶기 중앙값   0.10 ms
+  CIE76    tol   24 min 0.0010: 칩   7  묶기 중앙값   0.09 ms
+  CIE76    tol   24 min 0.0020: 칩   5  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0005: 칩   5  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0010: 칩   5  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0020: 칩   4  묶기 중앙값   0.06 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  75  묶기 중앙값  14.94 ms
+  CIEDE2000 tol    4 min 0.0010: 칩  43  묶기 중앙값   7.92 ms
+  CIEDE2000 tol    4 min 0.0020: 칩  21  묶기 중앙값   3.89 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  42  묶기 중앙값   9.06 ms
+  CIEDE2000 tol    6 min 0.0010: 칩  27  묶기 중앙값   5.11 ms
+  CIEDE2000 tol    6 min 0.0020: 칩  16  묶기 중앙값   2.89 ms
+  CIEDE2000 tol    8 min 0.0005: 칩  25  묶기 중앙값   4.44 ms
+  CIEDE2000 tol    8 min 0.0010: 칩  17  묶기 중앙값   3.04 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   9  묶기 중앙값   1.64 ms
+  CIEDE2000 tol   10 min 0.0005: 칩  17  묶기 중앙값   2.90 ms
+  CIEDE2000 tol   10 min 0.0010: 칩  15  묶기 중앙값   2.61 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   8  묶기 중앙값   1.47 ms
+PALETTE 0.0005 #24283B=23.238 #A89E8F=11.743 #FEFEFC=11.481 #B77F64=9.396 #DBC4AA=8.829 #514F53=6.836 #A5C3C9=5.316 #3B4A65=4.688 #64403C=3.696 #9BB5AD=2.729 #B88065=2.691 #7A7368=2.657 #977A8E=2.150 #C6BBC9=1.424 #8B6E83=0.555
+  CIEDE2000 tol   12 min 0.0005: 칩  15  묶기 중앙값   2.60 ms
+PALETTE 0.001 #24283B=23.238 #FEFEFC=12.808 #A89E8F=12.196 #B77F64=10.646 #DBC4AA=8.873 #514F53=6.836 #3B4A65=4.688 #9BB5AD=4.330 #64403C=3.696 #977A8E=3.023 #7A7368=2.799 #C6BBC9=1.885
+  CIEDE2000 tol   12 min 0.0010: 칩  12  묶기 중앙값   2.11 ms
+PALETTE 0.002 #24283B=23.238 #FEFEFC=13.048 #A89E8F=12.710 #B77F64=12.383 #DBC4AA=8.883 #514F53=7.852 #3B4A65=5.093
+  CIEDE2000 tol   12 min 0.0020: 칩   7  묶기 중앙값   1.30 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   9  묶기 중앙값   1.57 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   8  묶기 중앙값   1.35 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   5  묶기 중앙값   0.91 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   5  묶기 중앙값   0.90 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   5  묶기 중앙값   0.86 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   5  묶기 중앙값   0.87 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   5  묶기 중앙값   0.88 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   5  묶기 중앙값   0.90 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   4  묶기 중앙값   0.73 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   4  묶기 중앙값   0.74 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   4  묶기 중앙값   0.72 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   3  묶기 중앙값   0.59 ms
+== photo.jpg  2316x3088
+  side 512: 전처리    13.9 ms  bins  2286  상위6 기준(512)과 일치 6/6  #23273B #A89E8F #FEFEFC #DBC4AA #525054 #B77F64
+  side 384: 전처리     8.9 ms  bins  2078  상위6 기준(512)과 일치 2/6  #24283B #A89E8F #FEFEFC #DCC5AB #AD6E5C #322E36
+  side 256: 전처리     2.0 ms  bins  1858  상위6 기준(512)과 일치 2/6  #24283B #A89E8F #FEFEFC #DCC5AB #514F53 #905A4F
+  side 192: 전처리     1.4 ms  bins  1651  상위6 기준(512)과 일치 2/6  #24283B #A89E8F #FEFEFC #DCC5AB #514F53 #AF705E
+  side 128: 전처리     0.8 ms  bins  1342  상위6 기준(512)과 일치 3/6  #1F2433 #A89E8F #FEFEFC #DBC4AA #514F53 #AE6F5E
+  CIE76    tol    4 min 0.0005: 칩  98  묶기 중앙값   1.17 ms
+  CIE76    tol    4 min 0.0010: 칩  56  묶기 중앙값   0.69 ms
+  CIE76    tol    4 min 0.0020: 칩  29  묶기 중앙값   0.36 ms
+  CIE76    tol    6 min 0.0005: 칩  57  묶기 중앙값   0.68 ms
+  CIE76    tol    6 min 0.0010: 칩  33  묶기 중앙값   0.41 ms
+  CIE76    tol    6 min 0.0020: 칩  18  묶기 중앙값   0.22 ms
+  CIE76    tol    8 min 0.0005: 칩  38  묶기 중앙값   0.47 ms
+  CIE76    tol    8 min 0.0010: 칩  24  묶기 중앙값   0.30 ms
+  CIE76    tol    8 min 0.0020: 칩  13  묶기 중앙값   0.16 ms
+  CIE76    tol   10 min 0.0005: 칩  28  묶기 중앙값   0.34 ms
+  CIE76    tol   10 min 0.0010: 칩  18  묶기 중앙값   0.24 ms
+  CIE76    tol   10 min 0.0020: 칩   9  묶기 중앙값   0.12 ms
+  CIE76    tol   12 min 0.0005: 칩  21  묶기 중앙값   0.27 ms
+  CIE76    tol   12 min 0.0010: 칩  16  묶기 중앙값   0.22 ms
+  CIE76    tol   12 min 0.0020: 칩   8  묶기 중앙값   0.11 ms
+  CIE76    tol   16 min 0.0005: 칩  12  묶기 중앙값   0.16 ms
+  CIE76    tol   16 min 0.0010: 칩  10  묶기 중앙값   0.14 ms
+  CIE76    tol   16 min 0.0020: 칩   7  묶기 중앙값   0.11 ms
+  CIE76    tol   20 min 0.0005: 칩  10  묶기 중앙값   0.13 ms
+  CIE76    tol   20 min 0.0010: 칩   8  묶기 중앙값   0.11 ms
+  CIE76    tol   20 min 0.0020: 칩   5  묶기 중앙값   0.08 ms
+  CIE76    tol   24 min 0.0005: 칩   8  묶기 중앙값   0.11 ms
+  CIE76    tol   24 min 0.0010: 칩   8  묶기 중앙값   0.10 ms
+  CIE76    tol   24 min 0.0020: 칩   4  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0005: 칩   5  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0010: 칩   5  묶기 중앙값   0.07 ms
+  CIE76    tol   30 min 0.0020: 칩   4  묶기 중앙값   0.06 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  73  묶기 중앙값  14.06 ms
+  CIEDE2000 tol    4 min 0.0010: 칩  40  묶기 중앙값   7.28 ms
+  CIEDE2000 tol    4 min 0.0020: 칩  22  묶기 중앙값   3.99 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  43  묶기 중앙값   7.84 ms
+  CIEDE2000 tol    6 min 0.0010: 칩  26  묶기 중앙값   4.56 ms
+  CIEDE2000 tol    6 min 0.0020: 칩  15  묶기 중앙값   2.59 ms
+  CIEDE2000 tol    8 min 0.0005: 칩  26  묶기 중앙값   4.52 ms
+  CIEDE2000 tol    8 min 0.0010: 칩  17  묶기 중앙값   3.01 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   8  묶기 중앙값   1.47 ms
+  CIEDE2000 tol   10 min 0.0005: 칩  20  묶기 중앙값   3.43 ms
+  CIEDE2000 tol   10 min 0.0010: 칩  12  묶기 중앙값   2.12 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   7  묶기 중앙값   1.29 ms
+PALETTE 0.0005 #23273B=24.335 #A89E8F=11.829 #FEFEFC=11.420 #DBC4AA=8.741 #B77F64=7.359 #975F52=6.906 #525054=6.419 #3A4964=4.366 #B1C6D2=3.343 #D2E8E9=3.103 #AA8F9E=2.908 #9CB5AE=2.667 #7B7469=2.395 #C9C4D7=1.441 #5C474E=0.772
+  CIEDE2000 tol   12 min 0.0005: 칩  15  묶기 중앙값   2.60 ms
+PALETTE 0.001 #23273B=24.348 #FEFEFC=12.692 #A89E8F=11.972 #DBC4AA=8.749 #B77F64=7.359 #975F52=7.090 #525054=6.794 #9CB5AE=4.944 #3A4964=4.366 #AA8F9E=3.435 #7B7469=2.395
+  CIEDE2000 tol   12 min 0.0010: 칩  11  묶기 중앙값   1.86 ms
+PALETTE 0.002 #23273B=24.348 #FEFEFC=12.811 #A89E8F=12.585 #525054=9.501 #DBC4AA=8.771 #B77F64=7.675 #975F52=7.090
+  CIEDE2000 tol   12 min 0.0020: 칩   7  묶기 중앙값   1.26 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   9  묶기 중앙값   1.52 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   8  묶기 중앙값   1.36 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   5  묶기 중앙값   0.92 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   6  묶기 중앙값   1.03 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   6  묶기 중앙값   1.05 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   4  묶기 중앙값   0.75 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   5  묶기 중앙값   0.92 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   5  묶기 중앙값   0.91 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   4  묶기 중앙값   0.75 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   4  묶기 중앙값   0.74 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   4  묶기 중앙값   0.71 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   3  묶기 중앙값   0.54 ms
+== photo2.jpg  2160x2700
+  side 512: 전처리     9.9 ms  bins   662  상위6 기준(512)과 일치 6/6  #FFFFFF #EBEBEB #B6B6B6 #000000 #959595 #F1AE1C
+  side 384: 전처리     2.2 ms  bins   499  상위6 기준(512)과 일치 3/6  #FFFFFF #DBDBDB #B0B0B0 #000000 #8E8E8E #F1AE1C
+  side 256: 전처리     5.9 ms  bins   522  상위6 기준(512)과 일치 2/6  #FFFFFF #C7C7C7 #A5A5A5 #000000 #7C7C7C #F1AE1E
+  side 192: 전처리     0.6 ms  bins   398  상위6 기준(512)과 일치 1/6  #FFFFFF #C1C1C1 #636363 #818181 #232323 #373737
+  side 128: 전처리     0.4 ms  bins   245  상위6 기준(512)과 일치 1/6  #FFFFFF #C2C2C2 #606060 #999999 #393939 #F1AE1E
+  CIE76    tol    4 min 0.0005: 칩  18  묶기 중앙값   0.06 ms
+  CIE76    tol    4 min 0.0010: 칩  18  묶기 중앙값   0.06 ms
+  CIE76    tol    4 min 0.0020: 칩  11  묶기 중앙값   0.04 ms
+  CIE76    tol    6 min 0.0005: 칩  12  묶기 중앙값   0.04 ms
+  CIE76    tol    6 min 0.0010: 칩  12  묶기 중앙값   0.04 ms
+  CIE76    tol    6 min 0.0020: 칩   8  묶기 중앙값   0.03 ms
+  CIE76    tol    8 min 0.0005: 칩  11  묶기 중앙값   0.04 ms
+  CIE76    tol    8 min 0.0010: 칩  11  묶기 중앙값   0.04 ms
+  CIE76    tol    8 min 0.0020: 칩   8  묶기 중앙값   0.03 ms
+  CIE76    tol   10 min 0.0005: 칩  10  묶기 중앙값   0.04 ms
+  CIE76    tol   10 min 0.0010: 칩  10  묶기 중앙값   0.04 ms
+  CIE76    tol   10 min 0.0020: 칩   7  묶기 중앙값   0.03 ms
+  CIE76    tol   12 min 0.0005: 칩   9  묶기 중앙값   0.03 ms
+  CIE76    tol   12 min 0.0010: 칩   9  묶기 중앙값   0.03 ms
+  CIE76    tol   12 min 0.0020: 칩   6  묶기 중앙값   0.02 ms
+  CIE76    tol   16 min 0.0005: 칩   7  묶기 중앙값   0.03 ms
+  CIE76    tol   16 min 0.0010: 칩   7  묶기 중앙값   0.03 ms
+  CIE76    tol   16 min 0.0020: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   20 min 0.0005: 칩   6  묶기 중앙값   0.03 ms
+  CIE76    tol   20 min 0.0010: 칩   6  묶기 중앙값   0.02 ms
+  CIE76    tol   20 min 0.0020: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   24 min 0.0005: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   24 min 0.0010: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   24 min 0.0020: 칩   4  묶기 중앙값   0.02 ms
+  CIE76    tol   30 min 0.0005: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   30 min 0.0010: 칩   5  묶기 중앙값   0.02 ms
+  CIE76    tol   30 min 0.0020: 칩   4  묶기 중앙값   0.02 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  14  묶기 중앙값   0.65 ms
+  CIEDE2000 tol    4 min 0.0010: 칩  14  묶기 중앙값   0.67 ms
+  CIEDE2000 tol    4 min 0.0020: 칩   9  묶기 중앙값   0.44 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  11  묶기 중앙값   0.54 ms
+  CIEDE2000 tol    6 min 0.0010: 칩  11  묶기 중앙값   0.54 ms
+  CIEDE2000 tol    6 min 0.0020: 칩   7  묶기 중앙값   0.35 ms
+  CIEDE2000 tol    8 min 0.0005: 칩  10  묶기 중앙값   0.48 ms
+  CIEDE2000 tol    8 min 0.0010: 칩  10  묶기 중앙값   0.47 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   7  묶기 중앙값   0.33 ms
+  CIEDE2000 tol   10 min 0.0005: 칩   8  묶기 중앙값   0.38 ms
+  CIEDE2000 tol   10 min 0.0010: 칩   8  묶기 중앙값   0.38 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   6  묶기 중앙값   0.30 ms
+PALETTE 0.0005 #FFFFFF=90.350 #C2C2C2=3.192 #000000=2.147 #959595=1.321 #F1AE1C=1.091 #696969=0.689 #373737=0.354
+  CIEDE2000 tol   12 min 0.0005: 칩   7  묶기 중앙값   0.34 ms
+PALETTE 0.001 #FFFFFF=90.350 #C2C2C2=3.192 #000000=2.147 #959595=1.321 #F1AE1C=1.091 #696969=0.689 #373737=0.354
+  CIEDE2000 tol   12 min 0.0010: 칩   7  묶기 중앙값   0.34 ms
+PALETTE 0.002 #FFFFFF=90.350 #C2C2C2=3.192 #000000=2.155 #959595=1.321 #F1AE1C=1.091
+  CIEDE2000 tol   12 min 0.0020: 칩   5  묶기 중앙값   0.25 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   6  묶기 중앙값   0.31 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   6  묶기 중앙값   0.30 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   5  묶기 중앙값   0.24 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   5  묶기 중앙값   0.24 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   5  묶기 중앙값   0.24 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   4  묶기 중앙값   0.20 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   5  묶기 중앙값   0.24 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   5  묶기 중앙값   0.23 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   4  묶기 중앙값   0.21 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   4  묶기 중앙값   0.20 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   4  묶기 중앙값   0.20 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   4  묶기 중앙값   0.19 ms
+== illust.jpg  2048x2048
+  side 512: 전처리     7.1 ms  bins  1264  상위6 기준(512)과 일치 5/6  #F4E8E0 #C5A78F #705D4F #FFE05A #B7C0D3
+  side 384: 전처리     2.6 ms  bins  1015  상위6 기준(512)과 일치 5/6  #F4E8E0 #C5A78F #705D4F #FFE05A #B7C0D3
+  side 256: 전처리     7.9 ms  bins   847  상위6 기준(512)과 일치 4/6  #F4E8E0 #C5A78F #705D4F #FFE05A
+  side 192: 전처리     0.9 ms  bins   698  상위6 기준(512)과 일치 3/6  #F4E8E0 #C5A78F #D7CBC2 #FFE05A #715E50
+  side 128: 전처리     0.5 ms  bins   469  상위6 기준(512)과 일치 1/6  #F5E9E1 #C6A890 #B1A499 #FFE05A #93796B #715E50
+  CIE76    tol    4 min 0.0005: 칩  21  묶기 중앙값   0.15 ms
+  CIE76    tol    4 min 0.0010: 칩  10  묶기 중앙값   0.07 ms
+  CIE76    tol    4 min 0.0020: 칩   7  묶기 중앙값   0.05 ms
+  CIE76    tol    6 min 0.0005: 칩  16  묶기 중앙값   0.11 ms
+  CIE76    tol    6 min 0.0010: 칩   9  묶기 중앙값   0.06 ms
+  CIE76    tol    6 min 0.0020: 칩   6  묶기 중앙값   0.04 ms
+  CIE76    tol    8 min 0.0005: 칩  14  묶기 중앙값   0.10 ms
+  CIE76    tol    8 min 0.0010: 칩   8  묶기 중앙값   0.06 ms
+  CIE76    tol    8 min 0.0020: 칩   6  묶기 중앙값   0.04 ms
+  CIE76    tol   10 min 0.0005: 칩   9  묶기 중앙값   0.07 ms
+  CIE76    tol   10 min 0.0010: 칩   6  묶기 중앙값   0.04 ms
+  CIE76    tol   10 min 0.0020: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   12 min 0.0005: 칩   8  묶기 중앙값   0.06 ms
+  CIE76    tol   12 min 0.0010: 칩   5  묶기 중앙값   0.04 ms
+  CIE76    tol   12 min 0.0020: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   16 min 0.0005: 칩   6  묶기 중앙값   0.05 ms
+  CIE76    tol   16 min 0.0010: 칩   5  묶기 중앙값   0.04 ms
+  CIE76    tol   16 min 0.0020: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   20 min 0.0005: 칩   6  묶기 중앙값   0.05 ms
+  CIE76    tol   20 min 0.0010: 칩   5  묶기 중앙값   0.05 ms
+  CIE76    tol   20 min 0.0020: 칩   4  묶기 중앙값   0.04 ms
+  CIE76    tol   24 min 0.0005: 칩   5  묶기 중앙값   0.04 ms
+  CIE76    tol   24 min 0.0010: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   24 min 0.0020: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   30 min 0.0005: 칩   4  묶기 중앙값   0.03 ms
+  CIE76    tol   30 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIE76    tol   30 min 0.0020: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  17  묶기 중앙값   1.75 ms
+  CIEDE2000 tol    4 min 0.0010: 칩   8  묶기 중앙값   0.76 ms
+  CIEDE2000 tol    4 min 0.0020: 칩   5  묶기 중앙값   0.49 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  12  묶기 중앙값   1.17 ms
+  CIEDE2000 tol    6 min 0.0010: 칩   8  묶기 중앙값   0.79 ms
+  CIEDE2000 tol    6 min 0.0020: 칩   5  묶기 중앙값   0.50 ms
+  CIEDE2000 tol    8 min 0.0005: 칩   9  묶기 중앙값   0.88 ms
+  CIEDE2000 tol    8 min 0.0010: 칩   6  묶기 중앙값   0.59 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   4  묶기 중앙값   0.41 ms
+  CIEDE2000 tol   10 min 0.0005: 칩   8  묶기 중앙값   0.79 ms
+  CIEDE2000 tol   10 min 0.0010: 칩   6  묶기 중앙값   0.59 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   4  묶기 중앙값   0.40 ms
+PALETTE 0.0005 #F4E8E0=90.522 #C5A78F=3.148 #FFE05A=2.024 #705D4F=1.925 #948479=1.073 #CFA1C7=0.379 #B7C0D3=0.314
+  CIEDE2000 tol   12 min 0.0005: 칩   7  묶기 중앙값   0.70 ms
+PALETTE 0.001 #F4E8E0=90.522 #C5A78F=3.553 #705D4F=2.122 #FFE05A=2.024 #B7C0D3=0.315
+  CIEDE2000 tol   12 min 0.0010: 칩   5  묶기 중앙값   0.51 ms
+PALETTE 0.002 #F4E8E0=90.530 #C5A78F=3.553 #705D4F=2.122 #FFE05A=2.024
+  CIEDE2000 tol   12 min 0.0020: 칩   4  묶기 중앙값   0.41 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   6  묶기 중앙값   0.62 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   5  묶기 중앙값   0.47 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   4  묶기 중앙값   0.39 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   5  묶기 중앙값   0.49 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   3  묶기 중앙값   0.31 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   3  묶기 중앙값   0.31 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   4  묶기 중앙값   0.37 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   3  묶기 중앙값   0.29 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   3  묶기 중앙값   0.30 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   2  묶기 중앙값   0.20 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   2  묶기 중앙값   0.19 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   2  묶기 중앙값   0.19 ms
+== mono.jpg  2160x2700
+  side 512: 전처리    12.4 ms  bins    32  상위6 기준(512)과 일치 6/6  #FFFFFF #BCBCBC #000000 #9B9B9B #7A7A7A #202020
+  side 384: 전처리     1.5 ms  bins    32  상위6 기준(512)과 일치 4/6  #FFFFFF #BCBCBC #989898 #000000 #747474 #202020
+  side 256: 전처리     3.9 ms  bins    32  상위6 기준(512)과 일치 2/6  #FFFFFF #BCBCBC #1E1E1E #646464 #8D8D8D #393939
+  side 192: 전처리     0.4 ms  bins    32  상위6 기준(512)과 일치 2/6  #FFFFFF #BCBCBC #474747 #818181 #222222 #686868
+  side 128: 전처리     0.2 ms  bins    32  상위6 기준(512)과 일치 2/6  #FFFFFF #BCBCBC #616161 #959595 #424242 #232323
+  CIE76    tol    4 min 0.0005: 칩  19  묶기 중앙값   0.00 ms
+  CIE76    tol    4 min 0.0010: 칩  19  묶기 중앙값   0.00 ms
+  CIE76    tol    4 min 0.0020: 칩  13  묶기 중앙값   0.00 ms
+  CIE76    tol    6 min 0.0005: 칩  11  묶기 중앙값   0.00 ms
+  CIE76    tol    6 min 0.0010: 칩  11  묶기 중앙값   0.00 ms
+  CIE76    tol    6 min 0.0020: 칩   9  묶기 중앙값   0.00 ms
+  CIE76    tol    8 min 0.0005: 칩  11  묶기 중앙값   0.00 ms
+  CIE76    tol    8 min 0.0010: 칩  11  묶기 중앙값   0.00 ms
+  CIE76    tol    8 min 0.0020: 칩   7  묶기 중앙값   0.00 ms
+  CIE76    tol   10 min 0.0005: 칩   9  묶기 중앙값   0.00 ms
+  CIE76    tol   10 min 0.0010: 칩   9  묶기 중앙값   0.00 ms
+  CIE76    tol   10 min 0.0020: 칩   6  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0005: 칩   7  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0010: 칩   7  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0020: 칩   5  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0005: 칩   6  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0010: 칩   6  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0020: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0005: 칩   5  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0010: 칩   5  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0020: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0010: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0020: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0010: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0020: 칩   3  묶기 중앙값   0.00 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  13  묶기 중앙값   0.02 ms
+  CIEDE2000 tol    4 min 0.0010: 칩  13  묶기 중앙값   0.02 ms
+  CIEDE2000 tol    4 min 0.0020: 칩   9  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  11  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    6 min 0.0010: 칩  11  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    6 min 0.0020: 칩   8  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    8 min 0.0005: 칩   8  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    8 min 0.0010: 칩   8  묶기 중앙값   0.01 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   6  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   10 min 0.0005: 칩   7  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   10 min 0.0010: 칩   7  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   5  묶기 중앙값   0.01 ms
+PALETTE 0.0005 #FFFFFF=88.807 #BCBCBC=6.295 #000000=2.293 #8D8D8D=1.214 #696969=0.783 #4E4E4E=0.608
+  CIEDE2000 tol   12 min 0.0005: 칩   6  묶기 중앙값   0.01 ms
+PALETTE 0.001 #FFFFFF=88.807 #BCBCBC=6.295 #000000=2.293 #8D8D8D=1.214 #696969=0.783 #4E4E4E=0.608
+  CIEDE2000 tol   12 min 0.0010: 칩   6  묶기 중앙값   0.01 ms
+PALETTE 0.002 #FFFFFF=88.807 #BCBCBC=6.295 #000000=2.293 #8D8D8D=1.214 #696969=0.940
+  CIEDE2000 tol   12 min 0.0020: 칩   5  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   5  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   5  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   4  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   4  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   4  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   4  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   3  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   3  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   3  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   3  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   3  묶기 중앙값   0.01 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   3  묶기 중앙값   0.01 ms
+== render.png  4096x5631
+  side 512: 전처리    19.5 ms  bins  1645  상위6 기준(512)과 일치 6/6  #0B0C05 #23251A #556859 #463929 #AFC9CC #662F15
+  side 384: 전처리     2.9 ms  bins  1521  상위6 기준(512)과 일치 2/6  #0B0C05 #23251A #453828 #6C7E70 #4A3B2A #ABC5C8
+  side 256: 전처리     1.7 ms  bins  1310  상위6 기준(512)과 일치 1/6  #0B0C05 #1E1A0F #56685A #4C3F2F #ACC6C9 #6C7E70
+  side 192: 전처리     1.1 ms  bins  1142  상위6 기준(512)과 일치 1/6  #0B0C05 #2A2216 #424C3F #505B4D #B0C9CC #6C7E70
+  side 128: 전처리     0.7 ms  bins   908  상위6 기준(512)과 일치 1/6  #0B0C05 #282216 #495345 #483929 #C0D4D6 #9C7F5D
+  CIE76    tol    4 min 0.0005: 칩  70  묶기 중앙값   0.60 ms
+  CIE76    tol    4 min 0.0010: 칩  49  묶기 중앙값   0.43 ms
+  CIE76    tol    4 min 0.0020: 칩  32  묶기 중앙값   0.28 ms
+  CIE76    tol    6 min 0.0005: 칩  42  묶기 중앙값   0.38 ms
+  CIE76    tol    6 min 0.0010: 칩  34  묶기 중앙값   0.31 ms
+  CIE76    tol    6 min 0.0020: 칩  20  묶기 중앙값   0.18 ms
+  CIE76    tol    8 min 0.0005: 칩  31  묶기 중앙값   0.28 ms
+  CIE76    tol    8 min 0.0010: 칩  23  묶기 중앙값   0.21 ms
+  CIE76    tol    8 min 0.0020: 칩  16  묶기 중앙값   0.15 ms
+  CIE76    tol   10 min 0.0005: 칩  21  묶기 중앙값   0.19 ms
+  CIE76    tol   10 min 0.0010: 칩  16  묶기 중앙값   0.15 ms
+  CIE76    tol   10 min 0.0020: 칩  12  묶기 중앙값   0.12 ms
+  CIE76    tol   12 min 0.0005: 칩  16  묶기 중앙값   0.15 ms
+  CIE76    tol   12 min 0.0010: 칩  15  묶기 중앙값   0.14 ms
+  CIE76    tol   12 min 0.0020: 칩   9  묶기 중앙값   0.10 ms
+  CIE76    tol   16 min 0.0005: 칩  12  묶기 중앙값   0.11 ms
+  CIE76    tol   16 min 0.0010: 칩  12  묶기 중앙값   0.12 ms
+  CIE76    tol   16 min 0.0020: 칩   8  묶기 중앙값   0.09 ms
+  CIE76    tol   20 min 0.0005: 칩   7  묶기 중앙값   0.07 ms
+  CIE76    tol   20 min 0.0010: 칩   7  묶기 중앙값   0.08 ms
+  CIE76    tol   20 min 0.0020: 칩   7  묶기 중앙값   0.07 ms
+  CIE76    tol   24 min 0.0005: 칩   6  묶기 중앙값   0.06 ms
+  CIE76    tol   24 min 0.0010: 칩   6  묶기 중앙값   0.07 ms
+  CIE76    tol   24 min 0.0020: 칩   6  묶기 중앙값   0.06 ms
+  CIE76    tol   30 min 0.0005: 칩   5  묶기 중앙값   0.05 ms
+  CIE76    tol   30 min 0.0010: 칩   5  묶기 중앙값   0.05 ms
+  CIE76    tol   30 min 0.0020: 칩   5  묶기 중앙값   0.05 ms
+  CIEDE2000 tol    4 min 0.0005: 칩  59  묶기 중앙값   7.57 ms
+  CIEDE2000 tol    4 min 0.0010: 칩  44  묶기 중앙값   5.60 ms
+  CIEDE2000 tol    4 min 0.0020: 칩  24  묶기 중앙값   3.05 ms
+  CIEDE2000 tol    6 min 0.0005: 칩  35  묶기 중앙값   4.33 ms
+  CIEDE2000 tol    6 min 0.0010: 칩  23  묶기 중앙값   2.92 ms
+  CIEDE2000 tol    6 min 0.0020: 칩  16  묶기 중앙값   2.04 ms
+  CIEDE2000 tol    8 min 0.0005: 칩  23  묶기 중앙값   2.88 ms
+  CIEDE2000 tol    8 min 0.0010: 칩  18  묶기 중앙값   2.30 ms
+  CIEDE2000 tol    8 min 0.0020: 칩  12  묶기 중앙값   1.46 ms
+  CIEDE2000 tol   10 min 0.0005: 칩  17  묶기 중앙값   2.10 ms
+  CIEDE2000 tol   10 min 0.0010: 칩  15  묶기 중앙값   1.77 ms
+  CIEDE2000 tol   10 min 0.0020: 칩  11  묶기 중앙값   1.37 ms
+PALETTE 0.0005 #0B0C05=45.036 #292115=14.662 #556859=7.989 #391406=4.760 #9C7E5C=4.745 #AFC9CC=4.452 #4F402F=4.173 #98B5BD=2.749 #6C7E70=2.443 #EEDDC5=1.969 #9B5126=1.690 #35423D=1.396 #71624F=1.020 #361307=1.014
+  CIEDE2000 tol   12 min 0.0005: 칩  14  묶기 중앙값   1.66 ms
+PALETTE 0.001 #0B0C05=45.036 #292115=14.662 #556859=8.061 #391406=5.093 #9C7E5C=5.081 #4F402F=4.483 #AFC9CC=4.452 #98B5BD=2.749 #6C7E70=2.670 #EEDDC5=1.969 #35423D=1.396 #361307=1.014
+  CIEDE2000 tol   12 min 0.0010: 칩  12  묶기 중앙값   1.49 ms
+PALETTE 0.002 #0B0C05=45.209 #292115=14.880 #6C7E70=9.226 #391406=5.591 #9C7E5C=5.361 #4F402F=4.639 #AFC9CC=4.559 #98B5BD=3.191
+  CIEDE2000 tol   12 min 0.0020: 칩   8  묶기 중앙값   1.02 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   8  묶기 중앙값   1.00 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   7  묶기 중앙값   0.90 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   6  묶기 중앙값   0.78 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   6  묶기 중앙값   0.76 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   5  묶기 중앙값   0.65 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   5  묶기 중앙값   0.65 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   5  묶기 중앙값   0.64 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   5  묶기 중앙값   0.62 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   5  묶기 중앙값   0.61 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   4  묶기 중앙값   0.50 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   4  묶기 중앙값   0.52 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   3  묶기 중앙값   0.40 ms
+== JenaImage-rectangle-j-v9.png  1254x1254
+  side 512: 전처리    19.7 ms  bins   143  상위6 기준(512)과 일치 3/6  #014081 #FCFCFC #94ABC7
+  side 384: 전처리     2.9 ms  bins   132  상위6 기준(512)과 일치 2/6  #014081 #FCFCFC #7090B5
+  side 256: 전처리     1.7 ms  bins   105  상위6 기준(512)과 일치 2/6  #014081 #FCFCFC #4D75A3 #7494B8 #295B93
+  side 192: 전처리     1.3 ms  bins    88  상위6 기준(512)과 일치 2/6  #014081 #FCFCFC #5D82AC #B5C5D8
+  side 128: 전처리     1.1 ms  bins    79  상위6 기준(512)과 일치 2/6  #014081 #FCFCFC #90AAC6 #B7C7D9 #285B92 #4E77A3
+  CIE76    tol    4 min 0.0005: 칩   6  묶기 중앙값   0.01 ms
+  CIE76    tol    4 min 0.0010: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol    4 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol    6 min 0.0005: 칩   5  묶기 중앙값   0.01 ms
+  CIE76    tol    6 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol    6 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol    8 min 0.0005: 칩   5  묶기 중앙값   0.01 ms
+  CIE76    tol    8 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol    8 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   10 min 0.0005: 칩   5  묶기 중앙값   0.01 ms
+  CIE76    tol   10 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   10 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   12 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   16 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   20 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0005: 칩   4  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   24 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0005: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0010: 칩   3  묶기 중앙값   0.00 ms
+  CIE76    tol   30 min 0.0020: 칩   2  묶기 중앙값   0.00 ms
+  CIEDE2000 tol    4 min 0.0005: 칩   5  묶기 중앙값   0.05 ms
+  CIEDE2000 tol    4 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol    4 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol    6 min 0.0005: 칩   5  묶기 중앙값   0.05 ms
+  CIEDE2000 tol    6 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol    6 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol    8 min 0.0005: 칩   5  묶기 중앙값   0.05 ms
+  CIEDE2000 tol    8 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol    8 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   10 min 0.0005: 칩   4  묶기 중앙값   0.04 ms
+  CIEDE2000 tol   10 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol   10 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+PALETTE 0.0005 #014081=82.975 #FCFCFC=16.231 #94ABC7=0.463 #5176A4=0.331
+  CIEDE2000 tol   12 min 0.0005: 칩   4  묶기 중앙값   0.04 ms
+PALETTE 0.001 #014081=83.077 #FCFCFC=16.231 #94ABC7=0.478
+  CIEDE2000 tol   12 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+PALETTE 0.002 #014081=83.077 #FCFCFC=16.231
+  CIEDE2000 tol   12 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   16 min 0.0005: 칩   4  묶기 중앙값   0.04 ms
+  CIEDE2000 tol   16 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol   16 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   20 min 0.0005: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol   20 min 0.0010: 칩   3  묶기 중앙값   0.03 ms
+  CIEDE2000 tol   20 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   24 min 0.0005: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   24 min 0.0010: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   24 min 0.0020: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   30 min 0.0005: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   30 min 0.0010: 칩   2  묶기 중앙값   0.02 ms
+  CIEDE2000 tol   30 min 0.0020: 칩   2  묶기 중앙값   0.02 ms

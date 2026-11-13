@@ -2,6 +2,7 @@ APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
 VERSION      = 2.0.1
 BUILD_DIR    = .build
+INSTALL_DIR ?= /Applications
 SOURCES      = $(shell find Sources -name '*.swift')
 FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision
 
@@ -29,9 +30,9 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 install: build
-	@mkdir -p ~/Applications
-	@cp -R $(APP_BUNDLE) ~/Applications/
-	@echo "Installed to ~/Applications/$(APP_NAME).app"
+	@mkdir -p "$(INSTALL_DIR)"
+	@cp -R "$(APP_BUNDLE)" "$(INSTALL_DIR)/"
+	@echo "Installed to $(INSTALL_DIR)/$(APP_NAME).app"
 
 pkg: build
 	pkgbuild --root $(BUILD_DIR) --identifier $(BUNDLE_ID) --version $(VERSION) $(BUILD_DIR)/$(APP_NAME).pkg

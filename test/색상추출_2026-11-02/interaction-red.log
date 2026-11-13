@@ -1,0 +1,145 @@
+swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers Sources/ai/AIConnectionService.swift Sources/ai/AIImageGenerationService.swift Sources/services/ThumbnailScheduler.swift Sources/models/BrowserLayoutMode.swift Sources/browser/MasonryLayout.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/services/ImageAspectRatioReader.swift Sources/models/ImageCategory.swift Sources/services/CategoryStore.swift Sources/services/ThumbnailCache.swift Sources/services/ThumbnailProvider.swift Sources/services/ThumbnailDiskStore.swift Sources/models/ColorSwatch.swift Sources/services/ColorFormat.swift Sources/services/ColorExtractionService.swift Sources/viewer/PixelMapping.swift Sources/services/PixelSampler.swift Tests/AIConnectionTests.swift Tests/AIImageGenerationTests.swift Tests/CategoryStoreTests.swift Tests/ColorExtractionTests.swift Tests/ColorFormatTests.swift Tests/ColorInteractionTests.swift Tests/MasonryTests.swift Tests/PixelMappingTests.swift Tests/TestSupport.swift Tests/ThumbnailDiskStoreTests.swift Tests/ThumbnailProviderTests.swift Tests/ThumbnailSchedulerTests.swift Tests/main.swift -o .build/tests
+Tests/ColorInteractionTests.swift:5:17: error: cannot find 'ClickDragGesture' in scope
+ 3 | func runColorInteractionTests() {
+ 4 |     runTest("클릭: 3pt 이내로만 움직이고 떼면 클릭") {
+ 5 |         var g = ClickDragGesture(start: CGPoint(x: 100, y: 100))
+   |                 `- error: cannot find 'ClickDragGesture' in scope
+ 6 |         g.update(to: CGPoint(x: 102, y: 102))          // 거리 2.83
+ 7 |         check(g.isClick && !g.hasExceededThreshold, "2.83pt는 클릭")
+
+Tests/ColorInteractionTests.swift:13:17: error: cannot find 'ClickDragGesture' in scope
+11 |
+12 |     runTest("드래그: 3pt를 넘으면 되돌아와도 드래그로 남는다") {
+13 |         var g = ClickDragGesture(start: .zero)
+   |                 `- error: cannot find 'ClickDragGesture' in scope
+14 |         g.update(to: CGPoint(x: 3.1, y: 0))
+15 |         check(g.hasExceededThreshold && !g.isClick, "3.1pt는 드래그")
+
+Tests/ColorInteractionTests.swift:13:42: error: cannot infer contextual base in reference to member 'zero'
+11 |
+12 |     runTest("드래그: 3pt를 넘으면 되돌아와도 드래그로 남는다") {
+13 |         var g = ClickDragGesture(start: .zero)
+   |                                          `- error: cannot infer contextual base in reference to member 'zero'
+14 |         g.update(to: CGPoint(x: 3.1, y: 0))
+15 |         check(g.hasExceededThreshold && !g.isClick, "3.1pt는 드래그")
+
+Tests/ColorInteractionTests.swift:21:15: error: cannot find 'OptionKeyGate' in scope
+19 |
+20 |     runTest("OptionKeyGate: ⌥ 단독만 true") {
+21 |         check(OptionKeyGate.isOptionAlone([.option]), "⌥")
+   |               `- error: cannot find 'OptionKeyGate' in scope
+22 |         check(!OptionKeyGate.isOptionAlone([]), "아무것도 안 누름")
+23 |         check(!OptionKeyGate.isOptionAlone([.command]), "⌘만")
+
+Tests/ColorInteractionTests.swift:22:16: error: cannot find 'OptionKeyGate' in scope
+20 |     runTest("OptionKeyGate: ⌥ 단독만 true") {
+21 |         check(OptionKeyGate.isOptionAlone([.option]), "⌥")
+22 |         check(!OptionKeyGate.isOptionAlone([]), "아무것도 안 누름")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+23 |         check(!OptionKeyGate.isOptionAlone([.command]), "⌘만")
+24 |     }
+
+Tests/ColorInteractionTests.swift:23:16: error: cannot find 'OptionKeyGate' in scope
+21 |         check(OptionKeyGate.isOptionAlone([.option]), "⌥")
+22 |         check(!OptionKeyGate.isOptionAlone([]), "아무것도 안 누름")
+23 |         check(!OptionKeyGate.isOptionAlone([.command]), "⌘만")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+24 |     }
+25 |
+
+Tests/ColorInteractionTests.swift:21:45: error: reference to member 'option' cannot be resolved without a contextual type
+19 |
+20 |     runTest("OptionKeyGate: ⌥ 단독만 true") {
+21 |         check(OptionKeyGate.isOptionAlone([.option]), "⌥")
+   |                                             `- error: reference to member 'option' cannot be resolved without a contextual type
+22 |         check(!OptionKeyGate.isOptionAlone([]), "아무것도 안 누름")
+23 |         check(!OptionKeyGate.isOptionAlone([.command]), "⌘만")
+
+Tests/ColorInteractionTests.swift:27:16: error: cannot find 'OptionKeyGate' in scope
+25 |
+26 |     runTest("OptionKeyGate: ⌘⌥·⇧⌥·⌃⌥ 같은 조합 키는 false") {
+27 |         check(!OptionKeyGate.isOptionAlone([.command, .option]), "⌘⌥")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+
+Tests/ColorInteractionTests.swift:28:16: error: cannot find 'OptionKeyGate' in scope
+26 |     runTest("OptionKeyGate: ⌘⌥·⇧⌥·⌃⌥ 같은 조합 키는 false") {
+27 |         check(!OptionKeyGate.isOptionAlone([.command, .option]), "⌘⌥")
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+30 |         check(!OptionKeyGate.isOptionAlone([.command, .shift, .option]), "⌘⇧⌥")
+
+Tests/ColorInteractionTests.swift:29:16: error: cannot find 'OptionKeyGate' in scope
+27 |         check(!OptionKeyGate.isOptionAlone([.command, .option]), "⌘⌥")
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+30 |         check(!OptionKeyGate.isOptionAlone([.command, .shift, .option]), "⌘⇧⌥")
+31 |     }
+
+Tests/ColorInteractionTests.swift:30:16: error: cannot find 'OptionKeyGate' in scope
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+30 |         check(!OptionKeyGate.isOptionAlone([.command, .shift, .option]), "⌘⇧⌥")
+   |                `- error: cannot find 'OptionKeyGate' in scope
+31 |     }
+32 |
+
+Tests/ColorInteractionTests.swift:27:46: error: reference to member 'command' cannot be resolved without a contextual type
+25 |
+26 |     runTest("OptionKeyGate: ⌘⌥·⇧⌥·⌃⌥ 같은 조합 키는 false") {
+27 |         check(!OptionKeyGate.isOptionAlone([.command, .option]), "⌘⌥")
+   |                                              `- error: reference to member 'command' cannot be resolved without a contextual type
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+
+Tests/ColorInteractionTests.swift:27:56: error: reference to member 'option' cannot be resolved without a contextual type
+25 |
+26 |     runTest("OptionKeyGate: ⌘⌥·⇧⌥·⌃⌥ 같은 조합 키는 false") {
+27 |         check(!OptionKeyGate.isOptionAlone([.command, .option]), "⌘⌥")
+   |                                                        `- error: reference to member 'option' cannot be resolved without a contextual type
+28 |         check(!OptionKeyGate.isOptionAlone([.shift, .option]), "⇧⌥")
+29 |         check(!OptionKeyGate.isOptionAlone([.control, .option]), "⌃⌥")
+
+Tests/ColorInteractionTests.swift:34:15: error: cannot find 'OptionKeyGate' in scope
+32 |
+33 |     runTest("OptionKeyGate: CapsLock·fn 같은 상태 플래그는 무시한다") {
+34 |         check(OptionKeyGate.isOptionAlone([.option, .capsLock]), "⌥+CapsLock")
+   |               `- error: cannot find 'OptionKeyGate' in scope
+35 |         check(OptionKeyGate.isOptionAlone([.option, .function]), "⌥+fn(방향키 등에서 붙음)")
+36 |         check(OptionKeyGate.isOptionAlone([.option, .numericPad]), "⌥+숫자패드 플래그")
+
+Tests/ColorInteractionTests.swift:35:15: error: cannot find 'OptionKeyGate' in scope
+33 |     runTest("OptionKeyGate: CapsLock·fn 같은 상태 플래그는 무시한다") {
+34 |         check(OptionKeyGate.isOptionAlone([.option, .capsLock]), "⌥+CapsLock")
+35 |         check(OptionKeyGate.isOptionAlone([.option, .function]), "⌥+fn(방향키 등에서 붙음)")
+   |               `- error: cannot find 'OptionKeyGate' in scope
+36 |         check(OptionKeyGate.isOptionAlone([.option, .numericPad]), "⌥+숫자패드 플래그")
+37 |     }
+
+Tests/ColorInteractionTests.swift:36:15: error: cannot find 'OptionKeyGate' in scope
+34 |         check(OptionKeyGate.isOptionAlone([.option, .capsLock]), "⌥+CapsLock")
+35 |         check(OptionKeyGate.isOptionAlone([.option, .function]), "⌥+fn(방향키 등에서 붙음)")
+36 |         check(OptionKeyGate.isOptionAlone([.option, .numericPad]), "⌥+숫자패드 플래그")
+   |               `- error: cannot find 'OptionKeyGate' in scope
+37 |     }
+38 | }
+
+Tests/ColorInteractionTests.swift:34:45: error: reference to member 'option' cannot be resolved without a contextual type
+32 |
+33 |     runTest("OptionKeyGate: CapsLock·fn 같은 상태 플래그는 무시한다") {
+34 |         check(OptionKeyGate.isOptionAlone([.option, .capsLock]), "⌥+CapsLock")
+   |                                             `- error: reference to member 'option' cannot be resolved without a contextual type
+35 |         check(OptionKeyGate.isOptionAlone([.option, .function]), "⌥+fn(방향키 등에서 붙음)")
+36 |         check(OptionKeyGate.isOptionAlone([.option, .numericPad]), "⌥+숫자패드 플래그")
+
+Tests/ColorInteractionTests.swift:34:54: error: reference to member 'capsLock' cannot be resolved without a contextual type
+32 |
+33 |     runTest("OptionKeyGate: CapsLock·fn 같은 상태 플래그는 무시한다") {
+34 |         check(OptionKeyGate.isOptionAlone([.option, .capsLock]), "⌥+CapsLock")
+   |                                                      `- error: reference to member 'capsLock' cannot be resolved without a contextual type
+35 |         check(OptionKeyGate.isOptionAlone([.option, .function]), "⌥+fn(방향키 등에서 붙음)")
+36 |         check(OptionKeyGate.isOptionAlone([.option, .numericPad]), "⌥+숫자패드 플래그")
+make: *** [test] Error 1

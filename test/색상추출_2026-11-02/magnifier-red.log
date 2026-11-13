@@ -1,0 +1,57 @@
+swiftc -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision Sources/sidebar/SidebarViewController.swift Sources/ui/LibraryAppearance.swift Sources/ui/ThumbnailImageView.swift Sources/app/MainMenu.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Actions.swift Sources/app/MainWindowController+FileOperations.swift Sources/app/ExportAccessoryView.swift Sources/app/MainWindowController+Delegates.swift Sources/app/MainWindowController+Search.swift Sources/app/MainWindowController+Share.swift Sources/app/PreferencesWindowController.swift Sources/app/RecentFoldersMenu.swift Sources/app/ImageInfoWindowController.swift Sources/app/MainWindowController+AI.swift Sources/app/HelpWindowController.swift Sources/app/StatusBarView.swift Sources/app/BatchExportWindowController.swift Sources/app/AppDelegate.swift Sources/app/MainWindowController+Similarity.swift Sources/app/MainWindowController+Categories.swift Sources/models/FolderNode.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/models/BrowserLayoutMode.swift Sources/models/ColorSwatch.swift Sources/models/BrowserContent.swift Sources/models/ImageCategory.swift Sources/browser/BrowserViewController.swift Sources/browser/BrowserItem.swift Sources/browser/MasonryLayout.swift Sources/viewer/VideoPlayerView.swift Sources/viewer/ViewerViewController.swift Sources/viewer/CompareWindowController.swift Sources/viewer/CropOverlayView.swift Sources/viewer/PixelMapping.swift Sources/viewer/CompareCandidateStrip.swift Sources/viewer/ImageDisplayView.swift Sources/viewer/CompareSyncCoordinator.swift Sources/viewer/ThumbnailStripView.swift Sources/viewer/ImageEditorWindowController.swift Sources/viewer/ColorInteraction.swift Sources/viewer/ComparePaneView.swift Sources/ai/AIChatInputView.swift Sources/ai/AIImageGenerationService.swift Sources/ai/AIChatTranscriptView.swift Sources/ai/AIConnectionViewController.swift Sources/ai/AIChatViewController.swift Sources/ai/AIConnectionService.swift Sources/services/ImageService.swift Sources/services/ThumbnailProvider.swift Sources/services/ColorExtractionService.swift Sources/services/PixelSampler.swift Sources/services/OpenWithService.swift Sources/services/ImageSimilarityService.swift Sources/services/Localization.swift Sources/services/AppSettings.swift Sources/services/ImageMetadataService.swift Sources/services/FolderColorService.swift Sources/services/SecurityScopeService.swift Sources/services/ImageEditingService.swift Sources/services/BatchExportService.swift Sources/services/FileService.swift Sources/services/ThumbnailScheduler.swift Sources/services/ColorFormat.swift Sources/services/ThumbnailCache.swift Sources/services/CategoryStore.swift Sources/services/ImageAspectRatioReader.swift Sources/services/FolderWatcher.swift Sources/services/BookmarkStore.swift Sources/services/ThumbnailDiskStore.swift Sources/services/FolderMediaCountService.swift Tests/TestSupport.swift Tests/UI/AIImageUITests.swift Tests/UI/CompareLayoutTests.swift Tests/UI/LibraryDesignTests.swift Tests/UI/MasonryUITests.swift Tests/UI/PerformanceTests.swift Tests/UI/SimilarityTests.swift Tests/UI/ViewerColorTests.swift Tests/UI/ViewerLoadingTests.swift Tests/UI/ViewerSidebarTests.swift Tests/UI/main.swift -o .build/category-ui-tests
+Tests/UI/ViewerColorTests.swift:70:17: error: value of type 'ImageDisplayView' has no member 'onColorPicked'
+ 68 |         var doubleClicks = 0, picks: [RGB8] = []
+ 69 |         display.onDoubleClick = { doubleClicks += 1 }
+ 70 |         display.onColorPicked = { picks.append($0) }
+    |                 `- error: value of type 'ImageDisplayView' has no member 'onColorPicked'
+ 71 |
+ 72 |         display.isMagnifierActive = true
+
+Tests/UI/ViewerColorTests.swift:91:17: error: value of type 'ImageDisplayView' has no member 'onColorPicked'
+ 89 |         defer { window.close() }
+ 90 |         var picks = 0
+ 91 |         display.onColorPicked = { _ in picks += 1 }
+    |                 `- error: value of type 'ImageDisplayView' has no member 'onColorPicked'
+ 92 |         display.isMagnifierActive = true
+ 93 |
+
+Tests/UI/ViewerColorTests.swift:91:35: error: cannot infer type of closure parameter '_' without a type annotation
+ 89 |         defer { window.close() }
+ 90 |         var picks = 0
+ 91 |         display.onColorPicked = { _ in picks += 1 }
+    |                                   `- error: cannot infer type of closure parameter '_' without a type annotation
+ 92 |         display.isMagnifierActive = true
+ 93 |
+
+Tests/UI/ViewerColorTests.swift:119:30: error: value of type 'ImageDisplayView' has no member 'originalPixel'
+117 |         // 문서 좌표가 소수점이 되도록 0.37을 더한다 (픽셀 경계에 걸리지 않게).
+118 |         let p = NSPoint(x: center.x + 10.37, y: center.y + 3.37)
+119 |         let before = display.originalPixel(atWindowPoint: p)!
+    |                              `- error: value of type 'ImageDisplayView' has no member 'originalPixel'
+120 |         let moved = display.originalPixel(atWindowPoint: NSPoint(x: p.x + 10, y: p.y))!
+121 |         checkEqual(moved.x - before.x, 5, "배율 2: 창에서 10pt = 원본 5픽셀")
+
+Tests/UI/ViewerColorTests.swift:142:40: error: cannot find 'MagnifierOverlayView' in scope
+140 |         check(!display.isMagnifierActive, "기본은 꺼짐")
+141 |         display.mouseMoved(with: mouseEvent(.mouseMoved, at: center, window: window))
+142 |         check(descendants(display, of: MagnifierOverlayView.self).isEmpty, "꺼져 있으면 오버레이를 만들지도 않음")
+    |                                        `- error: cannot find 'MagnifierOverlayView' in scope
+143 |         var doubleClicks = 0
+144 |         display.onDoubleClick = { doubleClicks += 1 }
+
+Tests/UI/ViewerColorTests.swift:140:24: error: value of type 'ImageDisplayView' has no member 'isMagnifierActive'
+138 |         let (window, display, center) = makeDisplay()
+139 |         defer { window.close() }
+140 |         check(!display.isMagnifierActive, "기본은 꺼짐")
+    |                        `- error: value of type 'ImageDisplayView' has no member 'isMagnifierActive'
+141 |         display.mouseMoved(with: mouseEvent(.mouseMoved, at: center, window: window))
+142 |         check(descendants(display, of: MagnifierOverlayView.self).isEmpty, "꺼져 있으면 오버레이를 만들지도 않음")
+
+Tests/UI/ViewerColorTests.swift:167:13: error: value of type 'ImageDisplayView' has no member 'pixelSource'
+165 |     let cg = makeTestImage(width: 40, height: 20) { x, y in RGB8(UInt8(x * 6), UInt8(y * 12), 90) }
+166 |     display.display(NSImage(cgImage: cg, size: NSSize(width: 40, height: 20)))
+167 |     display.pixelSource = cg
+    |             `- error: value of type 'ImageDisplayView' has no member 'pixelSource'
+168 |     window.contentView?.layoutSubtreeIfNeeded()
+169 |     let center = display.convert(NSPoint(x: display.bounds.midX, y: display.bounds.midY), to: nil)
+make: *** [test-ui] Error 1

@@ -1,0 +1,148 @@
+<style>
+  .win{background:#1e1e20;border-radius:10px;overflow:hidden;border:1px solid #333;position:relative;height:330px;display:flex;font-family:-apple-system,system-ui,sans-serif}
+  .stage{flex:1;position:relative;display:flex;flex-direction:column}
+  .img{flex:1;margin:12px;border-radius:4px;background:
+     radial-gradient(circle at 30% 35%,#f2b880 0 14%,transparent 15%),
+     linear-gradient(160deg,#2c4a6e 0%,#3f7cac 35%,#e9c46a 62%,#e76f51 82%,#5b2a3a 100%);position:relative}
+  .strip{width:54px;background:#151517;border-left:1px solid #2a2a2c;display:flex;flex-direction:column;gap:6px;padding:8px 6px}
+  .strip div{height:38px;border-radius:4px;background:#333}
+  .btns{display:flex;justify-content:flex-end;gap:5px;padding:0 10px 8px}
+  .b{font-size:10px;color:#ddd;background:#3a3a3d;border-radius:5px;padding:3px 8px}
+  .b.on{background:#0a84ff;color:#fff}
+  .chips{display:flex;gap:4px;flex-wrap:wrap}
+  .chip{width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.15);position:relative}
+  .chip .pct{position:absolute;bottom:-12px;left:0;right:0;text-align:center;font-size:7px;color:#999}
+  .slider{display:flex;align-items:center;gap:6px;font-size:9px;color:#aaa}
+  .slider .track{flex:1;height:3px;background:#444;border-radius:2px;position:relative}
+  .slider .track:after{content:"";position:absolute;left:40%;top:-4px;width:11px;height:11px;border-radius:50%;background:#ddd}
+  .tip{position:absolute;background:#2b2b2e;border:1px solid #444;border-radius:7px;padding:7px 8px;font-size:9px;color:#eee;width:150px;box-shadow:0 6px 18px rgba(0,0,0,.5);z-index:3}
+  .tip .row{display:flex;justify-content:space-between;align-items:center;margin:2px 0;font-family:ui-monospace,Menlo,monospace}
+  .tip .row span:first-child{color:#999;width:34px;font-family:-apple-system,sans-serif}
+  .tip .cp{background:#3a3a3d;border-radius:3px;padding:0 4px;font-size:8px;color:#ccc}
+  .tip .sw{height:18px;border-radius:4px;margin-bottom:5px}
+  .panel-bottom{background:#232326;border-top:1px solid #333;padding:8px 10px 14px;display:flex;flex-direction:column;gap:6px}
+  .panel-right{width:170px;background:#232326;border-left:1px solid #333;padding:10px;display:flex;flex-direction:column;gap:10px}
+  .hud{position:absolute;right:16px;top:16px;width:180px;background:rgba(35,35,38,.92);border:1px solid #444;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:8px;backdrop-filter:blur(8px)}
+  .ttl{font-size:9px;color:#aaa;display:flex;justify-content:space-between}
+</style>
+
+<h2>컬러칩 패널을 어디에 둘까요?</h2>
+<p class="subtitle">하단 "색상" 버튼을 누르면 열리는 패널이에요. 세 안 모두 위쪽에 허용 범위 슬라이더, 아래에 비율순 칩이 있고, 칩에 마우스를 올리면 HEX·RGB·CMYK와 복사 버튼이 떠요. 마음에 드는 안을 눌러주세요.</p>
+
+<div class="cards">
+
+  <!-- A -->
+  <div class="card" data-choice="bottom" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="win">
+        <div class="stage">
+          <div class="img"></div>
+          <div class="panel-bottom">
+            <div class="slider">범위 <div class="track"></div> 14색</div>
+            <div class="chips" style="position:relative">
+              <div class="chip" style="background:#3f7cac"><div class="pct">23%</div></div>
+              <div class="chip" style="background:#e9c46a"><div class="pct">18%</div></div>
+              <div class="chip" style="background:#2c4a6e"><div class="pct">15%</div></div>
+              <div class="chip" style="background:#e76f51;outline:2px solid #fff"><div class="pct">11%</div></div>
+              <div class="chip" style="background:#5b2a3a"><div class="pct">9%</div></div>
+              <div class="chip" style="background:#f2b880"><div class="pct">7%</div></div>
+              <div class="chip" style="background:#86a9c4"></div>
+              <div class="chip" style="background:#c9a25a"></div>
+              <div class="chip" style="background:#a85445"></div>
+              <div class="chip" style="background:#1d3550"></div>
+              <div class="tip" style="left:60px;bottom:34px">
+                <div class="sw" style="background:#e76f51"></div>
+                <div class="row"><span>HEX</span>#E76F51 <span class="cp">복사</span></div>
+                <div class="row"><span>RGB</span>231, 111, 81 <span class="cp">복사</span></div>
+                <div class="row"><span>CMYK</span>0, 52, 65, 9 <span class="cp">복사</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+        </div>
+        <div class="strip"><div></div><div></div><div></div><div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 하단 서랍</h3>
+      <p>이미지 아래로 패널이 올라와요. 이미지가 그만큼 작아지지만 가리는 부분은 없고, 칩을 가로로 많이 늘어놓을 수 있어요.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="right" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="win">
+        <div class="stage">
+          <div class="img"></div>
+          <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+        </div>
+        <div class="panel-right">
+          <div class="ttl">색상 <span>14색</span></div>
+          <div class="slider">범위 <div class="track"></div></div>
+          <div class="chips" style="position:relative;row-gap:16px">
+            <div class="chip" style="background:#3f7cac"><div class="pct">23%</div></div>
+            <div class="chip" style="background:#e9c46a"><div class="pct">18%</div></div>
+            <div class="chip" style="background:#2c4a6e"><div class="pct">15%</div></div>
+            <div class="chip" style="background:#e76f51;outline:2px solid #fff"><div class="pct">11%</div></div>
+            <div class="chip" style="background:#5b2a3a"><div class="pct">9%</div></div>
+            <div class="chip" style="background:#f2b880"><div class="pct">7%</div></div>
+            <div class="chip" style="background:#86a9c4"></div>
+            <div class="chip" style="background:#c9a25a"></div>
+            <div class="chip" style="background:#a85445"></div>
+            <div class="chip" style="background:#1d3550"></div>
+            <div class="tip" style="right:150px;top:30px">
+              <div class="sw" style="background:#e76f51"></div>
+              <div class="row"><span>HEX</span>#E76F51 <span class="cp">복사</span></div>
+              <div class="row"><span>RGB</span>231, 111, 81 <span class="cp">복사</span></div>
+              <div class="row"><span>CMYK</span>0, 52, 65, 9 <span class="cp">복사</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 오른쪽 패널 (썸네일 자리)</h3>
+      <p>열면 오른쪽 썸네일 목록 자리에 색상 패널이 들어와요. 이미지 비율은 그대로 두고, 세로로 길게 칩을 쌓아요.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="floating" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="win">
+        <div class="stage">
+          <div class="img">
+            <div class="hud">
+              <div class="ttl">색상 <span>✕</span></div>
+              <div class="slider">범위 <div class="track"></div> 14</div>
+              <div class="chips" style="position:relative;row-gap:16px">
+                <div class="chip" style="background:#3f7cac"><div class="pct">23%</div></div>
+                <div class="chip" style="background:#e9c46a"><div class="pct">18%</div></div>
+                <div class="chip" style="background:#2c4a6e"><div class="pct">15%</div></div>
+                <div class="chip" style="background:#e76f51;outline:2px solid #fff"><div class="pct">11%</div></div>
+                <div class="chip" style="background:#5b2a3a"><div class="pct">9%</div></div>
+                <div class="chip" style="background:#f2b880"><div class="pct">7%</div></div>
+                <div class="chip" style="background:#86a9c4"></div>
+                <div class="chip" style="background:#c9a25a"></div>
+                <div class="tip" style="right:30px;top:62px">
+                  <div class="sw" style="background:#e76f51"></div>
+                  <div class="row"><span>HEX</span>#E76F51 <span class="cp">복사</span></div>
+                  <div class="row"><span>RGB</span>231, 111, 81 <span class="cp">복사</span></div>
+                  <div class="row"><span>CMYK</span>0, 52, 65, 9 <span class="cp">복사</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+        </div>
+        <div class="strip"><div></div><div></div><div></div><div></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 떠 있는 팔레트</h3>
+      <p>이미지 위에 반투명 패널이 떠요. 끌어서 옮길 수 있고 레이아웃은 그대로지만, 패널 아래 이미지가 가려져요.</p>
+    </div>
+  </div>
+
+</div>

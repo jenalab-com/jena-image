@@ -1,0 +1,97 @@
+swiftc -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision Sources/sidebar/SidebarViewController.swift Sources/ui/LibraryAppearance.swift Sources/ui/ThumbnailImageView.swift Sources/app/MainMenu.swift Sources/app/MainWindowController.swift Sources/app/MainWindowController+Actions.swift Sources/app/MainWindowController+FileOperations.swift Sources/app/ExportAccessoryView.swift Sources/app/MainWindowController+Delegates.swift Sources/app/MainWindowController+Search.swift Sources/app/MainWindowController+Share.swift Sources/app/PreferencesWindowController.swift Sources/app/RecentFoldersMenu.swift Sources/app/ImageInfoWindowController.swift Sources/app/MainWindowController+AI.swift Sources/app/HelpWindowController.swift Sources/app/StatusBarView.swift Sources/app/BatchExportWindowController.swift Sources/app/AppDelegate.swift Sources/app/MainWindowController+Similarity.swift Sources/app/MainWindowController+Categories.swift Sources/models/FolderNode.swift Sources/models/ImageFile.swift Sources/models/ImageFormat.swift Sources/models/BrowserLayoutMode.swift Sources/models/ColorSwatch.swift Sources/models/BrowserContent.swift Sources/models/ImageCategory.swift Sources/browser/BrowserViewController.swift Sources/browser/BrowserItem.swift Sources/browser/MasonryLayout.swift Sources/viewer/VideoPlayerView.swift Sources/viewer/ViewerViewController.swift Sources/viewer/CompareWindowController.swift Sources/viewer/CropOverlayView.swift Sources/viewer/PixelMapping.swift Sources/viewer/CompareCandidateStrip.swift Sources/viewer/ImageDisplayView.swift Sources/viewer/CompareSyncCoordinator.swift Sources/viewer/ThumbnailStripView.swift Sources/viewer/ImageEditorWindowController.swift Sources/viewer/ColorInteraction.swift Sources/viewer/ComparePaneView.swift Sources/ai/AIChatInputView.swift Sources/ai/AIImageGenerationService.swift Sources/ai/AIChatTranscriptView.swift Sources/ai/AIConnectionViewController.swift Sources/ai/AIChatViewController.swift Sources/ai/AIConnectionService.swift Sources/services/ImageService.swift Sources/services/ThumbnailProvider.swift Sources/services/ColorExtractionService.swift Sources/services/PixelSampler.swift Sources/services/OpenWithService.swift Sources/services/ImageSimilarityService.swift Sources/services/Localization.swift Sources/services/AppSettings.swift Sources/services/ImageMetadataService.swift Sources/services/FolderColorService.swift Sources/services/SecurityScopeService.swift Sources/services/ImageEditingService.swift Sources/services/BatchExportService.swift Sources/services/FileService.swift Sources/services/ThumbnailScheduler.swift Sources/services/ColorFormat.swift Sources/services/ThumbnailCache.swift Sources/services/CategoryStore.swift Sources/services/ImageAspectRatioReader.swift Sources/services/FolderWatcher.swift Sources/services/BookmarkStore.swift Sources/services/ThumbnailDiskStore.swift Sources/services/FolderMediaCountService.swift Tests/TestSupport.swift Tests/UI/AIImageUITests.swift Tests/UI/CompareLayoutTests.swift Tests/UI/LibraryDesignTests.swift Tests/UI/MasonryUITests.swift Tests/UI/PerformanceTests.swift Tests/UI/SimilarityTests.swift Tests/UI/ViewerColorTests.swift Tests/UI/ViewerLoadingTests.swift Tests/UI/ViewerSidebarTests.swift Tests/UI/main.swift -o .build/category-ui-tests
+Tests/UI/ViewerColorTests.swift:10:29: error: value of type 'AppSettings' has no member 'colorTolerance'
+ 8 |         defer { defaults.removePersistentDomain(forName: suiteName) }
+ 9 |         let settings = AppSettings(defaults: defaults)
+10 |         checkEqual(settings.colorTolerance, AppSettings.defaultColorTolerance, "저장값 없으면 기본값")
+   |                             `- error: value of type 'AppSettings' has no member 'colorTolerance'
+11 |         settings.colorTolerance = 20
+12 |         checkEqual(AppSettings(defaults: defaults).colorTolerance, 20, "다른 인스턴스(재실행)에서도 유지")
+
+Tests/UI/ViewerColorTests.swift:10:57: error: type 'AppSettings' has no member 'defaultColorTolerance'
+ 8 |         defer { defaults.removePersistentDomain(forName: suiteName) }
+ 9 |         let settings = AppSettings(defaults: defaults)
+10 |         checkEqual(settings.colorTolerance, AppSettings.defaultColorTolerance, "저장값 없으면 기본값")
+   |                                                         `- error: type 'AppSettings' has no member 'defaultColorTolerance'
+11 |         settings.colorTolerance = 20
+12 |         checkEqual(AppSettings(defaults: defaults).colorTolerance, 20, "다른 인스턴스(재실행)에서도 유지")
+
+Tests/UI/ViewerColorTests.swift:20:33: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorButton'
+18 |
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+   |                                 `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorButton'
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+22 |         let saved = L10n.language
+
+Tests/UI/ViewerColorTests.swift:20:47: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorMagnifier'
+18 |
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+   |                                               `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorMagnifier'
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+22 |         let saved = L10n.language
+
+Tests/UI/ViewerColorTests.swift:20:64: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorRange'
+18 |
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+   |                                                                `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorRange'
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+22 |         let saved = L10n.language
+
+Tests/UI/ViewerColorTests.swift:20:77: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCountFormat'
+18 |
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+   |                                                                             `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCountFormat'
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+22 |         let saved = L10n.language
+
+Tests/UI/ViewerColorTests.swift:20:96: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopyAllHex'
+18 |
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+   |                                                                                                `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopyAllHex'
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+22 |         let saved = L10n.language
+
+Tests/UI/ViewerColorTests.swift:21:33: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopied'
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+   |                                 `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopied'
+22 |         let saved = L10n.language
+23 |         defer { L10n.language = saved }
+
+Tests/UI/ViewerColorTests.swift:21:47: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCursor'
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+   |                                               `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCursor'
+22 |         let saved = L10n.language
+23 |         defer { L10n.language = saved }
+
+Tests/UI/ViewerColorTests.swift:21:61: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorExtracting'
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+   |                                                             `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorExtracting'
+22 |         let saved = L10n.language
+23 |         defer { L10n.language = saved }
+
+Tests/UI/ViewerColorTests.swift:21:79: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorNoColors'
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+   |                                                                               `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorNoColors'
+22 |         let saved = L10n.language
+23 |         defer { L10n.language = saved }
+
+Tests/UI/ViewerColorTests.swift:21:95: error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopyValue'
+19 |     runTest("색상 기능 문자열이 모든 언어에서 비어 있지 않다") {
+20 |         let keys: [L10nKey] = [.colorButton, .colorMagnifier, .colorRange, .colorCountFormat, .colorCopyAllHex,
+21 |                                .colorCopied, .colorCursor, .colorExtracting, .colorNoColors, .colorCopyValue]
+   |                                                                                               `- error: type 'Array<L10nKey>.ArrayLiteralElement' (aka 'L10nKey') has no member 'colorCopyValue'
+22 |         let saved = L10n.language
+23 |         defer { L10n.language = saved }
+make: *** [test-ui] Error 1

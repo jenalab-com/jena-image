@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;padding:16px;font-family:-apple-system,system-ui,sans-serif;background:var(--background);color:var(--foreground)}
+h2{margin:0 0 6px;font-size:17px}
+.subtitle{margin:0 0 14px;font-size:13px;color:var(--muted-foreground);line-height:1.5}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.card{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card);cursor:pointer}
+.card:hover{border-color:var(--accent)}
+.card.selected{border-color:#0a84ff;box-shadow:0 0 0 2px #0a84ff}
+.card-image{padding:10px}
+.card-body{padding:4px 14px 14px}
+.card-body h3{margin:0 0 4px;font-size:14px}
+.card-body p{margin:0;font-size:12px;color:var(--muted-foreground);line-height:1.5}
+/* mockup palette */
+.win{background:#1e1e20;border-radius:10px;overflow:hidden;border:1px solid #333;position:relative;height:330px;display:flex;font-family:-apple-system,system-ui,sans-serif}
+.stage{flex:1;position:relative;display:flex;flex-direction:column}
+.img{flex:1;margin:12px;border-radius:4px;background:radial-gradient(circle at 30% 35%,#f2b880 0 14%,transparent 15%),linear-gradient(160deg,#2c4a6e 0%,#3f7cac 35%,#e9c46a 62%,#e76f51 82%,#5b2a3a 100%);position:relative}
+.strip{width:54px;background:#151517;border-left:1px solid #2a2a2c;display:flex;flex-direction:column;gap:6px;padding:8px 6px}
+.strip div{height:38px;border-radius:4px;background:#333}
+.btns{display:flex;justify-content:flex-end;gap:5px;padding:0 10px 8px}
+.b{font-size:10px;color:#ddd;background:#3a3a3d;border-radius:5px;padding:3px 8px}
+.b.on{background:#0a84ff;color:#fff}
+.panel-bottom{background:#232326;border-top:1px solid #333;padding:8px 10px 10px;display:flex;gap:10px;align-items:center}
+.chips{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.chip{width:18px;height:18px;border-radius:4px;border:1px solid rgba(255,255,255,.15)}
+.cursor{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px}
+.cursor:before,.cursor:after{content:"";position:absolute;background:#fff;box-shadow:0 0 0 1px #000}
+.cursor:before{left:5px;top:0;width:2px;height:12px}.cursor:after{top:5px;left:0;height:2px;width:12px}
+.loupe{position:absolute;width:84px;height:84px;border-radius:50%;border:2px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.6);overflow:hidden;
+  background-image:linear-gradient(rgba(0,0,0,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.25) 1px,transparent 1px),
+  linear-gradient(135deg,#e9a35c 0 30%,#e88a57 30% 55%,#e76f51 55% 80%,#c9583f 80%);background-size:12px 12px,12px 12px,100% 100%}
+.loupe:after{content:"";position:absolute;left:36px;top:36px;width:12px;height:12px;outline:2px solid #fff;box-shadow:0 0 0 3px #000}
+.lab{position:absolute;background:rgba(30,30,32,.94);border:1px solid #444;border-radius:6px;padding:4px 6px;font:9px ui-monospace,Menlo,monospace;color:#eee;white-space:nowrap}
+.lab .k{color:#999;font-family:-apple-system,sans-serif;margin-right:4px}
+.cur{display:flex;gap:7px;align-items:center;padding-right:10px;border-right:1px solid #3a3a3d}
+.cur .sw{width:30px;height:30px;border-radius:5px;background:#e76f51;border:1px solid rgba(255,255,255,.2)}
+.cur .v{font:9px/1.45 ui-monospace,Menlo,monospace;color:#eee}
+.cur .v .k{color:#999;font-family:-apple-system,sans-serif;display:inline-block;width:28px}
+.cur .t{font-size:8px;color:#aaa;margin-bottom:2px;font-family:-apple-system,sans-serif}
+</style></head><body>
+<h2>돋보기를 어떻게 보여줄까요?</h2>
+<p class="subtitle">세 안 모두 하단 서랍(A안)이 열려 있고, 커서는 이미지 오른쪽 아래 주황빛 부분에 있는 상태예요. 확대경 안의 칸 하나가 원본 픽셀 하나이고, 가운데 흰 테두리 칸이 지금 읽고 있는 픽셀이에요.</p>
+<div class="cards">
+ <div class="card" onclick="sel(this)"><div class="card-image"><div class="win"><div class="stage">
+  <div class="img"><div class="cursor" style="left:68%;top:66%"></div>
+   <div class="loupe" style="left:calc(68% + 14px);top:calc(66% - 110px)"></div>
+   <div class="lab" style="left:calc(68% + 4px);top:calc(66% - 22px)"><div><span class="k">HEX</span>#E76F51</div><div><span class="k">RGB</span>231, 111, 81</div><div><span class="k">CMYK</span>0, 52, 65, 9</div></div></div>
+  <div class="panel-bottom"><div class="chips"><div class="chip" style="background:#3f7cac"></div><div class="chip" style="background:#e9c46a"></div><div class="chip" style="background:#2c4a6e"></div><div class="chip" style="background:#e76f51"></div><div class="chip" style="background:#5b2a3a"></div><div class="chip" style="background:#f2b880"></div><div class="chip" style="background:#86a9c4"></div><div class="chip" style="background:#c9a25a"></div></div></div>
+  <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+ </div><div class="strip"><div></div><div></div><div></div><div></div></div></div></div>
+ <div class="card-body"><h3>① 확대경 + 값 전부 커서 옆</h3><p>확대경과 HEX·RGB·CMYK가 모두 커서를 따라다녀요. 시선을 옮길 필요는 없지만, 커서 주변 이미지를 꽤 넓게 가려요.</p></div></div>
+
+ <div class="card" onclick="sel(this)"><div class="card-image"><div class="win"><div class="stage">
+  <div class="img"><div class="cursor" style="left:68%;top:66%"></div></div>
+  <div class="panel-bottom"><div class="cur"><div class="sw"></div><div class="v"><div class="t">커서 위치 색</div><div><span class="k">HEX</span>#E76F51</div><div><span class="k">RGB</span>231, 111, 81</div><div><span class="k">CMYK</span>0, 52, 65, 9</div></div></div>
+   <div class="chips"><div class="chip" style="background:#3f7cac"></div><div class="chip" style="background:#e9c46a"></div><div class="chip" style="background:#2c4a6e"></div><div class="chip" style="background:#e76f51"></div><div class="chip" style="background:#5b2a3a"></div><div class="chip" style="background:#f2b880"></div><div class="chip" style="background:#86a9c4"></div></div></div>
+  <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+ </div><div class="strip"><div></div><div></div><div></div><div></div></div></div></div>
+ <div class="card-body"><h3>② 확대경 없이 서랍에 고정 표시</h3><p>이미지 위에는 십자 커서만 있고, 값은 서랍 왼쪽 칸에 떠요. 가리는 건 없지만, 픽셀 단위로 정확히 집기 어렵고 시선이 아래를 오가야 해요.</p></div></div>
+
+ <div class="card" onclick="sel(this)"><div class="card-image"><div class="win"><div class="stage">
+  <div class="img"><div class="cursor" style="left:68%;top:66%"></div>
+   <div class="loupe" style="left:calc(68% + 14px);top:calc(66% - 110px)"></div>
+   <div class="lab" style="left:calc(68% + 26px);top:calc(66% - 22px)">#E76F51</div></div>
+  <div class="panel-bottom"><div class="cur"><div class="sw"></div><div class="v"><div class="t">커서 위치 색</div><div><span class="k">HEX</span>#E76F51</div><div><span class="k">RGB</span>231, 111, 81</div><div><span class="k">CMYK</span>0, 52, 65, 9</div></div></div>
+   <div class="chips"><div class="chip" style="background:#3f7cac"></div><div class="chip" style="background:#e9c46a"></div><div class="chip" style="background:#2c4a6e"></div><div class="chip" style="background:#e76f51"></div><div class="chip" style="background:#5b2a3a"></div><div class="chip" style="background:#f2b880"></div><div class="chip" style="background:#86a9c4"></div></div></div>
+  <div class="btns"><span class="b">카테고리</span><span class="b">★</span><span class="b on">색상</span><span class="b">편집</span><span class="b">▤</span></div>
+ </div><div class="strip"><div></div><div></div><div></div><div></div></div></div></div>
+ <div class="card-body"><h3>③ 작은 확대경 + HEX만, 나머지는 서랍</h3><p>커서 옆에는 확대경과 HEX 한 줄만 따라다니고, RGB·CMYK 전체 값은 서랍 왼쪽 칸에 고정으로 보여요.</p></div></div>
+</div>
+<script>function sel(el){document.querySelectorAll('.card').forEach(c=>c.classList.toggle('selected',c===el&&!c.classList.contains('selected')))}</script>
+</body></html>
