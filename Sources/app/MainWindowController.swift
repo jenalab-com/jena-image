@@ -33,6 +33,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         static let zoomFitWidth = NSToolbarItem.Identifier("zoomFitWidth")
         static let sort = NSToolbarItem.Identifier("sort")
         static let ai = NSToolbarItem.Identifier("aiImageGeneration")
+        static let web = NSToolbarItem.Identifier("webBrowser")
         static let compare = NSToolbarItem.Identifier("compare")
         static let layout = NSToolbarItem.Identifier("browserLayout")
         static let share = NSToolbarItem.Identifier("share")
@@ -43,7 +44,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     // MARK: - Dependencies
 
     let fileService: FileServiceProtocol
-    private let settings: AppSettings
+    let settings: AppSettings
     let imageService: ImageServiceProtocol = ImageService()
     let securityService = SecurityScopeService()
     let folderWatcher = FolderWatcher()
@@ -102,12 +103,26 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
     var searchSourceURLs: [URL]?
     var searchToolbarItem: NSSearchToolbarItem?
 
+    /// 휴지통에 넣을 수 없는 항목을 바로 삭제할지 묻는다. 기본은 확인 창. 테스트가 바꿔 끼운다.
+    var askPermanentDelete: (([URL]) -> Bool)?
+    /// 삭제 실패를 알리는 방법. 기본은 오류 창. 테스트가 바꿔 끼운다.
+    var onDeleteFailure: (([(url: URL, reason: String)]) -> Void)?
+
     // 일괄 내보내기 시트 보관
     var batchExportController: BatchExportWindowController?
 
     var needsFolderRefreshAfterViewerRename = false
     var aiChatVC: AIChatViewController?
     var aiSplitItem: NSSplitViewItem?
+    var webPanelVC: WebPanelViewController?
+    var webSplitItem: NSSplitViewItem?
+    var webImageSaver: WebImageSaver?
+    /// 곁 패널(왼쪽 웹·오른쪽 AI)별 창 최소 폭과, 나눔선으로 접고 펼친 것을 따라가는 관찰.
+    var sidePanelMinimumWidths: [ObjectIdentifier: CGFloat] = [:]
+    var sidePanelObservations: [NSKeyValueObservation] = []
+    var sidePanelResizeObserver: NSObjectProtocol?
+    /// 웹 패널 엔진을 만든다. 테스트는 비영구 저장소 엔진으로 바꾼다.
+    var makeWebEngine: () -> WebPageEngine = { WebPageEngine() }
 
     // 비교 창 보관
     private var compareWindowController: CompareWindowController?
@@ -164,6 +179,8 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         ) { [weak self] _ in
             self?.folderLoadGeneration += 1
             self?.clearSimilaritySearch()
+            // 마지막 창을 닫으면 앱이 끝난다. 쓰던 웹 이미지 조각을 폴더에 남기지 않는다.
+            MainActor.assumeIsolated { self?.webImageSaver?.cancelAll() }
         }
         setupFolderWatcher()
         setupThumbnailSettings()
@@ -176,6 +193,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
         folderLoadTask?.cancel()
         similarityTask?.cancel()
         if let observer = similarityCloseObserver { NotificationCenter.default.removeObserver(observer) }
+        if let observer = sidePanelResizeObserver { NotificationCenter.default.removeObserver(observer) }
     }
 
     // MARK: - Window Lifecycle
@@ -335,11 +353,12 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
     func switchToMode(_ mode: ContentMode) {
         guard contentMode != mode else { return }
+        // NSSplitViewItem.viewController는 교체 불가 — item 자체를 같은 자리에서 교체한다.
+        // 웹 패널이 있으면 목록·뷰어 칸은 2번, 없으면 1번이므로 번호가 아니라 칸으로 찾는다.
+        guard let oldItem = contentSplitItem,
+              let index = splitViewController.splitViewItems.firstIndex(of: oldItem) else { return }
         contentMode = mode
         if mode == .viewer { folderLoadGeneration += 1 }
-
-        // NSSplitViewItem.viewController는 교체 불가 — item 자체를 교체
-        let oldItem = splitViewController.splitViewItems[1]
         splitViewController.removeSplitViewItem(oldItem)
 
         let newVC: NSViewController
@@ -354,9 +373,14 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
         let newItem = NSSplitViewItem(viewController: newVC)
         newItem.minimumThickness = 400
-        splitViewController.insertSplitViewItem(newItem, at: 1)
+        splitViewController.insertSplitViewItem(newItem, at: index)
 
         updateToolbarState()
+    }
+
+    /// 목록·뷰어를 담은 칸. 배치는 [사이드바 | 웹 | 목록·뷰어 | AI]이고 웹·AI 칸은 처음 열 때 생긴다.
+    var contentSplitItem: NSSplitViewItem? {
+        splitViewController.splitViewItems.first { $0.viewController === browserVC || $0.viewController === viewerVC }
     }
 
     // MARK: - Thumbnail Settings
@@ -590,6 +614,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
             for (index, identifier) in identifiers.enumerated() { toolbar.insertItem(withItemIdentifier: identifier, at: index) }
         }
         syncFitModeSelection()
+        syncWebToolbarButton()
         for item in toolbar.items {
             item.validate()
         }
@@ -636,6 +661,7 @@ final class MainWindowController: NSWindowController, NSMenuItemValidation {
 
         browserVC.isBookmarkedProvider = { [weak self] url in self?.bookmarkStore.contains(url) ?? false }
         viewerVC.onToggleBookmark = { [weak self] url in self?.toggleBookmark([url]) }
+        connectWebImageDrops()
 
         NotificationCenter.default.addObserver(
             forName: .bookmarksChanged, object: nil, queue: .main

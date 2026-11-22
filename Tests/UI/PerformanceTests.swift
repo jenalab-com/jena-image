@@ -232,6 +232,7 @@ private final class DelayedFolderService: FileServiceProtocol {
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError> { .failure(.permissionDenied(source)) }
     func duplicateFile(at url: URL) -> Result<URL, FileServiceError> { .failure(.permissionDenied(url)) }
     func trashFile(at url: URL) -> Result<Void, FileServiceError> { .failure(.permissionDenied(url)) }
+    func deleteFilePermanently(at url: URL) -> Result<Void, FileServiceError> { .failure(.permissionDenied(url)) }
     func renameFile(at url: URL, newName: String) -> Result<URL, FileServiceError> { .failure(.permissionDenied(url)) }
     func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError> { .failure(.permissionDenied(parentURL)) }
     func fileExists(at url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }

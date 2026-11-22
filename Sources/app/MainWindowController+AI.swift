@@ -13,10 +13,7 @@ extension MainWindowController {
 
     @objc func showAIMode(_ sender: Any?) {
         let firstOpen = aiSplitItem == nil
-        if let item = aiSplitItem {
-            item.isCollapsed.toggle()
-            if !item.isCollapsed { aiChatVC?.selectionChanged(aiReferenceURLs()) }
-        } else {
+        if firstOpen {
             let controller = AIChatViewController()
             controller.currentDestination = { [weak self] in self?.aiDestinationURL }
             controller.onOpenImages = { [weak self] urls in
@@ -41,17 +38,11 @@ extension MainWindowController {
             splitViewController.addSplitViewItem(item)
             controller.selectionChanged(aiReferenceURLs())
         }
-        let visible = aiSplitItem?.isCollapsed == false
-        window?.minSize = NSSize(width: visible ? 940 : 700, height: 500)
-        if visible, let window, window.frame.width < 940 {
-            var frame = window.frame
-            frame.size.width = 940
-            window.setFrame(frame, display: true)
-        }
-        if firstOpen {
-            splitViewController.view.layoutSubtreeIfNeeded()
-            splitViewController.splitView.setPosition(splitViewController.splitView.bounds.width - AIChatViewController.defaultWidth, ofDividerAt: 1)
-        }
+        guard let item = aiSplitItem else { return }
+        let visible = firstOpen || item.isCollapsed
+        setSidePanel(item, visible: visible, minimumWindowWidth: 940,
+                     defaultWidth: AIChatViewController.defaultWidth, firstOpen: firstOpen)
+        if visible, !firstOpen { aiChatVC?.selectionChanged(aiReferenceURLs()) }
         aiChatVC?.refreshDestination()
     }
 }

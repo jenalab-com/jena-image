@@ -12,18 +12,19 @@ extension MainWindowController: NSToolbarDelegate {
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         // 사이드바 토글은 항상 맨 왼쪽(제목보다 앞) — 내비게이션 항목으로 둔다.
+        // 웹 버튼은 그 바로 오른쪽: 웹 패널이 사이드바 옆에 열리므로 여는 버튼도 같은 쪽에 둔다.
         if contentMode == .browser {
             let showsBack = browserVC.isSimilarityMode || browserVC.isSearchMode
-            return [ToolbarID.sidebar] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.checkerboard, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
+            return [ToolbarID.sidebar, ToolbarID.web] + (showsBack ? [ToolbarID.back] : []) + [.flexibleSpace, ToolbarID.search, ToolbarID.checkerboard, ToolbarID.layout, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
         }
-        return [ToolbarID.sidebar, ToolbarID.back, .flexibleSpace,
+        return [ToolbarID.sidebar, ToolbarID.web, ToolbarID.back, .flexibleSpace,
                 ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
                 ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
                 .flexibleSpace, ToolbarID.checkerboard, ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [ToolbarID.sidebar, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
+        [ToolbarID.sidebar, ToolbarID.web, ToolbarID.back, .flexibleSpace, ToolbarID.layout,
          ToolbarID.zoomOut, ToolbarID.zoomIn, ToolbarID.zoomActualSize,
          ToolbarID.zoomFit, ToolbarID.zoomFitHeight, ToolbarID.zoomFitWidth,
          ToolbarID.sort, ToolbarID.compare, ToolbarID.ai, ToolbarID.share, ToolbarID.search, ToolbarID.checkerboard]
@@ -150,6 +151,14 @@ extension MainWindowController: NSToolbarDelegate {
             return headerItem(itemIdentifier, label: "AI 모드", tip: "AI 이미지 생성",
                               title: "AI", action: #selector(showAIMode(_:)))
 
+        case ToolbarID.web:
+            let item = headerItem(itemIdentifier, label: "웹 브라우저", tip: "웹 브라우저",
+                                  symbol: "globe", toggle: true, action: #selector(showWebMode(_:)))
+            (item.view as? NSButton)?.state = webSplitItem?.isCollapsed == false ? .on : .off
+            // 내비게이션 항목이어야 창 제목보다 앞(사이드바 토글과 제목 사이)에 놓인다.
+            item.isNavigational = true
+            return item
+
         case ToolbarID.compare:
             return headerItem(itemIdentifier, label: "비교", tip: "선택한 이미지 비교",
                               symbol: "rectangle.split.2x1", action: #selector(compareSelected(_:)))
@@ -214,7 +223,7 @@ extension MainWindowController: SidebarDelegate {
     }
 
     func sidebar(_ sidebar: SidebarViewController, didRequestDelete urls: [URL]) {
-        performDelete(urls: urls)
+        performDelete(urls: urls) { [weak self] deleted in self?.removeViewedImageIfDeleted(deleted) }
     }
 
     func sidebar(_ sidebar: SidebarViewController, didRequestExport url: URL) {
@@ -366,8 +375,7 @@ extension MainWindowController: ViewerDelegate {
     }
 
     func viewer(_ viewer: ViewerViewController, didRequestDelete url: URL) {
-        performDelete(urls: [url])
-        viewer.removeCurrentImage()
+        performDelete(urls: [url]) { [weak self] deleted in self?.removeViewedImageIfDeleted(deleted) }
     }
 
     func viewer(_ viewer: ViewerViewController, didRequestExport url: URL) {

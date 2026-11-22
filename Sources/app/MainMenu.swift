@@ -128,6 +128,9 @@ enum MainMenu {
         let toggleSidebar = NSMenuItem(title: L10n.string(.toggleSidebar), action: #selector(MainWindowController.toggleSidebar(_:)), keyEquivalent: "s")
         toggleSidebar.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(toggleSidebar)
+        viewMenu.addItem(withTitle: "웹 브라우저", action: #selector(MainWindowController.showWebMode(_:)), keyEquivalent: "")
+        // 웹 패널의 새 탭. ⌘T·⌘W는 창 닫기 계열과 헷갈려 단축키를 두지 않는다.
+        viewMenu.addItem(withTitle: "새 탭", action: #selector(MainWindowController.newWebTab(_:)), keyEquivalent: "")
 
         let refresh = NSMenuItem(title: "새로고침", action: #selector(MainWindowController.refreshAll(_:)), keyEquivalent: "R")
         refresh.keyEquivalentModifierMask = [.command, .shift]

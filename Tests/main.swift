@@ -12,6 +12,7 @@ runPixelMappingTests()
 runColorInteractionTests()
 runColorLayoutTests()
 runDiskStoreTests()
+runWebPanelLogicTests()
 MainActor.assumeIsolated { runProviderTests() }
 
 if failureCount > 0 {

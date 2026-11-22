@@ -10,6 +10,14 @@ enum SortKey: String, CaseIterable {
 
 // MARK: - Error
 
+/// 휴지통 이동이 거절된 까닭.
+enum TrashRefusal: Equatable {
+    /// 권한 없음(Cocoa 513) — 클라우드 폴더에서 앱에 전체 디스크 접근 권한이 없을 때가 대표적이다.
+    case noPermission
+    /// 휴지통이 없는 볼륨(Cocoa 3328) — 네트워크 공유 등.
+    case noTrashOnVolume
+}
+
 enum FileServiceError: Error, LocalizedError {
     case folderNotReadable(URL)
     case fileNotFound(URL)
@@ -17,6 +25,8 @@ enum FileServiceError: Error, LocalizedError {
     case invalidFileName(String)
     case permissionDenied(URL)
     case operationFailed(String)
+    /// 휴지통으로 옮길 수 없다. 바로 삭제는 될 수 있다.
+    case trashUnavailable(URL, TrashRefusal, String)
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +42,8 @@ enum FileServiceError: Error, LocalizedError {
             return "권한이 부족합니다: \(url.lastPathComponent)"
         case .operationFailed(let message):
             return message
+        case .trashUnavailable(_, _, let reason):
+            return reason
         }
     }
 }
@@ -53,6 +65,8 @@ protocol FileServiceProtocol {
     func copyFile(from source: URL, to destinationFolder: URL) -> Result<URL, FileServiceError>
     func duplicateFile(at url: URL) -> Result<URL, FileServiceError>
     func trashFile(at url: URL) -> Result<Void, FileServiceError>
+    /// 휴지통을 거치지 않고 지운다. 부르는 쪽이 사용자 확인을 받은 뒤에만 쓴다.
+    func deleteFilePermanently(at url: URL) -> Result<Void, FileServiceError>
     func renameFile(at url: URL, newName: String) -> Result<URL, FileServiceError>
     func createFolder(in parentURL: URL, name: String) -> Result<URL, FileServiceError>
     func fileExists(at url: URL) -> Bool
@@ -262,6 +276,30 @@ final class FileService: FileServiceProtocol {
             try fileManager.trashItem(at: url, resultingItemURL: nil)
             return .success(())
         } catch {
+            // Google Drive 같은 파일 제공자 폴더에서, 앱이 직접 만들지 않은 파일을 그 폴더의 휴지통으로 옮기려면
+            // macOS가 전체 디스크 접근 권한을 요구한다(2026-11-22 확인). 이름 바꾸기와 삭제는 그 권한 없이도 된다.
+            if let refusal = Self.trashRefusal(for: error as NSError) {
+                return .failure(.trashUnavailable(url, refusal, error.localizedDescription))
+            }
+            return .failure(.operationFailed("파일을 삭제할 수 없습니다: \(error.localizedDescription)"))
+        }
+    }
+
+    /// 휴지통 이동 오류 가운데 "휴지통을 쓸 수 없다"에 해당하는 것. 그 밖의 오류(파일 없음 등)는 nil.
+    static func trashRefusal(for error: NSError) -> TrashRefusal? {
+        guard error.domain == NSCocoaErrorDomain else { return nil }
+        switch error.code {
+        case NSFileWriteNoPermissionError: return .noPermission
+        case NSFeatureUnsupportedError: return .noTrashOnVolume
+        default: return nil
+        }
+    }
+
+    func deleteFilePermanently(at url: URL) -> Result<Void, FileServiceError> {
+        do {
+            try fileManager.removeItem(at: url)
+            return .success(())
+        } catch {
             return .failure(.operationFailed("파일을 삭제할 수 없습니다: \(error.localizedDescription)"))
         }
     }
@@ -320,5 +358,18 @@ final class FileService: FileServiceProtocol {
 
     func fileExists(at url: URL) -> Bool {
         fileManager.fileExists(atPath: url.path)
+    }
+}
+
+extension URL {
+    /// 같은 파일·폴더를 가리키는지. 경로 표기(대소문자·`/private`·심볼릭 링크)가 달라도 파일 시스템의 식별자로 비교한다.
+    /// 둘 중 하나라도 없으면 링크를 풀고 정규화한 경로로 비교한다.
+    func isSameItem(as other: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.fileResourceIdentifierKey]
+        if let mine = (try? resourceValues(forKeys: key))?.fileResourceIdentifier as? NSObject,
+           let theirs = (try? other.resourceValues(forKeys: key))?.fileResourceIdentifier as? NSObject {
+            return mine.isEqual(theirs)
+        }
+        return resolvingSymlinksInPath().standardizedFileURL.path == other.resolvingSymlinksInPath().standardizedFileURL.path
     }
 }

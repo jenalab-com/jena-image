@@ -26,7 +26,8 @@ try bitmap.representation(using: .png, properties: [:])!.write(to: firstURL)
 try bitmap.representation(using: .png, properties: [:])!.write(to: secondURL)
 let first = try store.create(name: "색감", urls: [firstURL])
 let second = try store.create(name: "구도", urls: [secondURL])
-let controller = MainWindowController(categoryStore: store, settings: AppSettings(defaults: defaults))
+let uiSettings = AppSettings(defaults: defaults)
+let controller = MainWindowController(categoryStore: store, settings: uiSettings)
 controller.sidebarVC.setFolders([temporary])
 
 runTest("사이드바 아이콘 전환과 카테고리 선택이 이미지 목록에 연결된다") {
@@ -191,6 +192,8 @@ runTest("우클릭 이름 변경은 선택된 행 대신 우클릭한 카테고�
 }
 
 MainActor.assumeIsolated { runAIImageUITests(controller: controller, directory: temporary) }
+// AI 테스트가 칸 셋을 검사하므로 웹 패널은 그 뒤에 연다.
+MainActor.assumeIsolated { runWebPanelUITests(controller: controller, settings: uiSettings) }
 MainActor.assumeIsolated { runMasonryUITests(directory: temporary) }
 MainActor.assumeIsolated { runLibraryDesignTests(directory: temporary) }
 MainActor.assumeIsolated { runSimilarityTests(directory: temporary) }
@@ -198,10 +201,12 @@ MainActor.assumeIsolated { runPerformanceTests(directory: temporary) }
 MainActor.assumeIsolated { runViewerLoadingTests(directory: temporary) }
 MainActor.assumeIsolated { runViewerSidebarTests(controller: controller, directory: temporary) }
 MainActor.assumeIsolated { runCompareLayoutTests(directory: temporary) }
+MainActor.assumeIsolated { runUpdateWindowTests() }
 MainActor.assumeIsolated { runViewerColorTests(directory: temporary) }
+MainActor.assumeIsolated { runWebPanelEngineTests() }
+MainActor.assumeIsolated { runDeleteFallbackTests(directory: temporary) }
 
 for url in controller.folderWatcher.watchedURLs { controller.folderWatcher.unwatch(url) }
-MainActor.assumeIsolated { runUpdateWindowTests() }
 controller.window?.close()
 defaults.removePersistentDomain(forName: suite)
 try FileManager.default.removeItem(at: temporary)

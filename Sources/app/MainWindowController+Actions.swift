@@ -279,15 +279,21 @@ extension MainWindowController {
         return browserVC.selectedURLs().compactMap { ImageFile(url: $0) }.filter { !$0.isVideo }.count
     }
 
+    /// 뷰어가 보던 이미지가 실제로 지워졌을 때만(그 파일이거나 지워진 폴더 안이면) 뷰어에서 뺀다.
+    /// 취소했거나 지우지 못했으면 보던 이미지를 그대로 둔다.
+    func removeViewedImageIfDeleted(_ deleted: [URL]) {
+        guard let current = viewerVC.currentImageURL else { return }
+        let path = current.standardizedFileURL.path
+        if deleted.contains(where: { let gone = $0.standardizedFileURL.path; return path == gone || path.hasPrefix(gone + "/") }) {
+            viewerVC.removeCurrentImage()
+        }
+    }
+
     @objc func deleteSelected(_ sender: Any?) {
         if isSidebarFocused, sidebarVC.selectedItemIsNonRoot, let url = sidebarVC.selectedItemURL {
-            performDelete(urls: [url])
-            if contentMode == .viewer {
-                viewerVC.removeCurrentImage()
-            }
+            performDelete(urls: [url]) { [weak self] deleted in self?.removeViewedImageIfDeleted(deleted) }
         } else if contentMode == .viewer, let url = viewerVC.currentImageURL {
-            performDelete(urls: [url])
-            viewerVC.removeCurrentImage()
+            performDelete(urls: [url]) { [weak self] deleted in self?.removeViewedImageIfDeleted(deleted) }
         } else {
             let urls = browserVC.selectedURLs()
             if !urls.isEmpty { performDelete(urls: urls) }
@@ -416,6 +422,10 @@ extension MainWindowController: NSToolbarItemValidation {
              #selector(navigateNextImage(_:)),
              #selector(toggleSlideshow(_:)):
             return isViewer
+
+        // 웹 패널의 새 탭: 패널이 펼쳐져 있을 때만
+        case #selector(newWebTab(_:)):
+            return webSplitItem?.isCollapsed == false
 
         // 브라우저 모드에서만 활성
         case #selector(selectAllItems(_:)),

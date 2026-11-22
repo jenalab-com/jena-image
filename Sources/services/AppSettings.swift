@@ -34,6 +34,11 @@ final class AppSettings {
         case canvasBackgroundColor = "canvasBackgroundColor"
         case canvasBackgroundOpacity = "canvasBackgroundOpacity"
         case colorTolerance = "colorTolerance"
+        case webSearchProvider = "webSearchProvider"
+        case webSearchMode = "webSearchMode"
+        case webLastAddress = "webLastAddress"
+        case webTabAddresses = "webTabAddresses"
+        case webSelectedTabIndex = "webSelectedTabIndex"
     }
 
     var aiModel: String {
@@ -44,6 +49,37 @@ final class AppSettings {
     var aiExecutable: String {
         get { defaults.string(forKey: Key.aiExecutable.rawValue) ?? "codex" }
         set { defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiExecutable.rawValue) }
+    }
+
+    // MARK: - Web Panel
+
+    var webSearchProvider: WebSearchProvider {
+        get { WebSearchProvider(rawValue: defaults.string(forKey: Key.webSearchProvider.rawValue) ?? "") ?? .google }
+        set { defaults.set(newValue.rawValue, forKey: Key.webSearchProvider.rawValue) }
+    }
+
+    var webSearchMode: WebSearchMode {
+        get { WebSearchMode(rawValue: defaults.string(forKey: Key.webSearchMode.rawValue) ?? "") ?? .images }
+        set { defaults.set(newValue.rawValue, forKey: Key.webSearchMode.rawValue) }
+    }
+
+    /// 웹 패널에 열어 둔 탭들의 주소(빈 탭은 빈 문자열). 다음에 패널을 처음 열 때 복원한다.
+    var webTabAddresses: [String] {
+        get { defaults.stringArray(forKey: Key.webTabAddresses.rawValue) ?? [] }
+        set { defaults.set(newValue, forKey: Key.webTabAddresses.rawValue) }
+    }
+
+    /// 웹 패널에서 고른 탭의 번호.
+    var webSelectedTabIndex: Int {
+        get { defaults.integer(forKey: Key.webSelectedTabIndex.rawValue) }
+        set { defaults.set(newValue, forKey: Key.webSelectedTabIndex.rawValue) }
+    }
+
+    /// 탭이 생기기 전 버전이 남긴 마지막 주소를 읽고 지운다. 탭 기록으로 옮기는 데만 쓴다.
+    func takeLegacyWebLastAddress() -> String? {
+        let address = defaults.string(forKey: Key.webLastAddress.rawValue)
+        defaults.removeObject(forKey: Key.webLastAddress.rawValue)
+        return address?.isEmpty == false ? address : nil
     }
 
     // MARK: - Language

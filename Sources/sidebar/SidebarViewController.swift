@@ -87,6 +87,10 @@ final class SidebarViewController: NSViewController {
     var onAddCategory: (() -> Void)?
     var onRenameCategory: ((UUID) -> Void)?
     var onViewModeChanged: ((Bool) -> Void)?
+    /// 웹 패널에서 끌어온 이미지 드래그인지.
+    var isWebImageDrag: ((NSDraggingInfo) -> Bool)?
+    /// 폴더 행에 놓은 웹 이미지를 그 폴더에 저장한다.
+    var onWebImageDrop: ((NSDraggingInfo, _ folder: URL) -> Bool)?
     private var categoryRows: [SidebarCategoryRow] = []
     private var savedExpandedURLs: [URL] = []
     private var showFilesInSidebar = true
@@ -843,7 +847,7 @@ final class SidebarViewController: NSViewController {
     }
 
     private func registerDragTypes() {
-        outlineView.registerForDraggedTypes([.fileURL])
+        outlineView.registerForDraggedTypes([.fileURL] + WebPageEngine.imageDragTypes)
     }
 
     // MARK: - Public Selection Info
@@ -1006,6 +1010,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
     }
 
     // 드래그 앤 드롭 타겟 (FolderNode만 허용; 센티넬은 [] 반환)
+    // 파일 드래그는 옮기기, 웹 패널의 이미지 드래그는 복사(저장). 그 밖의 드래그는 받지 않는다.
     func outlineView(
         _ outlineView: NSOutlineView,
         validateDrop info: NSDraggingInfo,
@@ -1013,7 +1018,9 @@ extension SidebarViewController: NSOutlineViewDataSource {
         proposedChildIndex index: Int
     ) -> NSDragOperation {
         guard item is FolderNode else { return [] }
-        return .move
+        if isWebImageDrag?(info) == true { return .copy }
+        let isFileDrag = info.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+        return isFileDrag ? .move : []
     }
 
     func outlineView(
@@ -1023,6 +1030,7 @@ extension SidebarViewController: NSOutlineViewDataSource {
         childIndex index: Int
     ) -> Bool {
         guard let targetNode = item as? FolderNode else { return false }
+        if isWebImageDrag?(info) == true { return onWebImageDrop?(info, targetNode.url) ?? false }
 
         let pasteboard = info.draggingPasteboard
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [

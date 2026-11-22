@@ -29,13 +29,14 @@
 - **Bookmarks** — Bookmark images from anywhere and collect them under a "Bookmarks" section in the sidebar; bookmarked images show a star badge in the grid. Remove, delete, or rename from the bookmark view; missing originals show a placeholder
 - **Categories** — Collect images from different folders into named categories without moving originals. Assign one or multiple categories from the grid context menu or image viewer, and switch between folder and category browsing using the sidebar header icons
 - **Similar Images** — Right-click an image to search within the current image list locally with Apple Vision Image Feature Print (revision 2). Browse up to 100 nearest matches and add selections to categories; saved features are reused until files or the model version change. No API key or separate model installation. [Model and usage](docs/image-similarity.md)
+- **Web Panel** — The globe toolbar button opens a tabbed browser (system WebKit) between the folder sidebar and the image list, with Google/Bing/Naver web and image search. Links and sign-in pop-ups that open a new window open as new tabs, and ⌘-click or middle-click opens any link in a background tab (up to 30 tabs; a page can open at most two tabs per second); add a tab with the + button or **View → New Tab**. Sign-ins and the open tabs persist — on relaunch only the selected tab loads right away. Right-click a web image to save it into the folder you are browsing, or drag it onto the list, a folder tile, or a sidebar folder. The AI and web panels open one at a time. [Design](docs/web-panel-design.md)
 - **Image Editing** — Crop, resize, canvas size, and color adjustment (brightness/contrast/saturation/highlights/shadows) with undo/redo; EXIF orientation handling and print support
 - **Slideshow & QuickLook** — Auto-advancing slideshow and QuickLook preview
 - **Video Player** — Play MP4, MOV, M4V, AVI, MKV files inline with AVKit
 - **Format Conversion** — Export images to JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF
 - **File Management** — Rename, move, copy, duplicate, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete; open any file with a compatible app (or the macOS default app) from the context menu
-- **Keyboard Shortcuts** — Full keyboard support for all major operations
 - **In-App Updates** — **JenaImage → Check for Updates…** shows the latest GitHub release notes and installs it in place after verifying the download (SHA-256 and bundle identity), then relaunches
+- **Keyboard Shortcuts** — Full keyboard support for all major operations
 
 ## Screenshots
 

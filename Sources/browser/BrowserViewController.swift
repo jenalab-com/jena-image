@@ -6,7 +6,11 @@ import Quartz
 private final class DoubleClickCollectionView: NSCollectionView {
     var onDoubleClick: ((IndexPath) -> Void)?
     var onClickSelectedItem: ((IndexPath) -> Void)?
-    var onDropOnItem: ((_ fileURLs: [URL], _ targetIndexPath: IndexPath) -> Bool)?
+    /// 드래그 위치의 항목(없으면 nil)에 대해 받을 동작. nil을 돌려주면 기본 구현에 맡긴다.
+    var dropOperation: ((_ info: NSDraggingInfo, _ target: IndexPath?) -> NSDragOperation?)?
+    /// 놓기. nil을 돌려주면 기본 구현에 맡긴다.
+    var onDrop: ((_ info: NSDraggingInfo, _ target: IndexPath?) -> Bool?)?
+    /// 드래그가 끝나거나 벗어날 때 nil로 불린다(강조 해제).
     var onDragOverItem: ((_ targetIndex: Int?) -> Void)?
     var onSpaceKey: (() -> Void)?
     var onSelectionChanged: (() -> Void)?
@@ -102,44 +106,17 @@ private final class DoubleClickCollectionView: NSCollectionView {
 
     // MARK: - Drop Handling
 
+    /// 레이아웃(메이슨리)과 무관하게 창 좌표 아래의 항목을 찾는다.
     private func itemIndexPath(at windowPoint: NSPoint) -> IndexPath? {
-        guard let layout = collectionViewLayout as? NSCollectionViewFlowLayout else { return nil }
-        let point = convert(windowPoint, from: nil)
+        indexPathForItem(at: convert(windowPoint, from: nil))
+    }
 
-        let inset = layout.sectionInset
-        let itemW = layout.itemSize.width
-        let itemH = layout.itemSize.height
-        let gapX = layout.minimumInteritemSpacing
-        let gapY = layout.minimumLineSpacing
-
-        let x = point.x - inset.left
-        let y = point.y - inset.top
-        guard x >= 0, y >= 0 else { return nil }
-
-        let col = Int(x / (itemW + gapX))
-        let row = Int(y / (itemH + gapY))
-
-        // 아이템 영역 내인지 확인 (간격 제외)
-        let cellX = CGFloat(col) * (itemW + gapX)
-        let cellY = CGFloat(row) * (itemH + gapY)
-        guard x <= cellX + itemW, y <= cellY + itemH else { return nil }
-
-        let contentWidth = bounds.width - inset.left - inset.right
-        let cols = max(1, Int((contentWidth + gapX) / (itemW + gapX)))
-        let index = row * cols + col
-
-        let total = numberOfItems(inSection: 0)
-        guard index >= 0, index < total else { return nil }
-        return IndexPath(item: index, section: 0)
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation?(sender, itemIndexPath(at: sender.draggingLocation)) ?? super.draggingEntered(sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if let indexPath = itemIndexPath(at: sender.draggingLocation) {
-            onDragOverItem?(indexPath.item)
-            return .move
-        }
-        onDragOverItem?(nil)
-        return super.draggingUpdated(sender)
+        dropOperation?(sender, itemIndexPath(at: sender.draggingLocation)) ?? super.draggingUpdated(sender)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -154,21 +131,7 @@ private final class DoubleClickCollectionView: NSCollectionView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         onDragOverItem?(nil)
-        guard let indexPath = itemIndexPath(at: sender.draggingLocation) else {
-            return super.performDragOperation(sender)
-        }
-
-        var fileURLs: [URL] = []
-        for item in sender.draggingPasteboard.pasteboardItems ?? [] {
-            if let urlString = item.string(forType: .fileURL),
-               let url = URL(string: urlString) {
-                fileURLs.append(url)
-            }
-        }
-
-        guard !fileURLs.isEmpty else { return super.performDragOperation(sender) }
-
-        return onDropOnItem?(fileURLs, indexPath) ?? false
+        return onDrop?(sender, itemIndexPath(at: sender.draggingLocation)) ?? super.performDragOperation(sender)
     }
 }
 
@@ -203,6 +166,12 @@ final class BrowserViewController: NSViewController {
     var onRemoveFromCategory: (([URL]) -> Void)?
     var onFindSimilarImage: ((URL) -> Void)?
     var onSelectionChanged: (([URL]) -> Void)?
+    /// 웹 패널에서 끌어온 이미지 드래그인지.
+    var isWebImageDrag: ((NSDraggingInfo) -> Bool)?
+    /// 웹 이미지 놓기. 폴더 타일 위면 그 폴더, 빈 곳이면 nil(지금 폴더).
+    var onWebImageDrop: ((NSDraggingInfo, _ folder: URL?) -> Bool)?
+    /// 빈 곳에 놓은 웹 이미지를 저장할 지금 폴더가 있는지.
+    var hasWebSaveFolder: (() -> Bool)?
     private var isRestoringSelection = false
 
     private func notifySelectionChanged() {
@@ -986,7 +955,7 @@ final class BrowserViewController: NSViewController {
 
         // 드래그 소스 & 드롭 대상
         collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
-        collectionView.registerForDraggedTypes([.fileURL])
+        collectionView.registerForDraggedTypes([.fileURL] + WebPageEngine.imageDragTypes)
 
         // 더블 클릭
         collectionView.onDoubleClick = { [weak self] indexPath in
@@ -999,12 +968,15 @@ final class BrowserViewController: NSViewController {
             self?.scheduleRename(at: indexPath)
         }
 
-        // 폴더로 드래그 앤 드롭
+        // 폴더로 드래그 앤 드롭 · 웹 이미지 놓기
         collectionView.onDragOverItem = { [weak self] targetIndex in
-            self?.handleDragOver(targetIndex: targetIndex)
+            self?.updateDropHighlight(targetIndex: targetIndex)
         }
-        collectionView.onDropOnItem = { [weak self] fileURLs, targetIndexPath in
-            self?.handleDrop(fileURLs: fileURLs, targetIndexPath: targetIndexPath) ?? false
+        collectionView.dropOperation = { [weak self] info, target in
+            self?.dropOperation(for: info, over: target)
+        }
+        collectionView.onDrop = { [weak self] info, target in
+            self?.performDrop(info, on: target)
         }
 
         // 스페이스바 → QuickLook 미리보기
@@ -1173,18 +1145,54 @@ extension BrowserViewController: NSCollectionViewDelegate {
         dropHighlightIndex = targetIndex
     }
 
-    private func handleDragOver(targetIndex: Int?) {
-        guard let idx = targetIndex, let content = contents[safe: idx], content.isFolder else {
-            updateDropHighlight(targetIndex: nil)
-            return
-        }
-        updateDropHighlight(targetIndex: idx)
+    private func folderURL(at target: IndexPath?) -> URL? {
+        guard let target, let content = contents[safe: target.item], content.isFolder else { return nil }
+        return content.url
     }
 
-    private func handleDrop(fileURLs: [URL], targetIndexPath: IndexPath) -> Bool {
+    /// 보드에 실린 파일 주소. 파일 드래그가 아니면 빈 배열.
+    private static func fileURLs(on pasteboard: NSPasteboard) -> [URL] {
+        (pasteboard.pasteboardItems ?? []).compactMap { $0.string(forType: .fileURL).flatMap(URL.init(string:)) }
+    }
+
+    /// 하나라도 옮길 수 없으면 전부 받지 않는다. 폴더를 자기 자신·자기 하위로 옮기지 않고,
+    /// 이미 그 폴더에 있는 항목도 받지 않는다(같은 파일을 겹침으로 보고 덮어쓰면 원본이 지워진다).
+    private static func canMove(_ urls: [URL], into folder: URL) -> Bool {
+        let target = folder.resolvingSymlinksInPath().standardizedFileURL.path.lowercased()
+        return !urls.contains { url in
+            let source = url.resolvingSymlinksInPath().standardizedFileURL.path.lowercased()
+            return target == source || target.hasPrefix(source.hasSuffix("/") ? source : source + "/")
+                || url.deletingLastPathComponent().isSameItem(as: folder)
+        }
+    }
+
+    /// 웹 이미지: 폴더 타일 위면 강조하고 복사, 빈 곳·이미지 타일 위는 지금 폴더가 있을 때만 복사.
+    /// 파일: 옮길 수 있는 폴더 타일 위면 강조하고 옮기기, 빈 곳·이미지 타일 위는 기본 구현(nil). 그 밖의 드래그는 받지 않는다.
+    private func dropOperation(for info: NSDraggingInfo, over target: IndexPath?) -> NSDragOperation? {
+        let folder = folderURL(at: target)
+        if isWebImageDrag?(info) == true {
+            updateDropHighlight(targetIndex: folder == nil ? nil : target?.item)
+            return folder != nil || hasWebSaveFolder?() == true ? .copy : []
+        }
+        let files = Self.fileURLs(on: info.draggingPasteboard)
+        if let folder, !files.isEmpty, Self.canMove(files, into: folder) {
+            updateDropHighlight(targetIndex: target?.item)
+            return .move
+        }
         updateDropHighlight(targetIndex: nil)
-        guard let target = contents[safe: targetIndexPath.item], target.isFolder else { return false }
-        delegate?.browser(self, didRequestMoveToFolder: fileURLs, destination: target.url)
+        if files.isEmpty || folder != nil { return [] }
+        return nil
+    }
+
+    private func performDrop(_ info: NSDraggingInfo, on target: IndexPath?) -> Bool? {
+        updateDropHighlight(targetIndex: nil)
+        let folder = folderURL(at: target)
+        if isWebImageDrag?(info) == true { return onWebImageDrop?(info, folder) ?? false }
+        let files = Self.fileURLs(on: info.draggingPasteboard)
+        guard !files.isEmpty else { return false }
+        guard let folder else { return nil }
+        guard Self.canMove(files, into: folder) else { return false }
+        delegate?.browser(self, didRequestMoveToFolder: files, destination: folder)
         return true
     }
 }
