@@ -14,6 +14,7 @@ README의 스크린샷(`0*.png`)과 데모 GIF(`*.gif`)는 `scripts/media/`로 �
 scripts/media/fetch_demo_library.py      # ~/Pictures/JenaImage Demo 에 Unsplash 사진 81장, CREDITS.md 갱신
 scripts/media/capture_screens.sh         # docs/media/01~08.png
 scripts/media/record_videos.sh           # .build/media-raw/*.mp4 (browse similar compare ai)
+scripts/media/web_scene.sh               # docs/media/09-web-panel.png, 10-web-save.png + .build/media-raw/web.mp4 (인터넷 필요)
 scripts/media/encode_videos.sh           # docs/media/*.gif + .build/media/*.mp4(릴리스 첨부용)
 ```
 
@@ -26,6 +27,16 @@ scripts/media/encode_videos.sh           # docs/media/*.gif + .build/media/*.mp4
 - 녹화 중 접근성 트리 탐색은 몇 초씩 걸리므로 좌표를 미리 재 두고 마우스만 움직인다.
 - 컨텍스트 메뉴는 접근성 트리에 노출되지 않아 클릭 지점 기준 상대 좌표로 고른다. 메뉴 항목이 바뀌면 `record_videos.sh`·`capture_screens.sh`의 오프셋(329pt)을 다시 잰다.
 - 한글 입력 상태에서는 AppleScript `keystroke "v"`가 ⌘V로 잡히지 않아 편집 메뉴로 붙여넣는다.
+
+## 웹 패널 장면
+
+`web_scene.sh`는 스크린샷 2장과 영상 1편을 한 번에 만든다. 다른 장면과 섞이지 않게 데모 라이브러리에 `Web Finds` 폴더를 만들어 쓰고 끝나면 지운다.
+
+- 웹 패널에는 [Lorem Picsum 사진 모음](https://picsum.photos/images)을 띄운다(`make_demo_app.sh`가 탭 둘을 심어 둔다). 데모 앱은 번들 ID가 달라 웹 로그인·쿠키도 실제 앱과 분리된다.
+- 웹 페이지 안의 요소는 접근성 트리에서 찾기에 느리고 불안정해서 **창 기준 고정 좌표**를 쓴다(창 (80,60) 1400×880, 사이드바 220pt, 웹 패널 480pt). 사이트 배치가 바뀌면 스크립트 위쪽의 `IMG`·`DROP`·`TAB1`·`TAB2`·`MENU_DX/DY`를 다시 잰다.
+- 끌어다 놓기는 `mouse drag`로 실제 마우스 이벤트를 보낸다 — 누른 뒤 조금 움직여 끌기를 시작시키고, 목적지에서 잠깐 머물렀다 놓는다.
+- 우클릭 메뉴는 창과 별개의 창이라 `shot`(창 캡처)에 담기지 않는다. 메뉴가 뜬 화면은 `shot_region`(화면 영역 캡처)으로 찍는다.
+- 처음 실행하면 사이트의 쿠키 안내가 뜬다. 스크립트가 "Reject"를 찾아 누르고, 그 뒤로는 데모 앱의 웹 저장소에 기억된다.
 
 ## AI 영상 편집
 

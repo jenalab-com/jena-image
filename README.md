@@ -51,6 +51,8 @@
 | <img src="docs/media/05-compare.png" alt="Compare three images side by side" width="440"> | <img src="docs/media/06-categories.png" alt="Category browsing" width="440"> |
 | **Similar Images** | **AI Image Chat** |
 | <img src="docs/media/07-similar.png" alt="Similar image search results" width="440"> | <img src="docs/media/08-ai-chat.png" alt="AI image chat panel with a reference image" width="440"> |
+| **Web Panel** | **Save from the Web** |
+| <img src="docs/media/09-web-panel.png" alt="Web panel with tabs between the sidebar and the image list, with a dragged web image saved to the folder" width="440"> | <img src="docs/media/10-web-save.png" alt="Right-click menu on a web image with a save-to-folder item" width="440"> |
 
 ### Demo
 
@@ -59,8 +61,10 @@
 | <img src="docs/media/browse.gif" alt="Browsing, layout switching and viewer navigation" width="440"> | <img src="docs/media/similar.gif" alt="Finding similar images from the context menu" width="440"> |
 | **Compare with synced zoom** | **AI image generation** |
 | <img src="docs/media/compare.gif" alt="Comparing images with synchronized zoom" width="440"> | <img src="docs/media/ai.gif" alt="Generating an image from a reference with Codex (waiting time sped up)" width="440"> |
+| **Collecting images from the web** | |
+| <img src="docs/media/web.gif" alt="Opening the web panel, dragging a web image into a folder, saving another from the right-click menu and switching tabs" width="440"> | |
 
-The UI is shown in Korean. Demo photos are from [Unsplash](docs/media/CREDITS.md). The AI demo's waiting time is sped up; actual generation took about two minutes.
+The UI is shown in Korean. Demo photos are from [Unsplash](docs/media/CREDITS.md); the web panel demo browses the [Lorem Picsum](https://picsum.photos/images) gallery of Unsplash photos. The AI demo's waiting time is sped up; actual generation took about two minutes.
 
 ## Requirements
 

@@ -6,6 +6,7 @@
 //   mouse rclick x y [seconds]  이동 후 우클릭
 //   mouse cmdclick x y [seconds] 이동 후 ⌘클릭(추가 선택)
 //   mouse scroll dy [steps]     세로 스크롤(픽셀, 음수 = 아래로)
+//   mouse drag x1 y1 x2 y2 [seconds]  (x1,y1)에서 누른 채 (x2,y2)로 끌어다 놓기
 import AppKit
 
 let args = CommandLine.arguments
@@ -50,6 +51,24 @@ case "scroll":
                 wheel1: Int32(total / Double(steps)), wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
         usleep(16_000)
     }
+case "drag":
+    // 실제 끌어다 놓기: 누른 뒤 조금 움직여 끌기를 시작시키고, 목적지까지 부드럽게 옮긴 다음 잠깐 머물렀다 놓는다.
+    let from = CGPoint(x: num(2, 0), y: num(3, 0)), to = CGPoint(x: num(4, 0), y: num(5, 0))
+    let seconds = num(6, 1.2)
+    move(to: from, seconds: 0.6)
+    usleep(200_000)
+    post(.leftMouseDown, from); usleep(250_000)
+    for i in 1...8 { post(.leftMouseDragged, CGPoint(x: from.x + Double(i) * 2, y: from.y + Double(i))); usleep(30_000) }
+    let start = CGPoint(x: from.x + 16, y: from.y + 8)
+    let steps = max(1, Int(seconds * 90))
+    for i in 1...steps {
+        let t = Double(i) / Double(steps)
+        let k = t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2
+        post(.leftMouseDragged, CGPoint(x: start.x + (to.x - start.x) * k, y: start.y + (to.y - start.y) * k))
+        usleep(useconds_t(seconds / Double(steps) * 1_000_000))
+    }
+    usleep(500_000)   // 놓을 자리가 드래그를 받아들일 시간을 준다
+    post(.leftMouseUp, to)
 default:
     let p = CGPoint(x: num(2, 0), y: num(3, 0))
     move(to: p, seconds: num(4, 0.6))

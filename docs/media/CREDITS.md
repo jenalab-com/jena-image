@@ -85,3 +85,7 @@ Screenshots and demo videos use photos from [Unsplash](https://unsplash.com) (vi
 | Still Life/still-19.jpg | petradr | https://unsplash.com/photos/8hgm6mKK04U |
 | Still Life/still-20.jpg | Galymzhan Abdugalimov | https://unsplash.com/photos/ICW6QYOcdlg |
 | Still Life/still-21.jpg | Elias Carlsson | https://unsplash.com/photos/wSb8d-ke5-4 |
+
+## Web panel demo
+
+`09-web-panel.png`, `10-web-save.png` and `web.gif` show the [Lorem Picsum image gallery](https://picsum.photos/images) in the web panel. The photos visible there (gallery items #0 and #1, credited on that page to Alejandro Escamilla) are Unsplash photos served by Lorem Picsum under the [Unsplash License](https://unsplash.com/license).

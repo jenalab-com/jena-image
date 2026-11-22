@@ -10,7 +10,7 @@ RAW=$ROOT/.build/media-raw
 MP4_OUT=$ROOT/.build/media
 GIF_OUT=$ROOT/docs/media
 mkdir -p "$MP4_OUT" "$GIF_OUT"
-names=(${@:-browse similar compare ai})
+names=(${@:-browse similar compare ai web})
 
 for name in $names; do
   src=$RAW/$name.mp4

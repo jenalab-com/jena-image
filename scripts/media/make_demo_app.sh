@@ -47,4 +47,9 @@ EOF
 )
 defaults write "$DEMO_ID" imageCategories.v1 -data "$categories"
 
+# 웹 패널: 탭 둘을 열어 둔 상태로 시작한다(패널은 접혀 있다가 처음 열 때 복원된다).
+# Lorem Picsum은 Unsplash 사진 모음이라 데모 라이브러리와 같은 라이선스다.
+defaults write "$DEMO_ID" webTabAddresses -array "https://picsum.photos/images" "https://picsum.photos/"
+defaults write "$DEMO_ID" webSelectedTabIndex -int 0
+
 echo "$DEMO_APP"

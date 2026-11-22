@@ -29,8 +29,15 @@ shot() {
   echo "captured $OUT/$1"
 }
 
+# 창 영역을 화면 그대로 캡처한다(그림자 없음). 창 밖 요소가 아닌 컨텍스트 메뉴처럼 창 위에 뜬 것도 함께 담긴다. $1=파일명
+shot_region() {
+  local info=($($WININFO $DEMO_ID))
+  screencapture -x -R ${info[2]},${info[3]},${info[4]},${info[5]} "$OUT/$1"
+  echo "captured $OUT/$1"
+}
+
 MOUSE=$ROOT/.build/mouse
-[[ -x $MOUSE ]] || swiftc -O "$ROOT/scripts/media/mouse.swift" -o "$MOUSE"
+[[ -x $MOUSE && $MOUSE -nt $ROOT/scripts/media/mouse.swift ]] || swiftc -O "$ROOT/scripts/media/mouse.swift" -o "$MOUSE"
 
 # 접근성 설명(description)·도움말(help)·이름(title)·라벨 값(value)으로 요소를 찾아 중심 좌표 "x y"를 출력한다. $2=역할(선택), $3=창 번호(기본 1)
 center_of() {
