@@ -65,7 +65,7 @@ A를 고른 이유: jena-web의 창(`BrowserWindowController`)은 독립 창이�
 
 ### 어떤 이미지를
 
-`<img>`만 대상이다. 패널이 페이지에 넣는 스크립트(전용 콘텐츠 월드)가 `contextmenu`와 `dragstart`에서 대상 `<img>`의 `currentSrc`·`src`·`srcset`과 페이지 주소를 앱으로 알린다. 대상이 링크(`<a>`) 안의 `<img>`여도 이미지를 찾는다.
+`<img>`만 대상이다. 패널이 페이지에 넣는 스크립트(전용 콘텐츠 월드)가 `contextmenu`와 `dragstart`에서 대상 `<img>`의 `currentSrc`·`src`·`srcset`과 페이지 주소를 앱으로 알린다. 대상이 링크(`<a>`) 안의 `<img>`여도 이미지를 찾는다. 스크립트는 사용자의 실제 동작(`event.isTrusted`)만 받는다 — 페이지가 `dispatchEvent`로 만든 가짜 우클릭·끌기로 저장될 이미지를 바꿔치기하지 못하게 한다. 끌기가 끝나면(`dragend`) 알린 이미지를 지운다.
 
 - 주소 고르기(Swift, 단위 테스트 대상): `srcset`에 너비(`w`) 후보가 있으면 가장 큰 것, 없으면 `currentSrc`, 그다음 `src`. 상대 주소는 페이지 주소 기준으로 푼다.
 - `http`·`https`·`data:`만 저장한다.
