@@ -218,6 +218,47 @@ func runWebPanelEngineTests() {
         check(separatorSecond, "구분선")
     }
 
+    runTest("앱에서는 페이지가 만든 가짜 우클릭·끌기를 받지 않고, 실제 우클릭은 받는다") {
+        WebPageEngine.requiresTrustedEvents = true
+        defer { WebPageEngine.requiresTrustedEvents = false }
+        let strict = WebPageEngine(dataStore: .nonPersistent())
+        let strictWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 640), styleMask: [.titled], backing: .buffered, defer: false)
+        strict.containerView.frame = strictWindow.contentView!.bounds
+        strictWindow.contentView!.addSubview(strict.containerView)
+        defer { strictWindow.close() }
+        strict.isPresented = true
+        strict.load(server.baseURL.appendingPathComponent("page.html"))
+        check(waitUntil(timeout: 10) { !strict.isLoading && strict.currentURL?.lastPathComponent == "page.html" }, "불러옴")
+        // 페이지 스크립트가 만든 이벤트: 받지 않는다.
+        var done = false
+        strict.webView.evaluateJavaScript("""
+            (() => { const i = document.getElementById('a');
+                     i.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 50 }));
+                     const d = new DragEvent('dragstart', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 });
+                     i.dispatchEvent(d); return true; })()
+            """) { _, _ in done = true }
+        check(waitUntil(timeout: 5) { done }, "가짜 이벤트 보냄")
+        _ = waitUntil(timeout: 0.6) { strict.lastContextImage != nil || strict.takeDraggedImage() != nil }
+        check(strict.lastContextImage == nil, "가짜 우클릭은 받지 않음")
+        check(strict.takeDraggedImage() == nil, "가짜 끌기는 받지 않음")
+        // 실제 우클릭(마우스 이벤트): 받는다. 메뉴는 열리자마자 닫는다.
+        let observer = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { note in
+            guard let object = note.object as? NSMenu else { return }
+            nonisolated(unsafe) let menu = object
+            RunLoop.main.perform(inModes: [.eventTracking, .default]) { MainActor.assumeIsolated { menu.cancelTrackingWithoutAnimation() } }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let view = strict.webView
+        let location = view.convert(NSPoint(x: 100, y: view.isFlipped ? 100 : view.bounds.height - 100), to: nil)
+        for type in [NSEvent.EventType.rightMouseDown, .rightMouseUp] {
+            let event = NSEvent.mouseEvent(with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                           windowNumber: strictWindow.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
+            if type == .rightMouseDown { view.rightMouseDown(with: event) } else { view.rightMouseUp(with: event) }
+            _ = waitUntil(timeout: 0.3) { strict.lastContextImage != nil }
+        }
+        check(waitUntil(timeout: 5) { strict.lastContextImage != nil }, "실제 우클릭은 받음")
+    }
+
     runTest("이미지를 폴더에 저장하고 Referer와 이름을 지킨다") {
         results.removeAll(); failures.removeAll()
         saver.save(report(src: "/a.png"), to: folder)

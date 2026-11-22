@@ -91,7 +91,7 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
         self.configuration = configuration
         super.init()
         let controller = configuration.userContentController
-        controller.addUserScript(WKUserScript(source: Self.captureScript, injectionTime: .atDocumentStart,
+        controller.addUserScript(WKUserScript(source: Self.captureScript(requireTrusted: Self.requiresTrustedEvents), injectionTime: .atDocumentStart,
                                               forMainFrameOnly: false, in: Self.captureWorld))
         controller.add(WebScriptMessageProxy(engine: self), contentWorld: Self.captureWorld, name: Self.messageName)
         activate(makeTab(configuration: configuration, at: 0, openerID: nil, pendingURL: nil))
@@ -485,8 +485,12 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
     /// - 넘겨 보는 이미지(회전목마) 등은 `dragstart`를 취소해 끌기 자체가 시작되지 않는다 → 이미지 끌기면
     ///   페이지 처리기에 닿기 전에 전파를 끊는다. 그 이미지를 끌어서 넘기는 동작은 이 패널에서 되지 않는다(화살표로 넘긴다).
     /// - `draggable=false`·`-webkit-user-drag: none`인 이미지와 덮개에 가린 이미지는 누르고 있는 동안만 끌 수 있게 바꿨다가 되돌린다.
-    private static let captureScript = """
+    ///
+    /// **사용자가 실제로 한 동작만 받는다**(`event.isTrusted`). 페이지 스크립트가 `dispatchEvent`로 만든 가짜
+    /// 우클릭·끌기를 받으면, 페이지가 "저장될 이미지"를 바꿔치기할 수 있다(2026-11-23 보안 검토).
+    private static func captureScript(requireTrusted: Bool) -> String { """
         (() => {
+          const genuine = event => event.isTrusted || !\(requireTrusted);
           const imageFor = event => {
             for (const node of event.composedPath()) {
               if (node && node.tagName === 'IMG') return node;
@@ -514,9 +518,13 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
             window.webkit.messageHandlers.\(messageName).postMessage(body);
             return image;
           };
-          window.addEventListener('contextmenu', event => { send('contextmenu', event); }, true);
+          window.addEventListener('contextmenu', event => { if (genuine(event)) send('contextmenu', event); }, true);
           window.addEventListener('dragstart', event => {
-            if (send('dragstart', event)) event.stopImmediatePropagation();
+            if (genuine(event) && send('dragstart', event)) event.stopImmediatePropagation();
+          }, true);
+          // 끌기가 끝나면(어디에 놓았든, 취소했든) 알린 이미지를 지운다 — 다음 끌기에 남지 않게.
+          window.addEventListener('dragend', event => {
+            if (genuine(event)) window.webkit.messageHandlers.\(messageName).postMessage({ kind: 'dragend', pageURL: location.href });
           }, true);
 
           let restore = null;
@@ -534,7 +542,7 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
           };
           window.addEventListener('mousedown', event => {
             undo();
-            if (event.button !== 0 || !(event.target instanceof Element)) return;
+            if (!genuine(event) || event.button !== 0 || !(event.target instanceof Element)) return;
             const image = imageFor(event);
             if (!image) return;
             const target = event.target;
@@ -548,9 +556,14 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
           window.addEventListener('dragend', undo, true);
         })();
         """
+    }
 
     /// 고른 탭의 알림만 받는다. 뒤 탭은 보이지 않아 손으로 누르거나 끌 수 없으므로, 그 탭 스크립트의 알림이
     /// 앞 탭에서 방금 누른·끈 이미지를 덮지 않게 한다.
+    /// 이미지 알림을 사용자의 실제 동작에서만 받을지. 앱에서는 늘 true다.
+    /// UI 테스트는 합성 이벤트(`dispatchEvent`)로 페이지를 조작하므로 엔진을 만들기 전에 false로 둔다.
+    nonisolated(unsafe) static var requiresTrustedEvents = true
+
     fileprivate func receive(_ message: WKScriptMessage) {
         guard message.name == Self.messageName, message.webView === selected.view,
               let body = message.body as? [String: Any] else { return }
@@ -558,6 +571,7 @@ final class WebPageEngine: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownl
         switch body["kind"] as? String {
         case "contextmenu": lastContextImage = report
         case "dragstart": draggedImage = report.map { ($0, Date()) }
+        case "dragend": draggedImage = nil   // 놓기는 이보다 먼저 처리된다(놓을 자리 → 출발지 순)
         default: break
         }
     }

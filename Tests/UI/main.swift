@@ -11,6 +11,8 @@ func descendants<T: NSView>(_ view: NSView, of type: T.Type) -> [T] {
 }
 
 let app = NSApplication.shared
+// 웹 패널 테스트는 합성 이벤트로 페이지를 조작한다. 실제 동작만 받는 규칙은 전용 테스트에서 따로 켠다.
+WebPageEngine.requiresTrustedEvents = false
 app.setActivationPolicy(.prohibited)
 let suite = "jena-category-ui-tests-\(UUID().uuidString)"
 let defaults = UserDefaults(suiteName: suite)!
