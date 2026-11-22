@@ -1,6 +1,6 @@
 APP_NAME     = JenaImage
 BUNDLE_ID    = com.jenalab.jenaimage
-VERSION      = 2.0.1
+VERSION      = 2.1.0
 BUILD_DIR    = .build
 INSTALL_DIR ?= /Applications
 SOURCES      = $(shell find Sources -name '*.swift')
