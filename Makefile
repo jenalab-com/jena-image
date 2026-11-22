@@ -50,6 +50,8 @@ dmg: build
 	@echo "Created $(BUILD_DIR)/$(APP_NAME).dmg"
 
 TEST_SOURCES = Sources/ai/AIConnectionService.swift \
+               Sources/services/AppUpdateService.swift \
+               Sources/services/AppUpdateInstaller.swift \
                Sources/ai/AIImageGenerationService.swift \
                Sources/services/ThumbnailScheduler.swift \
                Sources/models/BrowserLayoutMode.swift \

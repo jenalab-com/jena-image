@@ -21,6 +21,7 @@ enum MainMenu {
     private static func createAppMenu() -> NSMenuItem {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: L10n.string(.about), action: #selector(AppDelegate.showAbout(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: L10n.string(.checkForUpdates), action: #selector(AppDelegate.checkForUpdates(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
 
         let prefs = NSMenuItem(title: L10n.string(.preferences), action: #selector(AppDelegate.showPreferences(_:)), keyEquivalent: ",")

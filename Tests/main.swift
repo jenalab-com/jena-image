@@ -2,6 +2,7 @@ import Foundation
 
 runAIConnectionTests()
 runAIImageGenerationTests()
+runAppUpdateTests()
 runSchedulerTests()
 runMasonryTests()
 runCategoryStoreTests()

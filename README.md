@@ -35,6 +35,7 @@
 - **Format Conversion** — Export images to JPEG, PNG, WebP, HEIC, HEIF, AVIF, TIFF, BMP, GIF
 - **File Management** — Rename, move, copy, duplicate, delete files with drag-and-drop support; sidebar context menu with Reveal in Finder, Rename, Export, Delete; open any file with a compatible app (or the macOS default app) from the context menu
 - **Keyboard Shortcuts** — Full keyboard support for all major operations
+- **In-App Updates** — **JenaImage → Check for Updates…** shows the latest GitHub release notes and installs it in place after verifying the download (SHA-256 and bundle identity), then relaunches
 
 ## Screenshots
 

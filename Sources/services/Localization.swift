@@ -22,6 +22,7 @@ enum L10nKey: String {
     // App
     case appName
     case about
+    case checkForUpdates
     case preferences
     case hideApp
     case hideOthers
@@ -158,6 +159,7 @@ enum L10n {
         .korean: [
             .appName: "JenaImage",
             .about: "JenaImage에 대하여",
+            .checkForUpdates: "업데이트 확인…",
             .preferences: "설정…",
             .hideApp: "JenaImage 숨기기",
             .hideOthers: "기타 숨기기",
@@ -244,6 +246,7 @@ enum L10n {
         .english: [
             .appName: "JenaImage",
             .about: "About JenaImage",
+            .checkForUpdates: "Check for Updates…",
             .preferences: "Settings…",
             .hideApp: "Hide JenaImage",
             .hideOthers: "Hide Others",
@@ -330,6 +333,7 @@ enum L10n {
         .japanese: [
             .appName: "JenaImage",
             .about: "JenaImageについて",
+            .checkForUpdates: "アップデートを確認…",
             .preferences: "設定…",
             .hideApp: "JenaImageを隠す",
             .hideOthers: "ほかを隠す",
@@ -416,6 +420,7 @@ enum L10n {
         .chinese: [
             .appName: "JenaImage",
             .about: "关于 JenaImage",
+            .checkForUpdates: "检查更新…",
             .preferences: "设置…",
             .hideApp: "隐藏 JenaImage",
             .hideOthers: "隐藏其他",

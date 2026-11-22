@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HelpWindowController.shared.show()
     }
 
+    @objc func checkForUpdates(_ sender: Any?) {
+        // 메뉴 동작은 메인 스레드에서 호출된다.
+        MainActor.assumeIsolated { UpdateWindowController.shared.showAndCheck() }
+    }
+
     @objc func showPreferences(_ sender: Any?) {
         PreferencesWindowController.shared.show()
     }

@@ -201,6 +201,7 @@ MainActor.assumeIsolated { runCompareLayoutTests(directory: temporary) }
 MainActor.assumeIsolated { runViewerColorTests(directory: temporary) }
 
 for url in controller.folderWatcher.watchedURLs { controller.folderWatcher.unwatch(url) }
+MainActor.assumeIsolated { runUpdateWindowTests() }
 controller.window?.close()
 defaults.removePersistentDomain(forName: suite)
 try FileManager.default.removeItem(at: temporary)
