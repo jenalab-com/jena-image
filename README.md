@@ -76,7 +76,7 @@ This project uses a Makefile-based build system — no Xcode project required.
 
 ```bash
 # Clone
-git clone https://github.com/jenalab/jena-image.git
+git clone https://github.com/jenalab-com/jena-image.git
 cd jena-image
 
 # Build
@@ -142,7 +142,7 @@ Sources/
 
 ## License
 
-Proprietary — Copyright (c) 2026 JenaLab. All rights reserved. See [LICENSE](LICENSE) for terms.
+MIT — Copyright (c) 2026 JenaLab. See [LICENSE](LICENSE).
 
 ## Author
 
