@@ -419,6 +419,19 @@ final class SidebarViewController: NSViewController {
             parentNode = rootNodes.first
         }
         guard let parentNode else { return }
+        beginNewSubfolder(in: parentNode)
+    }
+
+    /// 우클릭한 폴더 안에 새 폴더 만들기
+    @objc private func createSubfolderFromMenu(_ sender: Any?) {
+        let clickedRow = outlineView.clickedRow
+        guard clickedRow >= 0, let node = outlineView.item(atRow: clickedRow) as? FolderNode else { return }
+        beginNewSubfolder(in: node)
+    }
+
+    /// 부모 폴더 아래에 임시 행을 끼워 넣고 이름 입력을 시작한다.
+    private func beginNewSubfolder(in parentNode: FolderNode) {
+        guard !isCreatingFolder else { return }
         newFolderParentNode = parentNode
         isCreatingFolder = true
 
@@ -775,10 +788,16 @@ final class SidebarViewController: NSViewController {
     private static let menuRemoveTag  = 4
     private static let menuDeleteTag  = 5
     private static let menuColorTag   = 6
+    private static let menuNewFolderTag = 7
 
     private func setupContextMenu() {
         let menu = NSMenu()
         menu.delegate = self
+
+        let newFolderItem = NSMenuItem(title: "새 폴더", action: #selector(createSubfolderFromMenu(_:)), keyEquivalent: "")
+        newFolderItem.target = self
+        newFolderItem.tag = Self.menuNewFolderTag
+        menu.addItem(newFolderItem)
 
         let revealItem = NSMenuItem(title: "Finder에서 보기", action: #selector(revealInFinderFromMenu(_:)), keyEquivalent: "")
         revealItem.target = self
@@ -1330,6 +1349,8 @@ extension SidebarViewController: NSMenuDelegate {
 
         for item in menu.items {
             switch item.tag {
+            case Self.menuNewFolderTag:
+                item.isHidden = !(clickedItem is FolderNode)
             case Self.menuRevealTag:
                 item.isHidden = false
             case Self.menuRenameTag:
