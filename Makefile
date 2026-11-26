@@ -6,6 +6,11 @@ INSTALL_DIR ?= /Applications
 SOURCES      = $(shell find Sources -name '*.swift')
 FRAMEWORKS   = -framework AppKit -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation -framework Quartz -framework QuickLookThumbnailing -framework Vision -framework WebKit
 
+# 최소 지원 macOS. 지정하지 않으면 swiftc가 툴체인 기본값(최신 macOS)으로 찍어서
+# 그보다 낮은 macOS에서 "macOS XX 이상이 필요합니다"로 실행이 막힌다. Info.plist의 LSMinimumSystemVersion과 맞춘다.
+MACOS_MIN    = 14.0
+SWIFT_TARGET = -target $(shell uname -m)-apple-macos$(MACOS_MIN)
+
 APP_BUNDLE   = $(BUILD_DIR)/$(APP_NAME).app
 BINARY       = $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 
@@ -16,7 +21,7 @@ build: $(BINARY)
 $(BINARY): $(SOURCES) Info.plist $(wildcard Resources/$(APP_NAME).icns)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
-	swiftc $(FRAMEWORKS) -O $(SOURCES) -o $(BINARY)
+	swiftc $(SWIFT_TARGET) $(FRAMEWORKS) -O $(SOURCES) -o $(BINARY)
 	@cp Info.plist $(APP_BUNDLE)/Contents/
 	@[ -f Resources/$(APP_NAME).icns ] && cp Resources/$(APP_NAME).icns $(APP_BUNDLE)/Contents/Resources/$(APP_NAME).icns || true
 	@# 번들 전체 ad-hoc 서명. 링커가 붙인 실행 파일 서명만으로는 Info.plist·리소스가 봉인되지 않아
@@ -77,12 +82,12 @@ TEST_SOURCES = Sources/ai/AIConnectionService.swift \
 
 test:
 	@mkdir -p $(BUILD_DIR)
-	swiftc -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers $(TEST_SOURCES) -o $(BUILD_DIR)/tests
+	swiftc $(SWIFT_TARGET) -framework AppKit -framework ImageIO -framework QuickLookThumbnailing -framework UniformTypeIdentifiers $(TEST_SOURCES) -o $(BUILD_DIR)/tests
 	@$(BUILD_DIR)/tests
 
 # UI 연결 검증은 실제 사용자 캐시 대신 메모리 썸네일 공급자를 사용한다.
 .PHONY: test-ui
 test-ui:
 	@mkdir -p $(BUILD_DIR)
-	swiftc $(FRAMEWORKS) $(filter-out Sources/app/main.swift Sources/services/ThumbnailProvider+App.swift,$(SOURCES)) Tests/TestSupport.swift $(wildcard Tests/UI/*.swift) -o $(BUILD_DIR)/category-ui-tests
+	swiftc $(SWIFT_TARGET) $(FRAMEWORKS) $(filter-out Sources/app/main.swift Sources/services/ThumbnailProvider+App.swift,$(SOURCES)) Tests/TestSupport.swift $(wildcard Tests/UI/*.swift) -o $(BUILD_DIR)/category-ui-tests
 	@$(BUILD_DIR)/category-ui-tests
